@@ -1,0 +1,14 @@
+{
+  "name": "sitecheck",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Periodic login checker for botc.app using Playwright",
+  "type": "module",
+  "scripts": {
+    "login": "node src/botc-login.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.47.2"
+  }
+}
