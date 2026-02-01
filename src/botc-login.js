@@ -100,8 +100,30 @@ async function attemptLogin(page) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: HEADLESS });
-  const context = await browser.newContext();
+  const browser = await chromium.launch({
+    headless: HEADLESS,
+    args: ['--disable-blink-features=AutomationControlled'],
+  });
+  const context = await browser.newContext({
+    userAgent: USER_AGENT,
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
+    viewport: { width: 1280, height: 720 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5],
+    });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en'],
+    });
+  });
   const page = await context.newPage();
 
   try {
