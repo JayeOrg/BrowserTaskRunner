@@ -5,6 +5,8 @@ const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
 const EMAIL = process.env.BOTC_EMAIL;
 const PASSWORD = process.env.BOTC_PASSWORD;
 const SUCCESS_SELECTOR = process.env.BOTC_SUCCESS_SELECTOR;
+const USER_AGENT = process.env.BOTC_USER_AGENT
+  || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 const WAIT_FOR_MANUAL_VERIFICATION = ['1', 'true', 'yes'].includes(
   (process.env.BOTC_WAIT_FOR_MANUAL_VERIFICATION || 'true').toLowerCase(),
 );

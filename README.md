@@ -33,5 +33,6 @@ BOTC_HEADLESS=false npm run login
 - `BOTC_SUCCESS_SELECTOR`: A selector that should be visible when login succeeds.
 - `BOTC_CHECK_INTERVAL_MS`: Override the retry interval in milliseconds (defaults to 300000).
 - `BOTC_HEADLESS`: Set to `false` to show the browser window (defaults to `true`).
+- `BOTC_USER_AGENT`: Override the browser user agent string.
 
 The script uses a simple heuristic to detect success when `BOTC_SUCCESS_SELECTOR` is not set. If the site uses a different success indicator, provide a selector for a reliable signal.
