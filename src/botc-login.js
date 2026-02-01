@@ -5,6 +5,9 @@ const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
 const EMAIL = process.env.BOTC_EMAIL;
 const PASSWORD = process.env.BOTC_PASSWORD;
 const SUCCESS_SELECTOR = process.env.BOTC_SUCCESS_SELECTOR;
+const WAIT_FOR_MANUAL_VERIFICATION = ['1', 'true', 'yes'].includes(
+  (process.env.BOTC_WAIT_FOR_MANUAL_VERIFICATION || 'true').toLowerCase(),
+);
 const HEADLESS = !['0', 'false', 'no'].includes(
   (process.env.BOTC_HEADLESS || 'true').toLowerCase(),
 );
@@ -16,6 +19,31 @@ if (!EMAIL || !PASSWORD) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function waitForManualVerification(page) {
+  if (!WAIT_FOR_MANUAL_VERIFICATION) {
+    return;
+  }
+
+  const challengeSelectors = [
+    'iframe[title*="challenge"]',
+    'iframe[title*="Turnstile"]',
+    'iframe[src*="turnstile"]',
+    'iframe[src*="challenge"]',
+    'iframe[src*="cloudflare"]',
+  ];
+
+  for (const frameSelector of challengeSelectors) {
+    const frameLocator = page.frameLocator(frameSelector);
+    const checkbox = frameLocator.locator('input[type="checkbox"], div[role="checkbox"], .ctp-checkbox-container').first();
+    const visible = await checkbox.isVisible({ timeout: 1500 }).catch(() => false);
+    if (!visible) {
+      continue;
+    }
+    console.log('Cloudflare verification detected. Please complete the check in the opened browser.');
+    await checkbox.waitFor({ state: 'hidden', timeout: 120000 }).catch(() => {});
+    return;
+  }
+}
 
 async function playAlert(page) {
   try {
@@ -56,6 +84,7 @@ async function isLoginSuccessful(page) {
 
 async function attemptLogin(page) {
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
+  await waitForManualVerification(page);
 
   const emailInput = page.locator('input[type="email"], input[name="email"], input#email').first();
   const passwordInput = page.locator('input[type="password"], input[name="password"], input#password').first();
@@ -67,6 +96,7 @@ async function attemptLogin(page) {
     submitButton.click(),
     page.waitForLoadState('domcontentloaded'),
   ]);
+  await waitForManualVerification(page);
 }
 
 async function run() {
