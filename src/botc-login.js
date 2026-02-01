@@ -5,9 +5,9 @@ const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
 const EMAIL = process.env.BOTC_EMAIL;
 const PASSWORD = process.env.BOTC_PASSWORD;
 const SUCCESS_SELECTOR = process.env.BOTC_SUCCESS_SELECTOR;
-const USER_AGENT =
-  process.env.BOTC_USER_AGENT ||
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
+const WAIT_FOR_MANUAL_VERIFICATION = ['1', 'true', 'yes'].includes(
+  (process.env.BOTC_WAIT_FOR_MANUAL_VERIFICATION || 'true').toLowerCase(),
+);
 const HEADLESS = !['0', 'false', 'no'].includes(
   (process.env.BOTC_HEADLESS || 'true').toLowerCase(),
 );
@@ -19,28 +19,11 @@ if (!EMAIL || !PASSWORD) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-async function humanClick(page, locator) {
-  const handle = await locator.elementHandle();
-  if (!handle) {
-    return false;
+async function waitForManualVerification(page) {
+  if (!WAIT_FOR_MANUAL_VERIFICATION) {
+    return;
   }
-  const box = await handle.boundingBox();
-  if (!box) {
-    return false;
-  }
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(x - randomBetween(5, 20), y - randomBetween(5, 20));
-  await page.mouse.move(x, y, { steps: randomBetween(12, 25) });
-  await page.mouse.down();
-  await page.waitForTimeout(randomBetween(80, 160));
-  await page.mouse.up();
-  return true;
-}
 
-async function handleCloudflareHumanVerification(page) {
   const challengeSelectors = [
     'iframe[title*="challenge"]',
     'iframe[title*="Turnstile"]',
@@ -48,28 +31,18 @@ async function handleCloudflareHumanVerification(page) {
     'iframe[src*="challenge"]',
     'iframe[src*="cloudflare"]',
   ];
-  const checkboxSelectors = [
-    'input[type="checkbox"]',
-    'div[role="checkbox"]',
-    '.ctp-checkbox-container',
-  ];
 
   for (const frameSelector of challengeSelectors) {
     const frameLocator = page.frameLocator(frameSelector);
-    for (const checkboxSelector of checkboxSelectors) {
-      const checkbox = frameLocator.locator(checkboxSelector).first();
-      const visible = await checkbox.isVisible({ timeout: 1500 }).catch(() => false);
-      if (!visible) {
-        continue;
-      }
-      const clicked = await humanClick(page, checkbox);
-      if (clicked) {
-        await page.waitForTimeout(randomBetween(1500, 3000));
-        return true;
-      }
+    const checkbox = frameLocator.locator('input[type="checkbox"], div[role="checkbox"], .ctp-checkbox-container').first();
+    const visible = await checkbox.isVisible({ timeout: 1500 }).catch(() => false);
+    if (!visible) {
+      continue;
     }
+    console.log('Cloudflare verification detected. Please complete the check in the opened browser.');
+    await checkbox.waitFor({ state: 'hidden', timeout: 120000 }).catch(() => {});
+    return;
   }
-  return false;
 }
 
 async function playAlert(page) {
@@ -111,7 +84,7 @@ async function isLoginSuccessful(page) {
 
 async function attemptLogin(page) {
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
-  await handleCloudflareHumanVerification(page);
+  await waitForManualVerification(page);
 
   const emailInput = page.locator('input[type="email"], input[name="email"], input#email').first();
   const passwordInput = page.locator('input[type="password"], input[name="password"], input#password').first();
@@ -123,7 +96,7 @@ async function attemptLogin(page) {
     submitButton.click(),
     page.waitForLoadState('domcontentloaded'),
   ]);
-  await handleCloudflareHumanVerification(page);
+  await waitForManualVerification(page);
 }
 
 async function run() {
