@@ -5,6 +5,9 @@ const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
 const EMAIL = process.env.BOTC_EMAIL;
 const PASSWORD = process.env.BOTC_PASSWORD;
 const SUCCESS_SELECTOR = process.env.BOTC_SUCCESS_SELECTOR;
+const HEADLESS = !['0', 'false', 'no'].includes(
+  (process.env.BOTC_HEADLESS || 'true').toLowerCase(),
+);
 const CHECK_INTERVAL_MS = Number.parseInt(process.env.BOTC_CHECK_INTERVAL_MS || '300000', 10);
 
 if (!EMAIL || !PASSWORD) {
@@ -67,7 +70,7 @@ async function attemptLogin(page) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: HEADLESS });
   const context = await browser.newContext();
   const page = await context.newPage();
 
