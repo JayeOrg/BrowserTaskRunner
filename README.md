@@ -6,6 +6,7 @@ This repository contains a Playwright script that retries logging into https://b
 
 ```bash
 npm install
+npx playwright install
 ```
 
 ## Usage
