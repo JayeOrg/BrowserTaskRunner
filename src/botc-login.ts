@@ -3,10 +3,19 @@ import 'dotenv/config';
 const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
 const CHECK_INTERVAL_MS = Number.parseInt(process.env.BOTC_CHECK_INTERVAL_MS || '300000', 10);
 
-// Status tracking
-let lastStatus = null;
+interface SiteStatus {
+  httpStatus: number;
+  isCloudflare: boolean;
+  hasLoginForm: boolean;
+  hasMaintenance: boolean;
+  contentLength?: number;
+  title?: string;
+  error?: string;
+}
 
-async function checkSite() {
+let lastStatus: SiteStatus | null = null;
+
+async function checkSite(): Promise<SiteStatus> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
@@ -25,8 +34,7 @@ async function checkSite() {
 
     const text = await response.text();
 
-    // Analyze response
-    const status = {
+    const status: SiteStatus = {
       httpStatus: response.status,
       isCloudflare: text.includes('cloudflare') || text.includes('cf-') || response.status === 403,
       hasLoginForm: text.includes('type="email"') || text.includes('type="password"'),
@@ -37,8 +45,9 @@ async function checkSite() {
 
     return status;
   } catch (error) {
+    const err = error as Error & { name?: string };
     return {
-      error: error.name === 'AbortError' ? 'Timeout' : error.message,
+      error: err.name === 'AbortError' ? 'Timeout' : err.message,
       httpStatus: 0,
       isCloudflare: false,
       hasLoginForm: false,
@@ -47,19 +56,18 @@ async function checkSite() {
   }
 }
 
-function playAlert() {
-  // Terminal bell - repeat a few times
+function playAlert(): void {
   for (let i = 0; i < 3; i++) {
     process.stdout.write('\u0007');
   }
 }
 
-function formatStatus(status) {
+function formatStatus(status: SiteStatus): string {
   if (status.error) {
     return `❌ ERROR: ${status.error}`;
   }
 
-  const parts = [];
+  const parts: string[] = [];
   parts.push(`HTTP ${status.httpStatus}`);
 
   if (status.isCloudflare) parts.push('🛡️ Cloudflare');
@@ -71,7 +79,7 @@ function formatStatus(status) {
   return parts.join(' | ');
 }
 
-async function run() {
+async function run(): Promise<void> {
   console.log('='.repeat(60));
   console.log('BOTC Site Monitor (Headless)');
   console.log('='.repeat(60));
@@ -96,7 +104,6 @@ async function run() {
     if (changed) {
       console.log(`[${timestamp}] #${attempt} ${statusStr} ⚡ CHANGED`);
 
-      // Alert if login form becomes visible
       if (status.hasLoginForm && !lastStatus?.hasLoginForm) {
         console.log('\n🔔🔔🔔 LOGIN FORM DETECTED! Site may be back up! 🔔🔔🔔\n');
         playAlert();

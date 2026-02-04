@@ -11,15 +11,19 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files and tsconfig
+COPY package*.json tsconfig.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy extension and source
+# Copy TypeScript source and extension
+COPY src ./src
 COPY solutions/extension ./solutions/extension
 COPY solutions/docker ./solutions/docker
+
+# Build TypeScript
+RUN npm run build
 
 # Set display for Xvfb
 ENV DISPLAY=:99

@@ -60,4 +60,4 @@ chromium \
 sleep 3
 
 echo "Starting login script..."
-node /app/solutions/extension/index.js
+node /app/dist/solutions/extension/index.js

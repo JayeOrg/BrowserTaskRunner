@@ -5,8 +5,12 @@
   "description": "Cloudflare bypass solutions for automated login",
   "type": "module",
   "scripts": {
-    "monitor": "node src/botc-login.js",
-    "extension": "node solutions/extension/index.js",
+    "build": "tsc",
+    "check": "docker-compose -f solutions/docker/docker-compose.yml --env-file .env up --build",
+    "monitor": "node dist/src/botc-login.js",
+    "extension": "node dist/solutions/extension/index.js",
+    "dev:monitor": "tsc && node dist/src/botc-login.js",
+    "dev:extension": "tsc && node dist/solutions/extension/index.js",
     "docker:build": "docker-compose -f solutions/docker/docker-compose.yml --env-file .env build",
     "docker:up": "docker-compose -f solutions/docker/docker-compose.yml --env-file .env up",
     "docker:down": "docker-compose -f solutions/docker/docker-compose.yml down"
