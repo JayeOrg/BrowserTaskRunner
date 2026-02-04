@@ -2,4 +2,5 @@ node_modules/
 .env
 .claude
 dist/
-solutions/docker/alerts/LOGIN_SUCCESS.txt
+solutions/docker/alerts/
+solutions/docker/logs/

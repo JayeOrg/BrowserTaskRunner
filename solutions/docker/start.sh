@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LOG_DIR=${LOG_DIR:-/app/logs}
+LOG_DIR=${LOG_DIR:-/app/solutions/docker/logs}
 XVFB_LOG="$LOG_DIR/xvfb.log"
 CHROMIUM_LOG="$LOG_DIR/chromium.log"
 VNC_LOG="$LOG_DIR/vnc.log"
