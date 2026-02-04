@@ -16,10 +16,8 @@ COPY package*.json tsconfig.json ./
 # Install dependencies
 RUN npm install
 
-# Copy TypeScript source and extension
-COPY src ./src
-COPY extension ./extension
-COPY docker ./docker
+# Copy source tree
+COPY stack ./stack
 
 # Build TypeScript
 RUN npm run build
@@ -35,4 +33,4 @@ EXPOSE 5900
 EXPOSE 8765
 
 # Start script
-CMD ["./docker/start.sh"]
+CMD ["./stack/docker/start.sh"]

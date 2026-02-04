@@ -8,10 +8,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "stack",
     "declaration": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "extension/index.ts"],
-  "exclude": ["node_modules", "dist", "extension/extension"]
+  "include": ["stack/src/**/*", "stack/extension/index.ts"],
+  "exclude": ["node_modules", "dist", "stack/extension/extension", "stack/docker"]
 }

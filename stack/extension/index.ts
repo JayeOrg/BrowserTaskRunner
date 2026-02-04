@@ -67,7 +67,7 @@ class ExtensionController {
         console.log('3. Enable "Developer mode"');
         console.log('4. Click "Load unpacked"');
         console.log('5. Select the extension folder:');
-        console.log(`   ${process.cwd()}/extension`);
+        console.log(`   ${process.cwd()}/stack/extension/extension`);
         console.log('6. Open a new tab (extension needs an active tab)');
         console.log('='.repeat(50));
         console.log('');

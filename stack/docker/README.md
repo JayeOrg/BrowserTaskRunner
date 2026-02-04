@@ -21,7 +21,7 @@ BOTC_CHECK_INTERVAL_MS=300000
 2. Build and run (from repo root):
 
 ```bash
-cd docker
+cd stack/docker
 docker-compose up --build
 ```
 

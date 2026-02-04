@@ -1,8 +1,8 @@
 services:
   sitecheck:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: ../..
+      dockerfile: stack/docker/Dockerfile
     environment:
       - BOTC_EMAIL
       - BOTC_PASSWORD

@@ -2,5 +2,5 @@ node_modules/
 .env
 .claude
 dist/
-docker/alerts/
-docker/logs/
+stack/docker/alerts/
+stack/docker/logs/

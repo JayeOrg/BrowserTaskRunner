@@ -65,7 +65,6 @@ fi
 
 echo "Starting Chromium with extension..."
 chromium \
-    --no-sandbox \
     --disable-gpu \
     --disable-dev-shm-usage \
     --no-first-run \
@@ -77,7 +76,7 @@ chromium \
     --disable-features=MediaRouter,MediaCapture \
     --disable-notifications \
     --start-maximized \
-    --load-extension=/app/extension/extension \
+    --load-extension=/app/stack/extension/extension \
     --user-data-dir=/tmp/chrome-profile \
     "about:blank" >>"$CHROMIUM_LOG" 2>&1 &
 echo "Chromium logs -> $CHROMIUM_LOG"
