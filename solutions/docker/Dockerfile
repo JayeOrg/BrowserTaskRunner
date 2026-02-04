@@ -1,11 +1,10 @@
 FROM node:20-slim
 
 # Install Chromium and dependencies (works on ARM64 and amd64)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     xvfb \
     x11vnc \
-    fluxbox \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory

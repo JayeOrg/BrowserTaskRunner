@@ -5,7 +5,6 @@ set -e
 cleanup() {
     echo "Cleaning up..."
     pkill -f Xvfb || true
-    pkill -f fluxbox || true
     pkill -f chromium || true
     rm -f /tmp/.X99-lock
     rm -f /tmp/.X11-unix/X99
@@ -32,10 +31,6 @@ if ! kill -0 $XVFB_PID 2>/dev/null; then
     exit 1
 fi
 
-echo "Starting window manager..."
-fluxbox &
-sleep 1
-
 # Optional: Start VNC server for debugging
 if [ "$ENABLE_VNC" = "true" ]; then
     echo "Starting VNC server on port 5900..."
@@ -53,6 +48,9 @@ chromium \
     --disable-sync \
     --disable-translate \
     --metrics-recording-only \
+    --disable-features=MediaRouter,MediaCapture \
+    --disable-notifications \
+    --start-maximized \
     --load-extension=/app/solutions/extension/extension \
     --user-data-dir=/tmp/chrome-profile \
     "about:blank" &
