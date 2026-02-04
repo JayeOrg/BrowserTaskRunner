@@ -19,9 +19,9 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 npm run extension
 ```
 
-Then load the extension from `solutions/extension/extension/` in Chrome.
+Then load the extension from `extension/extension/` in Chrome.
 
-[Full documentation](./solutions/extension/README.md)
+[Full documentation](./extension/README.md)
 
 ---
 
@@ -36,7 +36,7 @@ Runs Chrome + extension inside a Docker container with virtual display.
 npm run docker:up
 ```
 
-[Full documentation](./solutions/docker/README.md)
+[Full documentation](./docker/README.md)
 
 ---
 

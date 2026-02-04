@@ -1,8 +1,8 @@
 services:
   sitecheck:
     build:
-      context: ../..
-      dockerfile: solutions/docker/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     environment:
       - BOTC_EMAIL
       - BOTC_PASSWORD
@@ -13,8 +13,8 @@ services:
       - "5900:5900"
     volumes:
       - chrome-data:/tmp/chrome-profile
-      - ./alerts:/app/alerts
-      - ./logs:/app/solutions/docker/logs
+      - ./alerts:/app/docker/alerts
+      - ./logs:/app/docker/logs
     restart: on-failure
 
 volumes:

@@ -12,6 +12,6 @@
     "declaration": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "solutions/extension/index.ts"],
-  "exclude": ["node_modules", "dist", "solutions/extension/extension"]
+  "include": ["src/**/*", "extension/index.ts"],
+  "exclude": ["node_modules", "dist", "extension/extension"]
 }

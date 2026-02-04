@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LOG_DIR=${LOG_DIR:-/app/solutions/docker/logs}
+LOG_DIR=${LOG_DIR:-/app/docker/logs}
 XVFB_LOG="$LOG_DIR/xvfb.log"
 CHROMIUM_LOG="$LOG_DIR/chromium.log"
 VNC_LOG="$LOG_DIR/vnc.log"
@@ -77,7 +77,7 @@ chromium \
     --disable-features=MediaRouter,MediaCapture \
     --disable-notifications \
     --start-maximized \
-    --load-extension=/app/solutions/extension/extension \
+    --load-extension=/app/extension/extension \
     --user-data-dir=/tmp/chrome-profile \
     "about:blank" >>"$CHROMIUM_LOG" 2>&1 &
 echo "Chromium logs -> $CHROMIUM_LOG"
@@ -85,4 +85,4 @@ echo "Chromium logs -> $CHROMIUM_LOG"
 sleep 3
 
 echo "Starting login script..."
-node /app/dist/solutions/extension/index.js
+node /app/dist/extension/index.js

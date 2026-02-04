@@ -18,8 +18,8 @@ RUN npm install
 
 # Copy TypeScript source and extension
 COPY src ./src
-COPY solutions/extension ./solutions/extension
-COPY solutions/docker ./solutions/docker
+COPY extension ./extension
+COPY docker ./docker
 
 # Build TypeScript
 RUN npm run build
@@ -35,4 +35,4 @@ EXPOSE 5900
 EXPOSE 8765
 
 # Start script
-CMD ["./solutions/docker/start.sh"]
+CMD ["./docker/start.sh"]

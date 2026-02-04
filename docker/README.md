@@ -18,10 +18,10 @@ BOTC_LOGIN_URL=https://botc.app/
 BOTC_CHECK_INTERVAL_MS=300000
 ```
 
-2. Build and run:
+2. Build and run (from repo root):
 
 ```bash
-cd solutions/docker
+cd docker
 docker-compose up --build
 ```
 

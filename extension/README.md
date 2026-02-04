@@ -38,7 +38,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 
 4. Click "Load unpacked"
 
-5. Select the `extension/` folder inside this directory
+5. Select the `extension/extension/` folder inside this directory
 
 6. Open a new tab (extension needs an active tab)
 
