@@ -1,0 +1,20 @@
+services:
+  sitecheck:
+    build:
+      context: ../..
+      dockerfile: solutions/docker/Dockerfile
+    environment:
+      - BOTC_EMAIL
+      - BOTC_PASSWORD
+      - BOTC_LOGIN_URL=${BOTC_LOGIN_URL:-https://botc.app/}
+      - BOTC_CHECK_INTERVAL_MS=${BOTC_CHECK_INTERVAL_MS:-300000}
+      - ENABLE_VNC=${ENABLE_VNC:-true}
+    ports:
+      - "5900:5900"
+    volumes:
+      - chrome-data:/tmp/chrome-profile
+      - ./alerts:/app/alerts
+    restart: on-failure
+
+volumes:
+  chrome-data:

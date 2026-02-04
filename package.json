@@ -2,13 +2,22 @@
   "name": "sitecheck",
   "version": "1.0.0",
   "private": true,
-  "description": "Periodic login checker for botc.app using Playwright",
+  "description": "Cloudflare bypass solutions for automated login",
   "type": "module",
   "scripts": {
-    "login": "node src/botc-login.js"
+    "monitor": "node src/botc-login.js",
+    "extension": "node solutions/extension/index.js",
+    "docker:build": "docker-compose -f solutions/docker/docker-compose.yml --env-file .env build",
+    "docker:up": "docker-compose -f solutions/docker/docker-compose.yml --env-file .env up",
+    "docker:down": "docker-compose -f solutions/docker/docker-compose.yml down"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "playwright": "^1.47.2"
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.3"
   }
 }

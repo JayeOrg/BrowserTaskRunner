@@ -1,38 +1,79 @@
-# SiteCheck BotC Login Watcher
+# SiteCheck - Cloudflare Bypass Solutions
 
-This repository contains a Playwright script that retries logging into https://botc.app/ every 5 minutes until it succeeds, then plays an alert.
+A collection of solutions for automating login to Cloudflare-protected sites.
 
-## Setup
+## The Problem
 
-```bash
-npm install
-npx playwright install
-```
+Cloudflare detects browser automation tools (Playwright, Puppeteer, Selenium) via the Chrome DevTools Protocol (CDP). See [FAILED_APPROACHES.md](./FAILED_APPROACHES.md) for details on what doesn't work.
 
-## Usage
+## Solutions
 
-Create a local env file, then run the script:
+### 1. Chrome Extension (Interactive)
 
-```bash
-cp .env.example .env
-# edit .env with your credentials
-npm run login
-```
+Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 
-The script loads environment variables from `.env` (via `dotenv`), so you can keep test account credentials there.
-
-To run with a visible browser window:
+**Pros:** Works reliably, bypasses Cloudflare
+**Cons:** Requires visible Chrome window
 
 ```bash
-BOTC_HEADLESS=false npm run login
+npm run extension
 ```
 
-### Optional environment variables
+Then load the extension from `solutions/extension/extension/` in Chrome.
 
-- `BOTC_LOGIN_URL`: Override the login URL (defaults to `https://botc.app/`).
-- `BOTC_SUCCESS_SELECTOR`: A selector that should be visible when login succeeds.
-- `BOTC_CHECK_INTERVAL_MS`: Override the retry interval in milliseconds (defaults to 300000).
-- `BOTC_HEADLESS`: Set to `false` to show the browser window (defaults to `true`).
-- `BOTC_USER_AGENT`: Override the browser user agent string.
+[Full documentation](./solutions/extension/README.md)
 
-The script uses a simple heuristic to detect success when `BOTC_SUCCESS_SELECTOR` is not set. If the site uses a different success indicator, provide a selector for a reliable signal.
+---
+
+### 2. Docker (Headless Background)
+
+Runs Chrome + extension inside a Docker container with virtual display.
+
+**Pros:** Fully headless, isolated, runs in background
+**Cons:** Requires Docker
+
+```bash
+npm run docker:up
+```
+
+[Full documentation](./solutions/docker/README.md)
+
+---
+
+### 3. HTTP Monitor (Simple Check)
+
+Simple HTTP-based monitoring. Doesn't bypass Cloudflare, just checks if the site is responding.
+
+**Pros:** Lightweight, no browser needed
+**Cons:** Can't bypass Cloudflare or login
+
+```bash
+npm run monitor
+```
+
+---
+
+## Configuration
+
+Set these environment variables (or create a `.env` file):
+
+```bash
+BOTC_EMAIL=your-email@example.com
+BOTC_PASSWORD=your-password
+BOTC_LOGIN_URL=https://botc.app/
+BOTC_CHECK_INTERVAL_MS=300000  # 5 minutes
+```
+
+## Quick Start
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Create `.env` file with credentials
+
+3. Choose a solution:
+   - Interactive: `npm run extension`
+   - Background: `npm run docker:up`
+   - Monitor only: `npm run monitor`
