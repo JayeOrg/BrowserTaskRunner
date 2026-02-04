@@ -1,3 +1,0 @@
-LOGIN SUCCESSFUL!
-Time: 2026-02-04T17:39:47.719Z
-Site: https://botc.app/
