@@ -1,4 +1,4 @@
-# Chrome Extension Solution
+# Chrome Extension
 
 Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket instead of CDP.
 
@@ -8,48 +8,68 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 ┌──────────────┐     WebSocket      ┌─────────────────────┐
 │  Node.js     │◀──────────────────▶│  Chrome Extension   │
 │  Server      │                    │                     │
-│  (index.js)  │     Commands       │  background.js      │
-└──────────────┘    ──────────▶     │  content.js         │
+│  (host.ts)   │     Commands       │  background.ts      │
+└──────────────┘    ──────────▶     │  content.ts         │
                                     └──────────┬──────────┘
                                                │
                                                ▼ DOM APIs
                                     ┌─────────────────────┐
                                     │   Web Page          │
-                                    │   (botc.app)        │
                                     └─────────────────────┘
 ```
 
-1. Node.js starts a WebSocket server
+1. Node.js starts a WebSocket server on port 8765
 2. Chrome extension connects as a client
 3. Server sends commands (navigate, fill, click)
 4. Extension executes using standard DOM APIs
 5. No CDP = Cloudflare can't detect automation
 
-## Setup
+## Local Development Setup
 
-1. Run the server:
+1. Build the project:
    ```bash
-   npm run extension
+   npm run build
    ```
 
-2. Open Chrome and go to `chrome://extensions`
+2. Run the server with a task:
+   ```bash
+   npm run dev botcLogin
+   ```
 
-3. Enable "Developer mode" (toggle in top right)
+3. Open Chrome and go to `chrome://extensions`
 
-4. Click "Load unpacked"
+4. Enable "Developer mode" (toggle in top right)
 
-5. Select the `extension/extension/` folder inside this directory
+5. Click "Load unpacked"
 
-6. Open a new tab (extension needs an active tab)
+6. Select the `dist/extension/extension/` folder
 
-7. The server will detect the connection and start automating
+7. Open a new tab (extension needs an active tab)
+
+8. The server will detect the connection and start automating
 
 ## Files
 
-- `index.js` - Node.js WebSocket server and automation logic
+- `host.ts` - WebSocket server, sends commands to extension
 - `extension/manifest.json` - Extension configuration
-- `extension/background.js` - WebSocket client, executes commands
-- `extension/content.js` - Content script (minimal)
+- `extension/background.ts` - WebSocket client, executes commands
+- `extension/content.ts` - Content script (minimal)
+
+## Available Commands
+
+The extension supports these commands via WebSocket:
+
+| Command | Description |
+|---------|-------------|
+| `navigate` | Navigate to a URL |
+| `fill` | Fill an input field |
+| `click` | Click an element |
+| `clickTurnstile` | Click Cloudflare Turnstile checkbox |
+| `waitForSelector` | Wait for an element to appear |
+| `getUrl` | Get current page URL |
+| `getContent` | Get page text content |
+| `debugPage` | Get page debug info (iframes, buttons, etc) |
+| `ping` | Test connection |
 
 ## Why This Works
 

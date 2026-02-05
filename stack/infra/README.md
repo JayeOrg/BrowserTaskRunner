@@ -1,4 +1,4 @@
-# Docker Solution
+# Docker Infrastructure
 
 Runs Chrome with the extension inside a Docker container with a virtual display.
 
@@ -7,33 +7,48 @@ Runs Chrome with the extension inside a Docker container with a virtual display.
 - Docker
 - Docker Compose
 
-## Setup
+## Usage
 
-1. Create a `.env` file in the project root (or set environment variables):
+Run a task:
 
 ```bash
+npm run check <taskName>
+```
+
+Example:
+```bash
+npm run check botcLogin
+```
+
+## Configuration
+
+Create a `.env` file in the project root:
+
+```bash
+# Required
 SITE_EMAIL=your-email@example.com
 SITE_PASSWORD=your-password
-SITE_LOGIN_URL=https://botc.app/
-SITE_CHECK_INTERVAL_MS=300000
+
+# Optional
+SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
+ENABLE_VNC=true                # Enable VNC debugging (default: true)
 ```
 
-2. Build and run (from repo root):
+Note: Each task defines its own target URL (see `stack/behaviour/sites/`).
+
+## Debugging with VNC
+
+VNC is enabled by default. Connect a VNC viewer to see what's happening:
 
 ```bash
-cd stack/infra
-docker-compose up --build
+npm run check botcLogin
+# Then connect VNC viewer to localhost:5900 (no password)
 ```
 
-## Debugging
-
-To see what's happening inside the container, enable VNC:
-
+To disable VNC:
 ```bash
-ENABLE_VNC=true docker-compose up --build
+ENABLE_VNC=false npm run check botcLogin
 ```
-
-Then connect a VNC viewer to `localhost:5900` (no password).
 
 ## How It Works
 
@@ -41,7 +56,7 @@ Then connect a VNC viewer to `localhost:5900` (no password).
 2. Chrome launches with the extension pre-loaded
 3. Node.js WebSocket server starts
 4. Extension connects and receives commands
-5. Login attempts loop until successful
+5. Task runs login attempts until successful
 
 ## Architecture
 
@@ -57,9 +72,30 @@ Then connect a VNC viewer to `localhost:5900` (no password).
 │                          ▼             │
 │                 ┌──────────────────┐   │
 │                 │   Node.js        │   │
-│                 │   (index.js)     │   │
+│                 │   run-login.js   │   │
 │                 └──────────────────┘   │
 └─────────────────────────────────────────┘
+        │
+        ▼ VNC (port 5900)
+   [VNC Viewer for debugging]
 ```
 
-Using TigerVNC to visually debug progress on the container's chrome instance
+## Logs & Alerts
+
+Logs are written to `logs/` in the project root:
+
+- `xvfb.log` - Virtual display logs
+- `chromium.log` - Chrome browser logs
+- `vnc.log` - VNC server logs
+
+On success, an alert file is written to the project root: `alert-<taskName>.txt`
+
+## Other Commands
+
+```bash
+# Build without running
+npm run docker:build
+
+# Stop containers
+npm run docker:down
+```

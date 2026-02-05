@@ -9,13 +9,9 @@
     "build:extension": "mkdir -p dist/extension/extension && cp stack/extension/extension/manifest.json dist/extension/extension/ && npm run build:extension-bg && npm run build:extension-content",
     "build:extension-bg": "esbuild stack/extension/extension/background.ts --bundle --outfile=dist/extension/extension/background.js --format=iife --target=chrome100",
     "build:extension-content": "esbuild stack/extension/extension/content.ts --bundle --outfile=dist/extension/extension/content.js --format=iife --target=chrome100",
-    "check": "docker-compose -f stack/infra/docker-compose.yml --env-file .env up --build",
-    "monitor": "node dist/behaviour/botc-login.js",
-    "extension": "node dist/behaviour/run-login.js",
-    "dev:monitor": "tsc && node dist/behaviour/botc-login.js",
-    "dev:extension": "npm run build && node dist/behaviour/run-login.js",
+    "check": "./stack/infra/check.sh",
+    "dev": "npm run build && node dist/behaviour/run-login.js",
     "docker:build": "docker-compose -f stack/infra/docker-compose.yml --env-file .env build",
-    "docker:up": "docker-compose -f stack/infra/docker-compose.yml --env-file .env up",
     "docker:down": "docker-compose -f stack/infra/docker-compose.yml down"
   },
   "dependencies": {

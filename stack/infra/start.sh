@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LOG_DIR=${LOG_DIR:-/app/infra/logs}
+LOG_DIR=${LOG_DIR:-/app/logs}
 XVFB_LOG="$LOG_DIR/xvfb.log"
 CHROMIUM_LOG="$LOG_DIR/chromium.log"
 VNC_LOG="$LOG_DIR/vnc.log"
@@ -92,5 +92,10 @@ echo "Chromium logs -> $CHROMIUM_LOG"
 
 sleep 3
 
-echo "Starting login script..."
-node /app/dist/behaviour/run-login.js
+if [ -z "$TASK_NAME" ]; then
+    echo "ERROR: TASK_NAME environment variable is required"
+    exit 1
+fi
+
+echo "Starting task: $TASK_NAME"
+node /app/dist/behaviour/run-login.js "$TASK_NAME"

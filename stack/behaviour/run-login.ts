@@ -1,29 +1,47 @@
 import 'dotenv/config';
+import { writeFileSync } from 'node:fs';
 import { ExtensionHost } from '../extension/host.js';
-import { botcLoginFlow } from './sites/botc.js';
-import { Credentials, SiteLoginFlow } from './types.js';
+import { getTask, listTasks } from './tasks.js';
+import { Credentials, TaskConfig } from './types.js';
 
 const WS_PORT = 8765;
+
+function getTaskName(): string {
+  const taskName = process.argv[2];
+  if (!taskName) {
+    const available = listTasks().join(', ');
+    throw new Error(`Missing task name. Usage: node run-login.js <taskName>\nAvailable tasks: ${available}`);
+  }
+  return taskName;
+}
 
 function loadCredentials(): Credentials {
   const email = process.env.SITE_EMAIL;
   const password = process.env.SITE_PASSWORD;
-  const loginUrl = process.env.SITE_LOGIN_URL || 'https://botc.app/';
   const checkIntervalMs = Number.parseInt(process.env.SITE_CHECK_INTERVAL_MS || '300000', 10);
 
-  if (!email || !password) {
-    throw new Error('Missing SITE_EMAIL or SITE_PASSWORD environment variables.');
+  const missing: string[] = [];
+  if (!email) missing.push('SITE_EMAIL');
+  if (!password) missing.push('SITE_PASSWORD');
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  return { email, password, loginUrl, checkIntervalMs };
+  return { email: email!, password: password!, checkIntervalMs };
 }
 
-async function playAlert(): Promise<void> {
+async function writeAlert(taskName: string): Promise<void> {
+  const timestamp = new Date().toISOString();
+  const alertFile = `alert-${taskName}.txt`;
+  const content = `Task: ${taskName}\nSuccess: ${timestamp}\n`;
+  writeFileSync(alertFile, content);
+  console.log(`Alert written to ${alertFile}`);
   process.stdout.write('\u0007');
   console.log('\n ALERT: Login successful!');
 }
 
-async function runFlow(flow: SiteLoginFlow, creds: Credentials): Promise<void> {
+async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
   const host = new ExtensionHost(WS_PORT);
 
   try {
@@ -41,11 +59,11 @@ async function runFlow(flow: SiteLoginFlow, creds: Credentials): Promise<void> {
       console.log('='.repeat(50));
 
       try {
-        const success = await flow.run(host, creds);
+        const success = await task.run(host, creds);
 
         if (success) {
           console.log('\n LOGIN SUCCESSFUL!');
-          await playAlert();
+          await writeAlert(task.name);
           process.exit(0);
         }
 
@@ -64,14 +82,17 @@ async function runFlow(flow: SiteLoginFlow, creds: Credentials): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const taskName = getTaskName();
+  const task = getTask(taskName);
   const creds = loadCredentials();
-  const flow = botcLoginFlow; // future: select by env or args
 
-  await runFlow(flow, creds);
+  console.log(`Running task: ${task.name}`);
+  console.log(`Target URL: ${task.url}`);
+
+  await runTask(task, creds);
 }
 
 main().catch(err => {
   console.error('Fatal error:', err.message);
   process.exit(1);
 });
-

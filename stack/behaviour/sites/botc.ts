@@ -1,5 +1,5 @@
 import { ExtensionHost } from '../../extension/host.js';
-import { Credentials, SiteLoginFlow } from '../types.js';
+import { Credentials, TaskConfig } from '../types.js';
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
@@ -7,7 +7,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<boolean> {
   console.log('\n[1/7] Navigating to login page...');
-  await host.navigate(creds.loginUrl);
+  await host.navigate(botcLoginTask.url);
   await sleep(2000);
 
   const urlInfo = await host.getUrl();
@@ -118,8 +118,8 @@ async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<bo
   return isSuccess;
 }
 
-export const botcLoginFlow: SiteLoginFlow = {
-  name: 'botc',
+export const botcLoginTask: TaskConfig = {
+  name: 'botcLogin',
+  url: 'https://botc.app/',
   run: attemptLogin,
 };
-
