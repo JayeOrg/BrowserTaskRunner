@@ -11,6 +11,7 @@ services:
             - SITE_PASSWORD
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
+            - DOCKER=true
         ports:
             - "5900:5900"
         volumes:

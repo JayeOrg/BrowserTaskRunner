@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import type { TaskFailReason, TaskResultFailure } from '../types.js';
 
 export async function sleep(ms: number): Promise<void> {
@@ -48,43 +47,160 @@ export class StepError extends Error {
   }
 }
 
-/**
- * StepLogger encapsulates step tracking state for a single task execution.
- * Create a new instance for each task run to avoid shared mutable state.
- */
-export class StepLogger {
-  private stepNum = 0;
-  private lastStep = '';
+// Injectable output function type
+export type LogOutput = (message: string) => void;
 
-  log(task: string, step: string, msg: string, data?: Record<string, unknown>): void {
-    if (step !== this.lastStep) {
-      this.stepNum++;
-      this.lastStep = step;
-    }
-    const prefix = `[${this.stepNum.toString()} ${step}]`;
-    console.log(prefix, msg, data ? { task, ...data } : { task });
-  }
+// Default output: console.log
+const defaultOutput: LogOutput = (message) => { console.log(message); };
 
-  fail(task: string, step: string, reason: TaskFailReason, meta: StepErrorMeta = {}): never {
-    this.log(task, step, reason, meta);
-    throw new StepError(task, step, reason, meta);
-  }
-
-  reset(): void {
-    this.stepNum = 0;
-    this.lastStep = '';
-  }
-}
-
-// Default global instance for backwards compatibility
-// Consider migrating to instance-based usage for better isolation
-const defaultLogger = new StepLogger();
-
-export const log = (task: string, step: string, msg: string, data?: Record<string, unknown>) => {
-  defaultLogger.log(task, step, msg, data);
+// ANSI color codes
+const colors = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
 };
 
-export const resetSteps = () => { defaultLogger.reset(); };
+// Log level indicators and colors
+type LogLevel = 'info' | 'success' | 'warn' | 'error';
 
-export const fail = (task: string, step: string, reason: TaskFailReason, meta: StepErrorMeta = {}): never =>
-  defaultLogger.fail(task, step, reason, meta);
+const levelStyles: Record<LogLevel, { icon: string; color: string }> = {
+  info: { icon: '→', color: colors.cyan },
+  success: { icon: '✓', color: colors.green },
+  warn: { icon: '⚠', color: colors.yellow },
+  error: { icon: '✗', color: colors.red },
+};
+
+function formatDuration(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes.toString()}:${remainingSeconds.toFixed(0).padStart(2, '0')}`;
+}
+
+// Terminal width for right-justified elapsed time
+const TERM_WIDTH = 120;
+
+// eslint-disable-next-line no-control-regex, require-unicode-regexp, sonarjs/no-control-regex
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+
+function rightJustify(content: string, suffix: string): string {
+  // Strip ANSI codes for length calculation
+  const visibleLength = content.replace(ANSI_PATTERN, '').length;
+  const suffixLength = suffix.length;
+  const padding = Math.max(1, TERM_WIDTH - visibleLength - suffixLength);
+  return `${content}${' '.repeat(padding)}${colors.dim}${suffix}${colors.reset}`;
+}
+
+// Internal step tracker state
+interface StepState {
+  stepNum: number;
+  lastStep: string;
+  lastTime: number;
+}
+
+function createStepState(): StepState {
+  return { stepNum: 0, lastStep: '', lastTime: Date.now() };
+}
+
+// Format data for display: simple arrow notation for readability
+function formatData(data?: Record<string, unknown>): string {
+  if (!data || Object.keys(data).length === 0) {
+    return '';
+  }
+  const values = Object.values(data);
+  // Single value: just show the value with arrow
+  if (values.length === 1) {
+    return ` → ${String(values[0])}`;
+  }
+  // Multiple values: key=value pairs
+  const pairs = Object.entries(data).map(([key, val]) => `${key}=${String(val)}`);
+  return ` → ${pairs.join(', ')}`;
+}
+
+function formatLogLine(
+  state: StepState,
+  step: string,
+  msg: string,
+  data: Record<string, unknown> | undefined,
+  level: LogLevel,
+  output: LogOutput,
+): void {
+  if (step !== state.lastStep) {
+    state.stepNum++;
+    state.lastStep = step;
+  }
+
+  const now = Date.now();
+  const duration = formatDuration(now - state.lastTime);
+  state.lastTime = now;
+
+  const { icon, color } = levelStyles[level];
+  const prefix = `[${state.stepNum.toString()} ${step}]`;
+  // Indent task steps (they run under Runner's attempt)
+  const content = `${color}${icon}${colors.reset}    ${prefix} ${msg}${formatData(data)}`;
+  output(rightJustify(content, duration));
+}
+
+// Task-scoped logger interface (no task param needed per call)
+export interface TaskLogger {
+  log: (step: string, msg: string, data?: Record<string, unknown>) => void;
+  success: (step: string, msg: string, data?: Record<string, unknown>) => void;
+  warn: (step: string, msg: string, data?: Record<string, unknown>) => void;
+  fail: (step: string, reason: TaskFailReason, meta?: StepErrorMeta) => never;
+}
+
+// Creates a logger scoped to a specific task - no manual reset needed
+export function createTaskLogger(task: string, output: LogOutput = defaultOutput): TaskLogger {
+  const state = createStepState();
+
+  const logAt = (level: LogLevel) => (step: string, msg: string, data?: Record<string, unknown>): void => {
+    formatLogLine(state, step, msg, data, level, output);
+  };
+
+  const fail = (step: string, reason: TaskFailReason, meta: StepErrorMeta = {}): never => {
+    formatLogLine(state, step, reason, meta, 'error', output);
+    throw new StepError(task, step, reason, meta);
+  };
+
+  return {
+    log: logAt('info'),
+    success: logAt('success'),
+    warn: logAt('warn'),
+    fail,
+  };
+}
+
+// Simple prefix logger for non-task contexts (orchestration, commands, extension)
+export interface PrefixLogger {
+  log: (msg: string, data?: Record<string, unknown>) => void;
+  success: (msg: string, data?: Record<string, unknown>) => void;
+  warn: (msg: string, data?: Record<string, unknown>) => void;
+  error: (msg: string, data?: Record<string, unknown>) => void;
+}
+
+export function createPrefixLogger(prefix: string, output: LogOutput = defaultOutput): PrefixLogger {
+  let lastTime = Date.now();
+
+  const logAt = (level: LogLevel) => (msg: string, data?: Record<string, unknown>): void => {
+    const now = Date.now();
+    const duration = formatDuration(now - lastTime);
+    lastTime = now;
+
+    const { icon, color } = levelStyles[level];
+    const content = `${color}${icon}${colors.reset} [${prefix}] ${msg}${formatData(data)}`;
+    output(rightJustify(content, duration));
+  };
+
+  return {
+    log: logAt('info'),
+    success: logAt('success'),
+    warn: logAt('warn'),
+    error: logAt('error'),
+  };
+}

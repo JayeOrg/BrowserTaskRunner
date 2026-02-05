@@ -1,5 +1,16 @@
 import type { ResponseMessage } from '../types.js';
 
+// Simple prefix logger for extension context
+function formatTime(): string {
+  const now = new Date();
+  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+}
+
+function log(msg: string, data?: Record<string, unknown>): void {
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  console.log(`[${formatTime()} SiteCheck] ${msg}${dataStr}`);
+}
+
 // WebSocket connection to Node.js server
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -50,7 +61,7 @@ function scheduleReconnect(): void {
   }
   const delay = getReconnectDelay();
   reconnectAttempts++;
-  console.log(`[SiteCheck] Reconnecting in ${delay.toString()}ms (attempt ${reconnectAttempts.toString()})`);
+  log('Reconnecting', { delayMs: delay, attempt: reconnectAttempts });
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
     connect();
@@ -62,11 +73,11 @@ function connect(): void {
     return;
   }
 
-  console.log('[SiteCheck] Connecting to', WS_URL);
+  log('Connecting', { url: WS_URL });
   ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
-    console.log('[SiteCheck] Connected to server');
+    log('Connected to server');
     reconnectAttempts = 0;
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
@@ -87,24 +98,24 @@ function connect(): void {
       }
       const incoming = parsed;
       messageId = incoming.id;
-      console.log('[SiteCheck] Received command:', incoming.type);
+      log('Received command', { type: incoming.type });
       const result = await handleCommand(incoming);
       ws?.send(JSON.stringify({ id: messageId, ...result }));
     } catch (error) {
-      console.error('[SiteCheck] Error handling message:', error);
       const message = error instanceof Error ? error.message : String(error);
+      log('Error handling message', { error: message });
       ws?.send(JSON.stringify({ id: messageId, error: message }));
     }
   };
 
   ws.onclose = () => {
-    console.log('[SiteCheck] Disconnected from server');
+    log('Disconnected from server');
     ws = null;
     scheduleReconnect();
   };
 
-  ws.onerror = (error: Event) => {
-    console.error('[SiteCheck] WebSocket error:', error);
+  ws.onerror = () => {
+    log('WebSocket error');
   };
 }
 
@@ -148,7 +159,7 @@ function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoadResult
       if (!resolved) {
         resolved = true;
         chrome.tabs.onUpdated.removeListener(listener);
-        console.warn(`[SiteCheck] Tab load timed out after ${timeoutMs.toString()}ms`);
+        log('Tab load timed out', { timeoutMs });
         resolve({ loaded: false, timedOut: true });
       }
     }, timeoutMs);

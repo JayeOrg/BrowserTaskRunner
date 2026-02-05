@@ -4,8 +4,10 @@ import { ExtensionHost } from '../extension/host.js';
 import { getTask, listTasks } from './tasks.js';
 import type { Credentials, TaskSchedule, TaskConfig, TaskResult, TaskResultFailure } from './types.js';
 import { getErrorMessage } from './utils.js';
+import { createPrefixLogger } from './utils/site-utils.js';
 
 const WS_PORT = 8765;
+const logger = createPrefixLogger('Runner');
 
 function getTaskName(): string {
   const taskName = process.argv[2];
@@ -36,11 +38,13 @@ function loadSchedule(): TaskSchedule {
 }
 
 function logFailureDetails(result: TaskResultFailure): void {
-  const stepLabel = ` | Step: ${result.step}`;
-  const contextLabel = result.context ? ` | Context: ${JSON.stringify(result.context)}` : '';
-  const urlLabel = result.finalUrl ? ` | URL: ${result.finalUrl}` : '';
-  const detailsLabel = result.details ? ` | Details: ${result.details}` : '';
-  console.log(` Reason: ${result.reason}${stepLabel}${urlLabel}${detailsLabel}${contextLabel}`);
+  logger.warn('Failure', {
+    reason: result.reason,
+    step: result.step,
+    ...(result.finalUrl ? { url: result.finalUrl } : {}),
+    ...(result.details ? { details: result.details } : {}),
+    ...(result.context ? { context: result.context } : {}),
+  });
 }
 
 async function writeAlert(taskName: string): Promise<void> {
@@ -48,9 +52,9 @@ async function writeAlert(taskName: string): Promise<void> {
   const alertFile = `alert-${taskName}.txt`;
   const content = `Task: ${taskName}\nSuccess: ${timestamp}\n`;
   writeFileSync(alertFile, content);
-  console.log(`Alert written to ${alertFile}`);
+  logger.success('Alert written', { file: alertFile });
   process.stdout.write('\u0007');
-  console.log('\n ALERT: Task successful!');
+  logger.success('ALERT: Task successful!');
 }
 
 async function runTask(task: TaskConfig, creds: Credentials, schedule: TaskSchedule): Promise<void> {
@@ -59,33 +63,31 @@ async function runTask(task: TaskConfig, creds: Credentials, schedule: TaskSched
   try {
     await host.start();
 
-    console.log('\n[Setup] Testing connection...');
+    logger.log('Testing connection...');
     await host.ping();
-    console.log('[Setup] Extension connected and ready');
+    logger.success('Extension connected and ready');
 
     let attempt = 0;
     while (true) {
       attempt++;
-      console.log(`\n${  '='.repeat(50)}`);
-      console.log(`ATTEMPT ${attempt.toString()} - ${new Date().toISOString()}`);
-      console.log('='.repeat(50));
+      logger.log(`--- Attempt ${attempt.toString()} ---`);
 
       try {
         const result: TaskResult = await task.run(host, creds);
 
         if (result.ok) {
-          console.log('\n TASK SUCCESSFUL!');
+          logger.success('TASK SUCCESSFUL!');
           await writeAlert(task.name);
           process.exit(0);
         }
 
-        console.log('\n Task not successful yet');
+        logger.warn('Task not successful yet');
         logFailureDetails(result);
       } catch (error) {
-        console.error('\n Attempt failed:', getErrorMessage(error));
+        logger.error('Attempt failed', { error: getErrorMessage(error) });
       }
 
-      console.log(`\nWaiting ${Math.round(schedule.checkIntervalMs / 1000).toString()} seconds before next attempt...`);
+      logger.log('Waiting before next attempt', { seconds: Math.round(schedule.checkIntervalMs / 1000) });
       await new Promise(resolve => { setTimeout(resolve, schedule.checkIntervalMs); });
     }
   } finally {
@@ -99,13 +101,12 @@ async function main(): Promise<void> {
   const creds = loadCredentials();
   const schedule = loadSchedule();
 
-  console.log(`Running task: ${task.name}`);
-  console.log(`Target URL: ${task.url}`);
+  logger.log('Running task', { task: task.name, url: task.url });
 
   await runTask(task, creds, schedule);
 }
 
 main().catch((error: unknown) => {
-  console.error('Fatal error:', getErrorMessage(error));
+  logger.error('Fatal error', { error: getErrorMessage(error) });
   process.exit(1);
 });

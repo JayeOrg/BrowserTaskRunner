@@ -1,8 +1,11 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import path from 'node:path';
 import type { CommandMessage, ResponseMessage } from './types.js';
+import { createPrefixLogger } from '../behaviour/utils/site-utils.js';
 
 export type { CommandMessage, ResponseMessage };
+
+const logger = createPrefixLogger('Host');
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return typeof value === 'object' && value !== null;
@@ -57,7 +60,7 @@ export class ExtensionHost {
           try {
             const parsed: unknown = JSON.parse(data.toString());
             if (!isResponseMessage(parsed)) {
-              console.error('[ExtensionHost] Invalid message format');
+              logger.log('Invalid message format');
               return;
             }
             const message = parsed;
@@ -82,7 +85,7 @@ export class ExtensionHost {
               }
             }
           } catch (error) {
-            console.error('[ExtensionHost] Error parsing message:', error);
+            logger.log('Error parsing message', { error: String(error) });
           }
         });
 
@@ -94,20 +97,24 @@ export class ExtensionHost {
   }
 
   private logInstructions(): void {
+    logger.log('WebSocket server listening', { port: this.port });
+
+    // Skip manual instructions when running in Docker (automated)
+    if (process.env['DOCKER']) {
+      return;
+    }
+
     const extensionPath = path.join(process.cwd(), 'dist', 'extension', 'extension');
-    console.log(`[ExtensionHost] WebSocket server listening on port ${this.port.toString()}`);
-    console.log('[ExtensionHost] Waiting for Chrome extension to connect...');
-    console.log('');
-    console.log('='.repeat(50));
-    console.log('CONNECT THE EXTENSION:');
-    console.log('1. Open Chrome');
-    console.log('2. Go to chrome://extensions');
-    console.log('3. Enable "Developer mode"');
-    console.log('4. Click "Load unpacked"');
-    console.log(`5. Select: ${extensionPath}`);
-    console.log('6. Open a new tab (extension needs an active tab)');
-    console.log('='.repeat(50));
-    console.log('');
+    logger.log('Waiting for Chrome extension to connect...');
+    logger.log('='.repeat(50));
+    logger.log('CONNECT THE EXTENSION:');
+    logger.log('1. Open Chrome');
+    logger.log('2. Go to chrome://extensions');
+    logger.log('3. Enable "Developer mode"');
+    logger.log('4. Click "Load unpacked"');
+    logger.log(`5. Select: ${extensionPath}`);
+    logger.log('6. Open a new tab (extension needs an active tab)');
+    logger.log('='.repeat(50));
   }
 
   private ensureConnection(): WebSocket {
@@ -135,9 +142,9 @@ export class ExtensionHost {
   }
 
   // --- Generic browser automation primitives ---
+  // Command logging removed: task step logs already provide visibility
 
   navigate(url: string): Promise<ResponseMessage> {
-    console.log(`[Command] Navigate to ${url}`);
     return this.send({ type: 'navigate', url });
   }
 
@@ -146,22 +153,18 @@ export class ExtensionHost {
   }
 
   fill(selector: string, value: string): Promise<ResponseMessage> {
-    console.log(`[Command] Fill ${selector}`);
     return this.send({ type: 'fill', selector, value });
   }
 
   click(selector: string): Promise<ResponseMessage> {
-    console.log(`[Command] Click ${selector}`);
     return this.send({ type: 'click', selector });
   }
 
   cdpClick(x: number, y: number): Promise<ResponseMessage> {
-    console.log(`[Command] CDP click at (${x.toString()}, ${y.toString()})`);
     return this.send({ type: 'cdpClick', x, y });
   }
 
   waitForSelector(selector: string, timeout = 10000): Promise<ResponseMessage> {
-    console.log(`[Command] Wait for ${selector}`);
     return this.send({ type: 'waitForSelector', selector, timeout });
   }
 
@@ -170,7 +173,6 @@ export class ExtensionHost {
   }
 
   querySelectorRect(selectors: string[]): Promise<ResponseMessage> {
-    console.log(`[Command] Query selector rect: ${selectors.join(', ')}`);
     return this.send({ type: 'querySelectorRect', selectors });
   }
 

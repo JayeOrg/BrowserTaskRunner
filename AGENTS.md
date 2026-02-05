@@ -14,6 +14,8 @@ The steps are:
 
 Notes:
 
+- Don't care about code churn cost when coming up with new solutions
+- Don't preserve legacy code
 - Avoid adding in-test retries; treat them as a test smell.
 
 Review FAILED_APPROACHES for things to avoid, and add to it as paths fail.
@@ -32,8 +34,8 @@ Three layers with strict separation:
 
 Keep extension commands **minimal and generic** while maintaining **developer experience**:
 
-- Extension should only know *how* to interact with the DOM (click, fill, wait, query)
-- Behaviour should own *what* to interact with (selectors, coordinates, timing)
+- Extension should only know _how_ to interact with the DOM (click, fill, wait, query)
+- Behaviour should own _what_ to interact with (selectors, coordinates, timing)
 - Prefer typed primitives (`click(selector)`) over stringly-typed code (`executeScript("document.querySelector...")`)
 - When adding new capabilities, ask: "Is this generic enough that any site might need it?"
 
