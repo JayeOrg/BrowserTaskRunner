@@ -1,8 +1,6 @@
 import 'dotenv/config';
 import { writeFileSync, mkdirSync } from 'fs';
-import { ExtensionHost } from './host.js';
-
-const WS_PORT = 8765;
+import { getErrorMessage } from '../behaviour/utils.js';
 
 async function playAlert(loginUrl: string): Promise<void> {
   process.stdout.write('\u0007');
@@ -14,9 +12,8 @@ async function playAlert(loginUrl: string): Promise<void> {
     const alertContent = `LOGIN SUCCESSFUL!\nTime: ${timestamp}\nSite: ${loginUrl}\n`;
     writeFileSync('/app/infra/alerts/LOGIN_SUCCESS.txt', alertContent);
     console.log(' Alert file written to /app/infra/alerts/LOGIN_SUCCESS.txt');
-  } catch (err) {
-    const error = err as Error;
-    console.log('Could not write alert file:', error.message);
+  } catch (error) {
+    console.log('Could not write alert file:', getErrorMessage(error));
   }
 }
 
@@ -25,7 +22,7 @@ async function main(): Promise<void> {
   await playAlert(loginUrl);
 }
 
-main().catch(err => {
-  console.error('Fatal error:', err.message);
+main().catch((error: unknown) => {
+  console.error('Fatal error:', getErrorMessage(error));
   process.exit(1);
 });

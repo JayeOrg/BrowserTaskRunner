@@ -2,7 +2,8 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import { ExtensionHost } from '../extension/host.js';
 import { getTask, listTasks } from './tasks.js';
-import { Credentials, TaskConfig } from './types.js';
+import type { Credentials, TaskConfig } from './types.js';
+import { getErrorMessage } from './utils.js';
 
 const WS_PORT = 8765;
 
@@ -20,15 +21,14 @@ function loadCredentials(): Credentials {
   const password = process.env.SITE_PASSWORD;
   const checkIntervalMs = Number.parseInt(process.env.SITE_CHECK_INTERVAL_MS || '300000', 10);
 
-  const missing: string[] = [];
-  if (!email) missing.push('SITE_EMAIL');
-  if (!password) missing.push('SITE_PASSWORD');
-
-  if (missing.length > 0) {
+  if (!email || !password) {
+    const missing: string[] = [];
+    if (!email) {missing.push('SITE_EMAIL');}
+    if (!password) {missing.push('SITE_PASSWORD');}
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  return { email: email!, password: password!, checkIntervalMs };
+  return { email, password, checkIntervalMs };
 }
 
 async function writeAlert(taskName: string): Promise<void> {
@@ -54,8 +54,8 @@ async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
     let attempt = 0;
     while (true) {
       attempt++;
-      console.log('\n' + '='.repeat(50));
-      console.log(`ATTEMPT ${attempt} - ${new Date().toISOString()}`);
+      console.log(`\n${  '='.repeat(50)}`);
+      console.log(`ATTEMPT ${attempt.toString()} - ${new Date().toISOString()}`);
       console.log('='.repeat(50));
 
       try {
@@ -69,12 +69,11 @@ async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
 
         console.log('\n Login not successful yet');
       } catch (error) {
-        const err = error as Error;
-        console.error('\n Attempt failed:', err.message);
+        console.error('\n Attempt failed:', getErrorMessage(error));
       }
 
-      console.log(`\nWaiting ${Math.round(creds.checkIntervalMs / 1000)} seconds before next attempt...`);
-      await new Promise(r => setTimeout(r, creds.checkIntervalMs));
+      console.log(`\nWaiting ${Math.round(creds.checkIntervalMs / 1000).toString()} seconds before next attempt...`);
+      await new Promise(resolve => { setTimeout(resolve, creds.checkIntervalMs); });
     }
   } finally {
     host.close();
@@ -92,7 +91,7 @@ async function main(): Promise<void> {
   await runTask(task, creds);
 }
 
-main().catch(err => {
-  console.error('Fatal error:', err.message);
+main().catch((error: unknown) => {
+  console.error('Fatal error:', getErrorMessage(error));
   process.exit(1);
 });

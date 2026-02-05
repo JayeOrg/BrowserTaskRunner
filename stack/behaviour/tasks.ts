@@ -1,4 +1,4 @@
-import { TaskConfig } from './types.js';
+import type { TaskConfig } from './types.js';
 import { botcLoginTask } from './sites/botc.js';
 
 const tasks: Record<string, TaskConfig> = {

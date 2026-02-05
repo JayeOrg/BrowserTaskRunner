@@ -1,18 +1,23 @@
-import { ExtensionHost } from '../../extension/host.js';
-import { Credentials, TaskConfig } from '../types.js';
+import type { ExtensionHost } from '../../extension/host.js';
+import type { Credentials, TaskConfig } from '../types.js';
+
+const TASK_NAME = 'botcLogin';
+const BOTC_LOGIN_URL = 'https://botc.app/';
 
 async function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
+  return new Promise(resolve => { setTimeout(resolve, ms); });
 }
 
 async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<boolean> {
   console.log('\n[1/7] Navigating to login page...');
-  await host.navigate(botcLoginTask.url);
+  await host.navigate(BOTC_LOGIN_URL);
   await sleep(2000);
 
   const urlInfo = await host.getUrl();
-  console.log(`[1/7] Current URL: ${urlInfo.url}`);
-  console.log(`[1/7] Page title: ${urlInfo.title}`);
+  const currentUrl = urlInfo.url ?? '<unknown>';
+  const currentTitle = urlInfo.title ?? '<unknown>';
+  console.log(`[1/7] Current URL: ${currentUrl}`);
+  console.log(`[1/7] Page title: ${currentTitle}`);
 
   console.log('\n[2/7] Waiting for login form...');
   const emailSelectors = [
@@ -71,7 +76,8 @@ async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<bo
   await sleep(1000);
   let turnstileResult = await host.clickTurnstile();
   if (turnstileResult.found) {
-    console.log(`[5/7] Clicked Turnstile widget: ${turnstileResult.selector}`);
+    const turnstileSelector = turnstileResult.selector ?? '(unknown selector)';
+    console.log(`[5/7] Clicked Turnstile widget: ${turnstileSelector}`);
     await sleep(3000);
   } else {
     console.log('[5/7] No Turnstile widget found before submit');
@@ -102,7 +108,8 @@ async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<bo
   console.log('\n[6/7] Checking for post-submit Cloudflare challenge...');
   turnstileResult = await host.clickTurnstile();
   if (turnstileResult.found) {
-    console.log(`[6/7] Clicked post-submit Turnstile: ${turnstileResult.selector}`);
+    const postSubmitSelector = turnstileResult.selector ?? '(unknown selector)';
+    console.log(`[6/7] Clicked post-submit Turnstile: ${postSubmitSelector}`);
     await sleep(3000);
   } else {
     console.log('[6/7] No post-submit challenge found');
@@ -112,14 +119,15 @@ async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<bo
 
   console.log('\n[7/7] Checking result...');
   const finalUrl = await host.getUrl();
-  console.log(`[7/7] Final URL: ${finalUrl.url}`);
+  const finalUrlString = finalUrl.url ?? '';
+  console.log(`[7/7] Final URL: ${finalUrlString}`);
 
-  const isSuccess = !finalUrl.url?.toLowerCase().includes('login');
+  const isSuccess = !finalUrlString.toLowerCase().includes('login');
   return isSuccess;
 }
 
 export const botcLoginTask: TaskConfig = {
-  name: 'botcLogin',
-  url: 'https://botc.app/',
+  name: TASK_NAME,
+  url: BOTC_LOGIN_URL,
   run: attemptLogin,
 };

@@ -1,3 +1,4 @@
-Add linting etc
+Add linting
 Add testing?
-Add modularity allowing different sites to be selected
+Add a vault for locally storing login details for multiple tasks
+Add nandos task

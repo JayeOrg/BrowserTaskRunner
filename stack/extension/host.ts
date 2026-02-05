@@ -1,4 +1,4 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer, type WebSocket } from 'ws';
 import path from 'node:path';
 
 export interface CommandMessage {
@@ -46,7 +46,7 @@ export class ExtensionHost {
   }
 
   async start(): Promise<void> {
-    if (this.server) return;
+    if (this.server) {return;}
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -109,7 +109,7 @@ export class ExtensionHost {
 
   private logInstructions(): void {
     const extensionPath = path.join(process.cwd(), 'dist', 'extension', 'extension');
-    console.log(`[ExtensionHost] WebSocket server listening on port ${this.port}`);
+    console.log(`[ExtensionHost] WebSocket server listening on port ${this.port.toString()}`);
     console.log('[ExtensionHost] Waiting for Chrome extension to connect...');
     console.log('');
     console.log('='.repeat(50));
@@ -183,7 +183,7 @@ export class ExtensionHost {
   }
 
   getContent(selector: string | null = null): Promise<ResponseMessage> {
-    return this.send({ type: 'getContent', selector: selector ?? undefined });
+    return this.send(selector ? { type: 'getContent', selector } : { type: 'getContent' });
   }
 
   ping(): Promise<ResponseMessage> {

@@ -4,7 +4,7 @@ let reconnectInterval: ReturnType<typeof setInterval> | null = null;
 const WS_URL = 'ws://localhost:8765';
 
 function connect() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {return;}
 
   console.log('[SiteCheck] Connecting to', WS_URL);
   ws = new WebSocket(WS_URL);
@@ -22,13 +22,17 @@ function connect() {
   ws.onmessage = async (event: MessageEvent) => {
     let incoming: any;
     try {
-      incoming = JSON.parse(event.data as string);
+      if (typeof event.data !== 'string') {
+        throw new Error('Expected string message data');
+      }
+      incoming = JSON.parse(event.data);
       console.log('[SiteCheck] Received command:', incoming.type);
       const result = await handleCommand(incoming);
       ws?.send(JSON.stringify({ id: incoming.id, ...result }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[SiteCheck] Error handling message:', error);
-      ws?.send(JSON.stringify({ id: incoming?.id, error: error.message }));
+      const message = error instanceof Error ? error.message : String(error);
+      ws?.send(JSON.stringify({ id: incoming?.id, error: message }));
     }
   };
 
@@ -77,8 +81,11 @@ async function handleCommand(message: any) {
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: (selector: string, value: string) => {
-          const el = document.querySelector(selector) as HTMLInputElement | null;
-          if (!el) return { error: 'Element not found: ' + selector };
+          const el = document.querySelector(selector);
+          if (!el) {return { error: `Element not found: ${  selector}` };}
+          if (!(el instanceof HTMLInputElement)) {
+            return { error: `Element is not an input: ${  selector}` };
+          }
           el.focus();
           el.value = value;
           el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -96,7 +103,7 @@ async function handleCommand(message: any) {
         target: { tabId: tab.id },
         func: (selector: string) => {
           const el = document.querySelector(selector);
-          if (!el) return { error: 'Element not found: ' + selector };
+          if (!el) {return { error: `Element not found: ${  selector}` };}
 
           // Get element position for realistic coordinates
           const rect = el.getBoundingClientRect();
@@ -192,8 +199,8 @@ async function handleCommand(message: any) {
           // Mouse pressed
           await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
             type: 'mousePressed',
-            x: x,
-            y: y,
+            x,
+            y,
             button: 'left',
             clickCount: 1
           });
@@ -204,8 +211,8 @@ async function handleCommand(message: any) {
           // Mouse released
           await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
             type: 'mouseReleased',
-            x: x,
-            y: y,
+            x,
+            y,
             button: 'left',
             clickCount: 1
           });
@@ -215,8 +222,7 @@ async function handleCommand(message: any) {
 
           info.cdpClick = true;
         } catch (cdpError) {
-          const err = cdpError as Error;
-          info.cdpError = err.message;
+          info.cdpError = cdpError instanceof Error ? cdpError.message : String(cdpError);
           // Fallback to regular click
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
@@ -286,7 +292,7 @@ async function handleCommand(message: any) {
           const start = Date.now();
           while (Date.now() - start < timeout) {
             const el = document.querySelector(selector);
-            if (el) return { success: true, found: true };
+            if (el) {return { success: true, found: true };}
             await new Promise(r => setTimeout(r, 100));
           }
           return { success: true, found: false };
@@ -317,13 +323,13 @@ async function handleCommand(message: any) {
     }
 
     default:
-      return { error: 'Unknown command: ' + type };
+      return { error: `Unknown command: ${  type}` };
   }
 }
 
 async function getActiveTab(): Promise<any> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) throw new Error('No active tab');
+  if (!tab) {throw new Error('No active tab');}
   return tab;
 }
 
