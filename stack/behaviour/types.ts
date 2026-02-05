@@ -14,14 +14,18 @@ export type LoginFailReason =
 
 export interface LoginResultSuccess {
   ok: true;
+  step?: string;
   finalUrl?: string;
+  context?: Record<string, unknown>;
 }
 
 export interface LoginResultFailure {
   ok: false;
+  step: string;
   reason: LoginFailReason;
   finalUrl?: string;
   details?: string;
+  context?: Record<string, unknown>;
 }
 
 export type LoginResult = LoginResultSuccess | LoginResultFailure;

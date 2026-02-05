@@ -12,4 +12,8 @@ The steps are:
 - IF navigation is successful, end and alert
 - ELSE re-attempt logging in each five minutes until navigation is successful or the test errors
 
+Notes:
+
+- Avoid adding in-test retries; treat them as a test smell.
+
 Review FAILED_APPROACHES for things to avoid, and add to it as paths fail.

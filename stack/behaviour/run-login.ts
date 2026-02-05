@@ -69,7 +69,13 @@ async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
 
         console.log('\n Login not successful yet');
         if (!result.ok) {
-          console.log(` Reason: ${result.reason}${result.finalUrl ? ` | URL: ${result.finalUrl}` : ''}${result.details ? ` | Details: ${result.details}` : ''}`);
+          const stepLabel = result.step ? ` | Step: ${result.step}` : '';
+          const contextLabel = result.context ? ` | Context: ${JSON.stringify(result.context)}` : '';
+          const urlLabel = result.finalUrl ? ` | URL: ${result.finalUrl}` : '';
+          const detailsLabel = result.details ? ` | Details: ${result.details}` : '';
+          console.log(
+            ` Reason: ${result.reason}${stepLabel}${urlLabel}${detailsLabel}${contextLabel}`,
+          );
         }
       } catch (error) {
         console.error('\n Attempt failed:', getErrorMessage(error));

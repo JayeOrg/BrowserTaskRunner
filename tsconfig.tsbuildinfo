@@ -1,0 +1,1 @@
+{"root":["./stack/behaviour/run-login.ts","./stack/behaviour/step-helpers.ts","./stack/behaviour/tasks.ts","./stack/behaviour/types.ts","./stack/behaviour/utils.ts","./stack/behaviour/sites/botc.ts","./stack/extension/index.ts","./stack/extension/host.ts"],"version":"5.8.3"}
