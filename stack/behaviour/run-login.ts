@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import { ExtensionHost } from '../extension/host.js';
 import { getTask, listTasks } from './tasks.js';
-import type { Credentials, TaskConfig } from './types.js';
+import type { Credentials, TaskConfig, LoginResult } from './types.js';
 import { getErrorMessage } from './utils.js';
 
 const WS_PORT = 8765;
@@ -59,15 +59,18 @@ async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
       console.log('='.repeat(50));
 
       try {
-        const success = await task.run(host, creds);
+        const result: LoginResult = await task.run(host, creds);
 
-        if (success) {
+        if (result.ok) {
           console.log('\n LOGIN SUCCESSFUL!');
           await writeAlert(task.name);
           process.exit(0);
         }
 
         console.log('\n Login not successful yet');
+        if (!result.ok) {
+          console.log(` Reason: ${result.reason}${result.finalUrl ? ` | URL: ${result.finalUrl}` : ''}${result.details ? ` | Details: ${result.details}` : ''}`);
+        }
       } catch (error) {
         console.error('\n Attempt failed:', getErrorMessage(error));
       }
