@@ -1,5 +1,11 @@
 import type { LoginFailReason, LoginResultFailure } from '../types.js';
 
+export async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export type StepErrorMeta = Record<string, unknown> & {
   finalUrl?: string;
   details?: string;
@@ -22,14 +28,22 @@ export class StepError extends Error {
 
   toResult(): LoginResultFailure {
     const { finalUrl, details, context } = this.meta;
-    return {
+    const result: LoginResultFailure = {
       ok: false,
       step: this.step,
       reason: this.reason,
-      finalUrl,
-      details,
       context: { task: this.task, ...(context ?? {}) },
     };
+
+    if (finalUrl !== undefined) {
+      result.finalUrl = finalUrl;
+    }
+
+    if (details !== undefined) {
+      result.details = details;
+    }
+
+    return result;
   }
 }
 

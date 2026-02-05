@@ -1,7 +1,6 @@
 import type { ExtensionHost } from '../../extension/host.js';
 import type { Credentials, TaskConfig, LoginResult } from '../types.js';
-import { sleep } from '../site-utils.js';
-import { fail, log, resetSteps, StepError } from './site-utils.js';
+import { fail, log, resetSteps, sleep, StepError } from './site-utils.js';
 
 const TASK = {
   name: 'botcLogin',
