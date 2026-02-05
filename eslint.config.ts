@@ -81,15 +81,6 @@ export default [
     },
   },
 
-  // Chrome extension – relaxed type assertion rules due to chrome API typing
-  {
-    files: ['stack/extension/**/*.ts'],
-    rules: {
-      '@typescript-eslint/consistent-type-assertions': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-    },
-  },
-
   // Tests – relaxed rules
   {
     files: ['**/*.{spec,test}.ts', '**/__tests__/**/*'],

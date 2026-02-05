@@ -4,6 +4,10 @@ import type { CommandMessage, ResponseMessage } from './types.js';
 
 export type { CommandMessage, ResponseMessage };
 
+function isResponseMessage(value: unknown): value is ResponseMessage {
+  return typeof value === 'object' && value !== null;
+}
+
 interface PendingCommand {
   resolve: (value: ResponseMessage) => void;
   reject: (reason: Error) => void;
@@ -51,7 +55,12 @@ export class ExtensionHost {
         this.ws = ws;
         ws.on('message', (data: Buffer) => {
           try {
-            const message: ResponseMessage = JSON.parse(data.toString());
+            const parsed: unknown = JSON.parse(data.toString());
+            if (!isResponseMessage(parsed)) {
+              console.error('[ExtensionHost] Invalid message format');
+              return;
+            }
+            const message = parsed;
 
             if (message.type === 'ready' && !settled) {
               settled = true;

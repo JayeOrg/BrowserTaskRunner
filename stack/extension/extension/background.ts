@@ -21,6 +21,21 @@ interface IncomingCommand {
   y?: number;
 }
 
+function isIncomingCommand(value: unknown): value is IncomingCommand {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  if (!('type' in value)) {
+    return false;
+  }
+  // After 'type' in value check, TypeScript narrows to { type: unknown }
+  return typeof value.type === 'string';
+}
+
+function isResponseMessage(value: unknown): value is ResponseMessage {
+  return typeof value === 'object' && value !== null;
+}
+
 function getReconnectDelay(): number {
   const delay = Math.min(
     BASE_RECONNECT_DELAY_MS * (2 ** reconnectAttempts),
@@ -66,7 +81,11 @@ function connect(): void {
       if (typeof event.data !== 'string') {
         throw new Error('Expected string message data');
       }
-      const incoming: IncomingCommand = JSON.parse(event.data);
+      const parsed: unknown = JSON.parse(event.data);
+      if (!isIncomingCommand(parsed)) {
+        throw new Error('Invalid command format');
+      }
+      const incoming = parsed;
       messageId = incoming.id;
       console.log('[SiteCheck] Received command:', incoming.type);
       const result = await handleCommand(incoming);
@@ -176,7 +195,7 @@ async function handleFill(selector: string, value: string): Promise<ResponseMess
     },
     args: [selector, value],
   });
-  const result = results[0]?.result as ResponseMessage | undefined;
+  const result = isResponseMessage(results[0]?.result) ? results[0].result : undefined;
   return result ?? { error: 'Script execution failed' };
 }
 
@@ -215,7 +234,7 @@ async function handleClick(selector: string): Promise<ResponseMessage> {
     },
     args: [selector],
   });
-  const result = results[0]?.result as ResponseMessage | undefined;
+  const result = isResponseMessage(results[0]?.result) ? results[0].result : undefined;
   return result ?? { error: 'Script execution failed' };
 }
 
@@ -293,7 +312,7 @@ async function handleWaitForSelector(selector: string, timeout: number): Promise
     },
     args: [selector, timeout],
   });
-  const result = results[0]?.result as ResponseMessage | undefined;
+  const result = isResponseMessage(results[0]?.result) ? results[0].result : undefined;
   return result ?? { error: 'Script execution failed' };
 }
 
@@ -311,7 +330,7 @@ async function handleGetContent(selector?: string): Promise<ResponseMessage> {
     },
     args: [selector],
   });
-  const result = results[0]?.result as ResponseMessage | undefined;
+  const result = isResponseMessage(results[0]?.result) ? results[0].result : undefined;
   return result ?? { error: 'Script execution failed' };
 }
 
@@ -342,7 +361,7 @@ async function handleQuerySelectorRect(selectors: string[]): Promise<ResponseMes
     },
     args: [selectors],
   });
-  const result = results[0]?.result as ResponseMessage | undefined;
+  const result = isResponseMessage(results[0]?.result) ? results[0].result : undefined;
   return result ?? { error: 'Script execution failed' };
 }
 
