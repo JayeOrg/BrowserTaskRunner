@@ -1,5 +1,5 @@
 import type { ExtensionHost } from '../../extension/host.js';
-import type { Credentials, TaskConfig, LoginResult } from '../types.js';
+import type { Credentials, TaskConfig, TaskResult } from '../types.js';
 import { fail, log, resetSteps, sleep, StepError } from './site-utils.js';
 
 const TASK = {
@@ -72,16 +72,20 @@ async function turnstile(host: ExtensionHost, phase: 'pre' | 'post') {
 
 async function submit(host: ExtensionHost) {
   log(TASK.name, 'submit', 'Submitting');
+  const errors: string[] = [];
   for (const selector of SELECTORS.submit) {
     try {
       await host.click(selector);
       log(TASK.name, 'submit', 'Done', { selector });
       return;
-    } catch {
-      // Try next selector
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${selector}: ${message}`);
     }
   }
-  fail(TASK.name, 'submit', 'SUBMIT_NOT_FOUND', { details: `Selectors tried: ${SELECTORS.submit.join(', ')}` });
+  fail(TASK.name, 'submit', 'SUBMIT_NOT_FOUND', {
+    details: `Selectors tried: ${SELECTORS.submit.join(', ')}. Errors: ${errors.join('; ')}`
+  });
 }
 
 async function checkResult(host: ExtensionHost): Promise<string> {
@@ -97,7 +101,7 @@ async function checkResult(host: ExtensionHost): Promise<string> {
   return finalUrl;
 }
 
-async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<LoginResult> {
+async function attemptLogin(host: ExtensionHost, creds: Credentials): Promise<TaskResult> {
   resetSteps();
   try {
     await navigate(host);

@@ -1,4 +1,5 @@
-import type { LoginFailReason, LoginResultFailure } from '../types.js';
+/* eslint-disable max-classes-per-file */
+import type { TaskFailReason, TaskResultFailure } from '../types.js';
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => {
@@ -18,7 +19,7 @@ export class StepError extends Error {
   constructor(
     public readonly task: string,
     public readonly step: string,
-    public readonly reason: LoginFailReason,
+    public readonly reason: TaskFailReason,
     meta: StepErrorMeta = {},
   ) {
     super(`${task}.${step}: ${reason}`);
@@ -26,9 +27,9 @@ export class StepError extends Error {
     this.meta = meta;
   }
 
-  toResult(): LoginResultFailure {
+  toResult(): TaskResultFailure {
     const { finalUrl, details, context } = this.meta;
-    const result: LoginResultFailure = {
+    const result: TaskResultFailure = {
       ok: false,
       step: this.step,
       reason: this.reason,
@@ -47,21 +48,43 @@ export class StepError extends Error {
   }
 }
 
-let stepNum = 0;
-let lastStep = '';
+/**
+ * StepLogger encapsulates step tracking state for a single task execution.
+ * Create a new instance for each task run to avoid shared mutable state.
+ */
+export class StepLogger {
+  private stepNum = 0;
+  private lastStep = '';
+
+  log(task: string, step: string, msg: string, data?: Record<string, unknown>): void {
+    if (step !== this.lastStep) {
+      this.stepNum++;
+      this.lastStep = step;
+    }
+    const prefix = `[${this.stepNum.toString()} ${step}]`;
+    console.log(prefix, msg, data ? { task, ...data } : { task });
+  }
+
+  fail(task: string, step: string, reason: TaskFailReason, meta: StepErrorMeta = {}): never {
+    this.log(task, step, reason, meta);
+    throw new StepError(task, step, reason, meta);
+  }
+
+  reset(): void {
+    this.stepNum = 0;
+    this.lastStep = '';
+  }
+}
+
+// Default global instance for backwards compatibility
+// Consider migrating to instance-based usage for better isolation
+const defaultLogger = new StepLogger();
 
 export const log = (task: string, step: string, msg: string, data?: Record<string, unknown>) => {
-  if (step !== lastStep) {
-    stepNum++;
-    lastStep = step;
-  }
-  const prefix = `[${stepNum.toString()} ${step}]`;
-  console.log(prefix, msg, data ? { task, ...data } : { task });
+  defaultLogger.log(task, step, msg, data);
 };
 
-export const resetSteps = () => { stepNum = 0; lastStep = ''; };
+export const resetSteps = () => { defaultLogger.reset(); };
 
-export const fail = (task: string, step: string, reason: LoginFailReason, meta: StepErrorMeta = {}): never => {
-  log(task, step, reason, meta);
-  throw new StepError(task, step, reason, meta);
-};
+export const fail = (task: string, step: string, reason: TaskFailReason, meta: StepErrorMeta = {}): never =>
+  defaultLogger.fail(task, step, reason, meta);

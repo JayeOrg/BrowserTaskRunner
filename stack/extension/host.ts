@@ -1,37 +1,13 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import path from 'node:path';
+import type { CommandMessage, ResponseMessage } from './types.js';
 
-export interface CommandMessage {
-  type: string;
-  url?: string;
-  selector?: string;
-  value?: string;
-  timeout?: number;
-}
-
-export interface ResponseMessage {
-  id?: number;
-  type?: string;
-  error?: string;
-  url?: string;
-  title?: string;
-  found?: boolean;
-  content?: string;
-  selector?: string;
-  iframes?: unknown[];
-  cfElements?: unknown[];
-  buttons?: unknown[];
-  iframeInfo?: unknown[];
-  success?: boolean;
-  pong?: boolean;
-  result?: unknown;
-  cdpClick?: boolean;
-  cdpError?: string;
-}
+export type { CommandMessage, ResponseMessage };
 
 interface PendingCommand {
   resolve: (value: ResponseMessage) => void;
   reject: (reason: Error) => void;
+  timeoutId: ReturnType<typeof setTimeout>;
 }
 
 export class ExtensionHost {
@@ -87,6 +63,7 @@ export class ExtensionHost {
             if (message.id !== undefined) {
               const pending = this.pendingCommands.get(message.id);
               if (pending) {
+                clearTimeout(pending.timeoutId);
                 this.pendingCommands.delete(message.id);
                 if (message.error) {
                   pending.reject(new Error(message.error));
@@ -136,15 +113,15 @@ export class ExtensionHost {
       const socket = this.ensureConnection();
 
       const id = ++this.commandId;
-      this.pendingCommands.set(id, { resolve, reject });
-      socket.send(JSON.stringify({ id, ...command }));
-
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         if (this.pendingCommands.has(id)) {
           this.pendingCommands.delete(id);
           reject(new Error(`Command timeout: ${command.type}`));
         }
       }, 30000);
+
+      this.pendingCommands.set(id, { resolve, reject, timeoutId });
+      socket.send(JSON.stringify({ id, ...command }));
     });
   }
 

@@ -2,24 +2,24 @@ import 'dotenv/config';
 import { writeFileSync, mkdirSync } from 'fs';
 import { getErrorMessage } from '../behaviour/utils.js';
 
-async function playAlert(loginUrl: string): Promise<void> {
+async function playAlert(taskUrl: string): Promise<void> {
   process.stdout.write('\u0007');
-  console.log('\n ALERT: Login successful!');
+  console.log('\n ALERT: Task successful!');
 
   try {
     mkdirSync('/app/infra/alerts', { recursive: true });
     const timestamp = new Date().toISOString();
-    const alertContent = `LOGIN SUCCESSFUL!\nTime: ${timestamp}\nSite: ${loginUrl}\n`;
-    writeFileSync('/app/infra/alerts/LOGIN_SUCCESS.txt', alertContent);
-    console.log(' Alert file written to /app/infra/alerts/LOGIN_SUCCESS.txt');
+    const alertContent = `Task SUCCESSFUL!\nTime: ${timestamp}\nSite: ${taskUrl}\n`;
+    writeFileSync('/app/infra/alerts/TASK_SUCCESS.txt', alertContent);
+    console.log(' Alert file written to /app/infra/alerts/TASK_SUCCESS.txt');
   } catch (error) {
     console.log('Could not write alert file:', getErrorMessage(error));
   }
 }
 
 async function main(): Promise<void> {
-  const loginUrl = process.env.SITE_LOGIN_URL || 'https://botc.app/';
-  await playAlert(loginUrl);
+  const taskUrl = process.env.SITE_TASK_URL || 'https://botc.app/';
+  await playAlert(taskUrl);
 }
 
 main().catch((error: unknown) => {

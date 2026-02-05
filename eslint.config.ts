@@ -77,6 +77,16 @@ export default [
       'dot-notation': 'off',
       'init-declarations': 'off',
       'sort-keys': 'off',
+      'id-length': ['error', { exceptions: ['x', 'y'] }],
+    },
+  },
+
+  // Chrome extension – relaxed type assertion rules due to chrome API typing
+  {
+    files: ['stack/extension/**/*.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-assertions': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
 

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import { ExtensionHost } from '../extension/host.js';
 import { getTask, listTasks } from './tasks.js';
-import type { Credentials, TaskSchedule, TaskConfig, LoginResult, LoginResultFailure } from './types.js';
+import type { Credentials, TaskSchedule, TaskConfig, TaskResult, TaskResultFailure } from './types.js';
 import { getErrorMessage } from './utils.js';
 
 const WS_PORT = 8765;
@@ -35,7 +35,7 @@ function loadSchedule(): TaskSchedule {
   return { checkIntervalMs };
 }
 
-function logFailureDetails(result: LoginResultFailure): void {
+function logFailureDetails(result: TaskResultFailure): void {
   const stepLabel = ` | Step: ${result.step}`;
   const contextLabel = result.context ? ` | Context: ${JSON.stringify(result.context)}` : '';
   const urlLabel = result.finalUrl ? ` | URL: ${result.finalUrl}` : '';
@@ -50,7 +50,7 @@ async function writeAlert(taskName: string): Promise<void> {
   writeFileSync(alertFile, content);
   console.log(`Alert written to ${alertFile}`);
   process.stdout.write('\u0007');
-  console.log('\n ALERT: Login successful!');
+  console.log('\n ALERT: Task successful!');
 }
 
 async function runTask(task: TaskConfig, creds: Credentials, schedule: TaskSchedule): Promise<void> {
@@ -71,15 +71,15 @@ async function runTask(task: TaskConfig, creds: Credentials, schedule: TaskSched
       console.log('='.repeat(50));
 
       try {
-        const result: LoginResult = await task.run(host, creds);
+        const result: TaskResult = await task.run(host, creds);
 
         if (result.ok) {
-          console.log('\n LOGIN SUCCESSFUL!');
+          console.log('\n TASK SUCCESSFUL!');
           await writeAlert(task.name);
           process.exit(0);
         }
 
-        console.log('\n Login not successful yet');
+        console.log('\n Task not successful yet');
         logFailureDetails(result);
       } catch (error) {
         console.error('\n Attempt failed:', getErrorMessage(error));

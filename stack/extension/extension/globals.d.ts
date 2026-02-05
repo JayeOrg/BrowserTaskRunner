@@ -1,2 +1,2 @@
-// Minimal globals so extension TypeScript compiles without chrome type packages
-declare const chrome: any;
+// Use proper Chrome extension types from @types/chrome
+/// <reference types="chrome" />

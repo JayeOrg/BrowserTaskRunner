@@ -1,48 +1,133 @@
 // WebSocket connection to Node.js server
 let ws: WebSocket | null = null;
-let reconnectInterval: ReturnType<typeof setInterval> | null = null;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
 const WS_URL = 'ws://localhost:8765';
+const MAX_RECONNECT_DELAY_MS = 30000;
+const BASE_RECONNECT_DELAY_MS = 1000;
 
-function connect() {
-  if (ws && ws.readyState === WebSocket.OPEN) {return;}
+interface CommandMessage {
+  id?: number;
+  type: string;
+  url?: string;
+  selector?: string;
+  value?: string;
+  timeout?: number;
+  code?: string;
+}
+
+interface ResponseMessage {
+  success?: boolean;
+  error?: string;
+  url?: string;
+  title?: string;
+  found?: boolean;
+  content?: string;
+  selector?: string;
+  iframes?: IframeInfo[];
+  cfElements?: ElementInfo[];
+  buttons?: ButtonInfo[];
+  iframeInfo?: IframeInfo[];
+  clickX?: number;
+  clickY?: number;
+  containerRect?: { left: number; top: number; width: number; height: number };
+  cdpClick?: boolean;
+  cdpError?: string;
+  pong?: boolean;
+  result?: unknown;
+  loaded?: boolean;
+  timedOut?: boolean;
+}
+
+interface IframeInfo {
+  src: string;
+  id: string;
+  className: string;
+  width?: number;
+  height?: number;
+  rect?: { left: number; top: number; width: number; height: number };
+}
+
+interface ElementInfo {
+  tag: string;
+  id: string;
+  className: string;
+}
+
+interface ButtonInfo {
+  text: string | undefined;
+  type: string;
+  className: string;
+  disabled: boolean;
+}
+
+interface TurnstileInfo extends ResponseMessage {
+  found: boolean;
+  clickX?: number;
+  clickY?: number;
+}
+
+function getReconnectDelay(): number {
+  const delay = Math.min(
+    BASE_RECONNECT_DELAY_MS * (2 ** reconnectAttempts),
+    MAX_RECONNECT_DELAY_MS
+  );
+  return delay;
+}
+
+function scheduleReconnect(): void {
+  if (reconnectTimeout) {
+    return;
+  }
+  const delay = getReconnectDelay();
+  reconnectAttempts++;
+  console.log(`[SiteCheck] Reconnecting in ${delay.toString()}ms (attempt ${reconnectAttempts.toString()})`);
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    connect();
+  }, delay);
+}
+
+function connect(): void {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    return;
+  }
 
   console.log('[SiteCheck] Connecting to', WS_URL);
   ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
     console.log('[SiteCheck] Connected to server');
-    if (reconnectInterval) {
-      clearInterval(reconnectInterval);
-      reconnectInterval = null;
+    reconnectAttempts = 0;
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
     }
-    // Notify server we're ready
     ws?.send(JSON.stringify({ type: 'ready' }));
   };
 
   ws.onmessage = async (event: MessageEvent) => {
-    let incoming: any;
+    let messageId: number | undefined;
     try {
       if (typeof event.data !== 'string') {
         throw new Error('Expected string message data');
       }
-      incoming = JSON.parse(event.data);
+      const incoming: CommandMessage = JSON.parse(event.data);
+      messageId = incoming.id;
       console.log('[SiteCheck] Received command:', incoming.type);
       const result = await handleCommand(incoming);
-      ws?.send(JSON.stringify({ id: incoming.id, ...result }));
+      ws?.send(JSON.stringify({ id: messageId, ...result }));
     } catch (error) {
       console.error('[SiteCheck] Error handling message:', error);
       const message = error instanceof Error ? error.message : String(error);
-      ws?.send(JSON.stringify({ id: incoming?.id, error: message }));
+      ws?.send(JSON.stringify({ id: messageId, error: message }));
     }
   };
 
   ws.onclose = () => {
     console.log('[SiteCheck] Disconnected from server');
     ws = null;
-    // Reconnect after delay
-    if (!reconnectInterval) {
-      reconnectInterval = setInterval(connect, 3000);
-    }
+    scheduleReconnect();
   };
 
   ws.onerror = (error: Event) => {
@@ -50,305 +135,400 @@ function connect() {
   };
 }
 
-async function handleCommand(message: any) {
-  const { type, ...params } = message;
+// --- Tab utilities ---
 
-  switch (type) {
-    case 'navigate': {
-      const tab = await getActiveTab();
-      await chrome.tabs.update(tab.id, { url: params.url });
-      // Wait for page to load
-      await waitForTabLoad(tab.id);
-      return { success: true, url: params.url };
-    }
-
-    case 'getUrl': {
-      const tab = await getActiveTab();
-      return { success: true, url: tab.url, title: tab.title };
-    }
-
-    case 'executeScript': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: new Function(params.code),
-      });
-      return { success: true, result: results[0]?.result };
-    }
-
-    case 'fill': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (selector: string, value: string) => {
-          const el = document.querySelector(selector);
-          if (!el) {return { error: `Element not found: ${  selector}` };}
-          if (!(el instanceof HTMLInputElement)) {
-            return { error: `Element is not an input: ${  selector}` };
-          }
-          el.focus();
-          el.value = value;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          return { success: true };
-        },
-        args: [params.selector, params.value],
-      });
-      return results[0]?.result || { error: 'Script failed' };
-    }
-
-    case 'click': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (selector: string) => {
-          const el = document.querySelector(selector);
-          if (!el) {return { error: `Element not found: ${  selector}` };}
-
-          // Get element position for realistic coordinates
-          const rect = el.getBoundingClientRect();
-          const x = rect.left + rect.width / 2;
-          const y = rect.top + rect.height / 2;
-
-          // Create realistic mouse event sequence
-          const eventOptions = {
-            view: window,
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y,
-            screenX: x + window.screenX,
-            screenY: y + window.screenY,
-            button: 0,
-            buttons: 1,
-          };
-
-          el.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-          el.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-          el.dispatchEvent(new MouseEvent('click', eventOptions));
-
-          return { success: true };
-        },
-        args: [params.selector],
-      });
-      return results[0]?.result || { error: 'Script failed' };
-    }
-
-    case 'clickTurnstile': {
-      const tab = await getActiveTab();
-
-      // First, find the Turnstile widget coordinates
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const allIframes = Array.from(document.querySelectorAll('iframe'));
-          const iframeInfo = allIframes.map(f => ({
-            src: f.src,
-            id: f.id,
-            className: f.className,
-            rect: f.getBoundingClientRect()
-          }));
-
-          // Find the Turnstile container
-          const turnstileSelectors = [
-            '.turnstile',
-            '.cf-turnstile',
-            '[data-turnstile-widget]',
-            '#turnstile-wrapper',
-            '[class*="turnstile"]',
-          ];
-
-          for (const selector of turnstileSelectors) {
-            const container = document.querySelector(selector);
-            if (container) {
-              const rect = container.getBoundingClientRect();
-              // The checkbox is typically at ~30px from left, centered vertically
-              const x = rect.left + 30;
-              const y = rect.top + rect.height / 2;
-
-              return {
-                success: true,
-                found: true,
-                selector,
-                clickX: x,
-                clickY: y,
-                containerRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-                iframeInfo
-              };
-            }
-          }
-
-          return { success: true, found: false, iframeInfo };
-        },
-        args: [],
-      });
-
-      const info = results[0]?.result;
-      if (info?.found && info?.clickX !== undefined) {
-        // Use Chrome Debugger API to perform a real click
-        try {
-          const debuggee = { tabId: tab.id };
-
-          // Attach debugger
-          await chrome.debugger.attach(debuggee, '1.3');
-
-          // Perform mouse click using CDP Input.dispatchMouseEvent
-          const x = info.clickX;
-          const y = info.clickY;
-
-          // Mouse pressed
-          await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
-            type: 'mousePressed',
-            x,
-            y,
-            button: 'left',
-            clickCount: 1
-          });
-
-          // Small delay
-          await new Promise(r => setTimeout(r, 50));
-
-          // Mouse released
-          await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
-            type: 'mouseReleased',
-            x,
-            y,
-            button: 'left',
-            clickCount: 1
-          });
-
-          // Detach debugger
-          await chrome.debugger.detach(debuggee);
-
-          info.cdpClick = true;
-        } catch (cdpError) {
-          info.cdpError = cdpError instanceof Error ? cdpError.message : String(cdpError);
-          // Fallback to regular click
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: (x: number, y: number) => {
-              const targetEl = document.elementFromPoint(x, y);
-              if (targetEl) {
-                const eventInit = {
-                  bubbles: true,
-                  cancelable: true,
-                  view: window,
-                  clientX: x,
-                  clientY: y,
-                  button: 0,
-                  buttons: 1,
-                };
-                targetEl.dispatchEvent(new MouseEvent('mousedown', eventInit));
-                targetEl.dispatchEvent(new MouseEvent('mouseup', eventInit));
-                targetEl.dispatchEvent(new MouseEvent('click', eventInit));
-              }
-            },
-            args: [info.clickX, info.clickY],
-          });
-        }
-      }
-
-      return info || { error: 'Script failed' };
-    }
-
-    case 'debugPage': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({
-            src: f.src,
-            id: f.id,
-            className: f.className,
-            width: f.width,
-            height: f.height,
-          }));
-
-          const buttons = Array.from(document.querySelectorAll('button')).map(b => ({
-            text: b.textContent?.trim().substring(0, 50),
-            type: b.type,
-            className: b.className,
-            disabled: b.disabled,
-          }));
-
-          const divs = Array.from(document.querySelectorAll('[class*="cloudflare"], [class*="turnstile"], [class*="challenge"], [id*="cloudflare"], [id*="turnstile"], [id*="challenge"]')).map(d => ({
-            tag: d.tagName,
-            id: d.id,
-            className: d.className,
-          }));
-
-          return { iframes, buttons, cfElements: divs };
-        },
-        args: [],
-      });
-      return results[0]?.result || { error: 'Script failed' };
-    }
-
-    case 'waitForSelector': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: async (selector: string, timeout: number) => {
-          const start = Date.now();
-          while (Date.now() - start < timeout) {
-            const el = document.querySelector(selector);
-            if (el) {return { success: true, found: true };}
-            await new Promise(r => setTimeout(r, 100));
-          }
-          return { success: true, found: false };
-        },
-        args: [params.selector, params.timeout || 10000],
-      });
-      return results[0]?.result || { error: 'Script failed' };
-    }
-
-    case 'getContent': {
-      const tab = await getActiveTab();
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (selector?: string) => {
-          if (selector) {
-            const el = document.querySelector(selector);
-            return { success: true, content: el?.textContent || null };
-          }
-          return { success: true, content: document.body.innerText };
-        },
-        args: [params.selector],
-      });
-      return results[0]?.result || { error: 'Script failed' };
-    }
-
-    case 'ping': {
-      return { success: true, pong: true };
-    }
-
-    default:
-      return { error: `Unknown command: ${  type}` };
-  }
-}
-
-async function getActiveTab(): Promise<any> {
+async function getActiveTab(): Promise<chrome.tabs.Tab> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) {throw new Error('No active tab');}
+  if (!tab) {
+    throw new Error('No active tab');
+  }
   return tab;
 }
 
-function waitForTabLoad(tabId: number): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const listener = (id: number, changeInfo: any) => {
-      if (id === tabId && changeInfo.status === 'complete') {
+function getTabId(tab: chrome.tabs.Tab): number {
+  if (tab.id === undefined) {
+    throw new Error('Tab has no ID (possibly a devtools or extension tab)');
+  }
+  return tab.id;
+}
+
+interface TabLoadResult {
+  loaded: boolean;
+  timedOut: boolean;
+}
+
+function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoadResult> {
+  return new Promise<TabLoadResult>((resolve) => {
+    let resolved = false;
+
+    const listener = (changedTabId: number, changeInfo: { status?: string }) => {
+      if (changedTabId === tabId && changeInfo.status === 'complete' && !resolved) {
+        resolved = true;
         chrome.tabs.onUpdated.removeListener(listener);
-        // Small delay for page scripts to initialize
-        setTimeout(resolve, 500);
+        setTimeout(() => { resolve({ loaded: true, timedOut: false }); }, 500);
       }
     };
+
     chrome.tabs.onUpdated.addListener(listener);
-    // Timeout after 30 seconds
+
     setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve();
-    }, 30000);
+      if (!resolved) {
+        resolved = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        console.warn(`[SiteCheck] Tab load timed out after ${timeoutMs.toString()}ms`);
+        resolve({ loaded: false, timedOut: true });
+      }
+    }, timeoutMs);
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+// --- Command handlers ---
+
+async function handleNavigate(url: string): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  await chrome.tabs.update(tabId, { url });
+  const loadResult = await waitForTabLoad(tabId);
+  return { success: true, url, ...loadResult };
+}
+
+async function handleGetUrl(): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  return { success: true, url: tab.url, title: tab.title };
+}
+
+/* eslint-disable @typescript-eslint/no-implied-eval, sonarjs/code-eval, no-new-func */
+async function handleExecuteScript(code: string): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  // Dynamic code execution is the core purpose of this extension
+  const dynamicFunc = new Function(code) as () => unknown;
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: dynamicFunc,
+  });
+  return { success: true, result: results[0]?.result };
+}
+/* eslint-enable @typescript-eslint/no-implied-eval, sonarjs/code-eval, no-new-func */
+
+async function handleFill(selector: string, value: string): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (sel: string, val: string) => {
+      const element = document.querySelector(sel);
+      if (!element) {
+        return { error: `Element not found: ${sel}` };
+      }
+      if (!(element instanceof HTMLInputElement)) {
+        return { error: `Element is not an input: ${sel}` };
+      }
+      element.focus();
+      element.value = val;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      return { success: true };
+    },
+    args: [selector, value],
+  });
+  const result = results[0]?.result as ResponseMessage | undefined;
+  return result ?? { error: 'Script execution failed' };
+}
+
+async function handleClick(selector: string): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (sel: string) => {
+      const element = document.querySelector(sel);
+      if (!element) {
+        return { error: `Element not found: ${sel}` };
+      }
+
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const eventOptions = {
+        view: window,
+        bubbles: true,
+        cancelable: true,
+        clientX: centerX,
+        clientY: centerY,
+        screenX: centerX + window.screenX,
+        screenY: centerY + window.screenY,
+        button: 0,
+        buttons: 1,
+      };
+
+      element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+      element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+      element.dispatchEvent(new MouseEvent('click', eventOptions));
+
+      return { success: true };
+    },
+    args: [selector],
+  });
+  const result = results[0]?.result as ResponseMessage | undefined;
+  return result ?? { error: 'Script execution failed' };
+}
+
+async function handleClickTurnstile(): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const allIframes = Array.from(document.querySelectorAll('iframe'));
+      const iframeInfo = allIframes.map(frame => ({
+        src: frame.src,
+        id: frame.id,
+        className: frame.className,
+        rect: {
+          left: frame.getBoundingClientRect().left,
+          top: frame.getBoundingClientRect().top,
+          width: frame.getBoundingClientRect().width,
+          height: frame.getBoundingClientRect().height,
+        }
+      }));
+
+      const turnstileSelectors = [
+        '.turnstile',
+        '.cf-turnstile',
+        '[data-turnstile-widget]',
+        '#turnstile-wrapper',
+        '[class*="turnstile"]',
+      ];
+
+      for (const selector of turnstileSelectors) {
+        const container = document.querySelector(selector);
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const clickX = rect.left + 30;
+          const clickY = rect.top + rect.height / 2;
+
+          return {
+            success: true,
+            found: true,
+            selector,
+            clickX,
+            clickY,
+            containerRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+            iframeInfo
+          };
+        }
+      }
+
+      return { success: true, found: false, iframeInfo };
+    },
+    args: [],
+  });
+
+  const info = results[0]?.result as TurnstileInfo | undefined;
+  if (!info) {
+    return { error: 'Script execution failed' };
+  }
+
+  if (info.found && info.clickX !== undefined && info.clickY !== undefined) {
+    try {
+      const debuggee = { tabId };
+      await chrome.debugger.attach(debuggee, '1.3');
+
+      const clickX = info.clickX;
+      const clickY = info.clickY;
+
+      await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: clickX,
+        y: clickY,
+        button: 'left',
+        clickCount: 1
+      });
+
+      await sleep(50);
+
+      await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: clickX,
+        y: clickY,
+        button: 'left',
+        clickCount: 1
+      });
+
+      await chrome.debugger.detach(debuggee);
+      info.cdpClick = true;
+    } catch (cdpError) {
+      info.cdpError = cdpError instanceof Error ? cdpError.message : String(cdpError);
+      await performFallbackClick(tabId, info.clickX, info.clickY);
+    }
+  }
+
+  return info;
+}
+
+async function performFallbackClick(tabId: number, clickX: number, clickY: number): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (posX: number, posY: number) => {
+      const targetEl = document.elementFromPoint(posX, posY);
+      if (targetEl) {
+        const eventInit = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: posX,
+          clientY: posY,
+          button: 0,
+          buttons: 1,
+        };
+        targetEl.dispatchEvent(new MouseEvent('mousedown', eventInit));
+        targetEl.dispatchEvent(new MouseEvent('mouseup', eventInit));
+        targetEl.dispatchEvent(new MouseEvent('click', eventInit));
+      }
+    },
+    args: [clickX, clickY],
+  });
+}
+
+async function handleDebugPage(): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const iframes = Array.from(document.querySelectorAll('iframe')).map(frame => ({
+        src: frame.src,
+        id: frame.id,
+        className: frame.className,
+        width: frame.width,
+        height: frame.height,
+      }));
+
+      const buttons = Array.from(document.querySelectorAll('button')).map(btn => ({
+        text: btn.textContent.trim().substring(0, 50),
+        type: btn.type,
+        className: btn.className,
+        disabled: btn.disabled,
+      }));
+
+      const cfElements = Array.from(document.querySelectorAll(
+        '[class*="cloudflare"], [class*="turnstile"], [class*="challenge"], ' +
+        '[id*="cloudflare"], [id*="turnstile"], [id*="challenge"]'
+      )).map(div => ({
+        tag: div.tagName,
+        id: div.id,
+        className: div.className,
+      }));
+
+      return { iframes, buttons, cfElements };
+    },
+    args: [],
+  });
+  const result = results[0]?.result as ResponseMessage | undefined;
+  return result ?? { error: 'Script execution failed' };
+}
+
+async function handleWaitForSelector(selector: string, timeout: number): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (sel: string, timeoutMs: number) => {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const element = document.querySelector(sel);
+        if (element) {
+          return { success: true, found: true };
+        }
+        await new Promise((resolve) => { setTimeout(resolve, 100); });
+      }
+      return { success: true, found: false };
+    },
+    args: [selector, timeout],
+  });
+  const result = results[0]?.result as ResponseMessage | undefined;
+  return result ?? { error: 'Script execution failed' };
+}
+
+async function handleGetContent(selector?: string): Promise<ResponseMessage> {
+  const tab = await getActiveTab();
+  const tabId = getTabId(tab);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (sel?: string) => {
+      if (sel) {
+        const element = document.querySelector(sel);
+        return { success: true, content: element?.textContent ?? null };
+      }
+      return { success: true, content: document.body.innerText };
+    },
+    args: [selector],
+  });
+  const result = results[0]?.result as ResponseMessage | undefined;
+  return result ?? { error: 'Script execution failed' };
+}
+
+// --- Main command dispatcher ---
+
+async function handleCommand(message: CommandMessage): Promise<ResponseMessage> {
+  const { type } = message;
+
+  switch (type) {
+    case 'navigate':
+      if (!message.url) {
+        return { error: 'Missing url parameter' };
+      }
+      return handleNavigate(message.url);
+
+    case 'getUrl':
+      return handleGetUrl();
+
+    case 'executeScript':
+      if (!message.code) {
+        return { error: 'Missing code parameter' };
+      }
+      return handleExecuteScript(message.code);
+
+    case 'fill':
+      if (!message.selector || message.value === undefined) {
+        return { error: 'Missing selector or value parameter' };
+      }
+      return handleFill(message.selector, message.value);
+
+    case 'click':
+      if (!message.selector) {
+        return { error: 'Missing selector parameter' };
+      }
+      return handleClick(message.selector);
+
+    case 'clickTurnstile':
+      return handleClickTurnstile();
+
+    case 'debugPage':
+      return handleDebugPage();
+
+    case 'waitForSelector':
+      if (!message.selector) {
+        return { error: 'Missing selector parameter' };
+      }
+      return handleWaitForSelector(message.selector, message.timeout ?? 10000);
+
+    case 'getContent':
+      return handleGetContent(message.selector);
+
+    case 'ping':
+      return { success: true, pong: true };
+
+    default:
+      return { error: `Unknown command: ${type}` };
+  }
 }
 
 // Start connection when extension loads
