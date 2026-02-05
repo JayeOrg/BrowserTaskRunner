@@ -98,4 +98,4 @@ if [ -z "$TASK_NAME" ]; then
 fi
 
 echo "Starting task: $TASK_NAME"
-node /app/dist/behaviour/run-login.js "$TASK_NAME"
+node /app/dist/behaviour/run-task.js "$TASK_NAME"

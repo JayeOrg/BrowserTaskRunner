@@ -16,6 +16,7 @@ npm run check <taskName>
 ```
 
 Example:
+
 ```bash
 npm run check botcLogin
 ```
@@ -46,6 +47,7 @@ npm run check botcLogin
 ```
 
 To disable VNC:
+
 ```bash
 ENABLE_VNC=false npm run check botcLogin
 ```
@@ -61,9 +63,9 @@ ENABLE_VNC=false npm run check botcLogin
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│           Docker Container              │
-│                                         │
+┌────────────────────────────────────────┐
+│           Docker Container             │
+│                                        │
 │  ┌─────────┐    ┌──────────────────┐   │
 │  │  Xvfb   │───▶│  Chrome + Ext    │   │
 │  │ :99     │    │                  │   │
@@ -72,9 +74,9 @@ ENABLE_VNC=false npm run check botcLogin
 │                          ▼             │
 │                 ┌──────────────────┐   │
 │                 │   Node.js        │   │
-│                 │   run-login.js   │   │
+│                 │   run-task.js    │   │
 │                 └──────────────────┘   │
-└─────────────────────────────────────────┘
+└────────────────────────────────────────┘
         │
         ▼ VNC (port 5900)
    [VNC Viewer for debugging]

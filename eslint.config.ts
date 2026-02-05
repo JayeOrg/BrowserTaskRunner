@@ -50,6 +50,7 @@ export default [
       'no-console': 'off',
 
       // Core ESLint rule adjustments
+      'no-use-before-define': 'off',
       'no-await-in-loop': 'off',
       'no-plusplus': 'off',
       'no-shadow': 'error',

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import { ExtensionHost } from '../extension/host.js';
 import { getTask, listTasks } from './tasks.js';
-import type { Credentials, TaskConfig, LoginResult } from './types.js';
+import type { Credentials, TaskSchedule, TaskConfig, LoginResult, LoginResultFailure } from './types.js';
 import { getErrorMessage } from './utils.js';
 
 const WS_PORT = 8765;
@@ -11,7 +11,7 @@ function getTaskName(): string {
   const taskName = process.argv[2];
   if (!taskName) {
     const available = listTasks().join(', ');
-    throw new Error(`Missing task name. Usage: node run-login.js <taskName>\nAvailable tasks: ${available}`);
+    throw new Error(`Missing task name. Usage: node run-task.js <taskName>\nAvailable tasks: ${available}`);
   }
   return taskName;
 }
@@ -19,7 +19,6 @@ function getTaskName(): string {
 function loadCredentials(): Credentials {
   const email = process.env.SITE_EMAIL;
   const password = process.env.SITE_PASSWORD;
-  const checkIntervalMs = Number.parseInt(process.env.SITE_CHECK_INTERVAL_MS || '300000', 10);
 
   if (!email || !password) {
     const missing: string[] = [];
@@ -28,7 +27,20 @@ function loadCredentials(): Credentials {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  return { email, password, checkIntervalMs };
+  return { email, password };
+}
+
+function loadSchedule(): TaskSchedule {
+  const checkIntervalMs = Number.parseInt(process.env.SITE_CHECK_INTERVAL_MS || '300000', 10);
+  return { checkIntervalMs };
+}
+
+function logFailureDetails(result: LoginResultFailure): void {
+  const stepLabel = ` | Step: ${result.step}`;
+  const contextLabel = result.context ? ` | Context: ${JSON.stringify(result.context)}` : '';
+  const urlLabel = result.finalUrl ? ` | URL: ${result.finalUrl}` : '';
+  const detailsLabel = result.details ? ` | Details: ${result.details}` : '';
+  console.log(` Reason: ${result.reason}${stepLabel}${urlLabel}${detailsLabel}${contextLabel}`);
 }
 
 async function writeAlert(taskName: string): Promise<void> {
@@ -41,7 +53,7 @@ async function writeAlert(taskName: string): Promise<void> {
   console.log('\n ALERT: Login successful!');
 }
 
-async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
+async function runTask(task: TaskConfig, creds: Credentials, schedule: TaskSchedule): Promise<void> {
   const host = new ExtensionHost(WS_PORT);
 
   try {
@@ -68,21 +80,13 @@ async function runTask(task: TaskConfig, creds: Credentials): Promise<void> {
         }
 
         console.log('\n Login not successful yet');
-        if (!result.ok) {
-          const stepLabel = result.step ? ` | Step: ${result.step}` : '';
-          const contextLabel = result.context ? ` | Context: ${JSON.stringify(result.context)}` : '';
-          const urlLabel = result.finalUrl ? ` | URL: ${result.finalUrl}` : '';
-          const detailsLabel = result.details ? ` | Details: ${result.details}` : '';
-          console.log(
-            ` Reason: ${result.reason}${stepLabel}${urlLabel}${detailsLabel}${contextLabel}`,
-          );
-        }
+        logFailureDetails(result);
       } catch (error) {
         console.error('\n Attempt failed:', getErrorMessage(error));
       }
 
-      console.log(`\nWaiting ${Math.round(creds.checkIntervalMs / 1000).toString()} seconds before next attempt...`);
-      await new Promise(resolve => { setTimeout(resolve, creds.checkIntervalMs); });
+      console.log(`\nWaiting ${Math.round(schedule.checkIntervalMs / 1000).toString()} seconds before next attempt...`);
+      await new Promise(resolve => { setTimeout(resolve, schedule.checkIntervalMs); });
     }
   } finally {
     host.close();
@@ -93,11 +97,12 @@ async function main(): Promise<void> {
   const taskName = getTaskName();
   const task = getTask(taskName);
   const creds = loadCredentials();
+  const schedule = loadSchedule();
 
   console.log(`Running task: ${task.name}`);
   console.log(`Target URL: ${task.url}`);
 
-  await runTask(task, creds);
+  await runTask(task, creds, schedule);
 }
 
 main().catch((error: unknown) => {

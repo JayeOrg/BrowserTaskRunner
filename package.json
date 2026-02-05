@@ -11,7 +11,7 @@
     "build:extension-bg": "esbuild stack/extension/extension/background.ts --bundle --outfile=dist/extension/extension/background.js --format=iife --target=chrome100",
     "build:extension-content": "esbuild stack/extension/extension/content.ts --bundle --outfile=dist/extension/extension/content.js --format=iife --target=chrome100",
     "check": "./stack/infra/check.sh",
-    "dev": "npm run build && node dist/behaviour/run-login.js",
+    "dev": "npm run build && node dist/behaviour/run-task.js",
     "docker:build": "docker-compose -f stack/infra/docker-compose.yml --env-file .env build",
     "docker:down": "docker-compose -f stack/infra/docker-compose.yml down"
   },

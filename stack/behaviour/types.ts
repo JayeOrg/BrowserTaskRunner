@@ -3,6 +3,9 @@ import type { ExtensionHost } from '../extension/host.js';
 export interface Credentials {
   email: string;
   password: string;
+}
+
+export interface TaskSchedule {
   checkIntervalMs: number;
 }
 
@@ -14,7 +17,7 @@ export type LoginFailReason =
 
 export interface LoginResultSuccess {
   ok: true;
-  step?: string;
+  step: string;
   finalUrl?: string;
   context?: Record<string, unknown>;
 }
