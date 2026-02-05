@@ -34,4 +34,4 @@ EXPOSE 5900
 EXPOSE 8765
 
 # Start script
-CMD ["./stack/docker/start.sh"]
+CMD ["./stack/infra/start.sh"]

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LOG_DIR=${LOG_DIR:-/app/docker/logs}
+LOG_DIR=${LOG_DIR:-/app/infra/logs}
 XVFB_LOG="$LOG_DIR/xvfb.log"
 CHROMIUM_LOG="$LOG_DIR/chromium.log"
 VNC_LOG="$LOG_DIR/vnc.log"
@@ -93,4 +93,4 @@ echo "Chromium logs -> $CHROMIUM_LOG"
 sleep 3
 
 echo "Starting login script..."
-node /app/dist/src/run-login.js
+node /app/dist/behaviour/run-login.js

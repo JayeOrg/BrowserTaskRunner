@@ -21,7 +21,7 @@ SITE_CHECK_INTERVAL_MS=300000
 2. Build and run (from repo root):
 
 ```bash
-cd stack/docker
+cd stack/infra
 docker-compose up --build
 ```
 

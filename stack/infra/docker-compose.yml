@@ -2,7 +2,7 @@ services:
     sitecheck:
         build:
             context: ../..
-            dockerfile: stack/docker/Dockerfile
+            dockerfile: stack/infra/Dockerfile
         environment:
             - SITE_EMAIL
             - SITE_PASSWORD
@@ -13,8 +13,8 @@ services:
             - "5900:5900"
         volumes:
             - chrome-data:/tmp/chrome-profile
-            - ./alerts:/app/docker/alerts
-            - ./logs:/app/docker/logs
+            - ./alerts:/app/infra/alerts
+            - ./logs:/app/infra/logs
         restart: on-failure
 
 volumes:

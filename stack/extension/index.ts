@@ -9,11 +9,11 @@ async function playAlert(loginUrl: string): Promise<void> {
   console.log('\n ALERT: Login successful!');
 
   try {
-    mkdirSync('/app/docker/alerts', { recursive: true });
+    mkdirSync('/app/infra/alerts', { recursive: true });
     const timestamp = new Date().toISOString();
     const alertContent = `LOGIN SUCCESSFUL!\nTime: ${timestamp}\nSite: ${loginUrl}\n`;
-    writeFileSync('/app/docker/alerts/LOGIN_SUCCESS.txt', alertContent);
-    console.log(' Alert file written to /app/docker/alerts/LOGIN_SUCCESS.txt');
+    writeFileSync('/app/infra/alerts/LOGIN_SUCCESS.txt', alertContent);
+    console.log(' Alert file written to /app/infra/alerts/LOGIN_SUCCESS.txt');
   } catch (err) {
     const error = err as Error;
     console.log('Could not write alert file:', error.message);

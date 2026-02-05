@@ -36,7 +36,7 @@ Runs Chrome + extension inside a Docker container with virtual display.
 npm run docker:up
 ```
 
-[Full documentation](./stack/docker/README.md)
+[Full documentation](./stack/infra/README.md)
 
 ---
 
