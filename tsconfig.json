@@ -10,8 +10,10 @@
     "outDir": "dist",
     "rootDir": "stack",
     "declaration": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"]
   },
-  "include": ["stack/src/**/*", "stack/extension/index.ts"],
-  "exclude": ["node_modules", "dist", "stack/extension/extension", "stack/docker"]
+  "include": ["stack/src/**/*", "stack/extension/index.ts", "stack/extension/host.ts"],
+  "exclude": ["node_modules", "dist", "stack/docker", "stack/extension/extension"]
 }

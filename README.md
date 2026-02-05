@@ -58,22 +58,23 @@ npm run monitor
 Set these environment variables (or create a `.env` file):
 
 ```bash
-BOTC_EMAIL=your-email@example.com
-BOTC_PASSWORD=your-password
-BOTC_LOGIN_URL=https://botc.app/
-BOTC_CHECK_INTERVAL_MS=300000  # 5 minutes
+SITE_EMAIL=your-email@example.com
+SITE_PASSWORD=your-password
+SITE_LOGIN_URL=https://botc.app/
+SITE_CHECK_INTERVAL_MS=300000  # 5 minutes
 ```
 
 ## Quick Start
 
 1. Install dependencies:
-   ```bash
-   npm install
-   ```
+
+    ```bash
+    npm install
+    ```
 
 2. Create `.env` file with credentials
 
 3. Choose a solution:
-   - Interactive: `npm run extension`
-   - Background: `npm run docker:up`
-   - Monitor only: `npm run monitor`
+    - Interactive: `npm run extension`
+    - Background: `npm run docker:up`
+    - Monitor only: `npm run monitor`

@@ -10,13 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create app directory
 WORKDIR /app
 
-# Copy package files and tsconfig
-COPY package*.json tsconfig.json ./
+# Copy only package manifests to maximize cache reuse
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy source tree
+# Copy source and build inputs
+COPY tsconfig.json ./
 COPY stack ./stack
 
 # Build TypeScript

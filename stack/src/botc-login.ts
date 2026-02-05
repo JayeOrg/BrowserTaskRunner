@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
-const LOGIN_URL = process.env.BOTC_LOGIN_URL || 'https://botc.app/';
-const CHECK_INTERVAL_MS = Number.parseInt(process.env.BOTC_CHECK_INTERVAL_MS || '300000', 10);
+const LOGIN_URL = process.env.SITE_LOGIN_URL || 'https://botc.app/';
+const CHECK_INTERVAL_MS = Number.parseInt(process.env.SITE_CHECK_INTERVAL_MS || '300000', 10);
 
 interface SiteStatus {
   httpStatus: number;

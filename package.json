@@ -2,15 +2,18 @@
   "name": "sitecheck",
   "version": "1.0.0",
   "private": true,
-  "description": "Cloudflare bypass solutions for automated login",
+  "description": "Automated human verification check solutions for automated login",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:extension",
+    "build:extension": "mkdir -p dist/extension/extension && cp stack/extension/extension/manifest.json dist/extension/extension/ && npm run build:extension-bg && npm run build:extension-content",
+    "build:extension-bg": "esbuild stack/extension/extension/background.ts --bundle --outfile=dist/extension/extension/background.js --format=iife --target=chrome100",
+    "build:extension-content": "esbuild stack/extension/extension/content.ts --bundle --outfile=dist/extension/extension/content.js --format=iife --target=chrome100",
     "check": "docker-compose -f stack/docker/docker-compose.yml --env-file .env up --build",
     "monitor": "node dist/src/botc-login.js",
-    "extension": "node dist/extension/index.js",
+    "extension": "node dist/src/run-login.js",
     "dev:monitor": "tsc && node dist/src/botc-login.js",
-    "dev:extension": "tsc && node dist/extension/index.js",
+    "dev:extension": "npm run build && node dist/src/run-login.js",
     "docker:build": "docker-compose -f stack/docker/docker-compose.yml --env-file .env build",
     "docker:up": "docker-compose -f stack/docker/docker-compose.yml --env-file .env up",
     "docker:down": "docker-compose -f stack/docker/docker-compose.yml down"
@@ -22,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^25.2.0",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.27.2",
     "typescript": "^5.9.3"
   }
 }

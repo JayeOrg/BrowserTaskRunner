@@ -1,6 +1,6 @@
 // WebSocket connection to Node.js server
-let ws = null;
-let reconnectInterval = null;
+let ws: WebSocket | null = null;
+let reconnectInterval: ReturnType<typeof setInterval> | null = null;
 const WS_URL = 'ws://localhost:8765';
 
 function connect() {
@@ -16,18 +16,19 @@ function connect() {
       reconnectInterval = null;
     }
     // Notify server we're ready
-    ws.send(JSON.stringify({ type: 'ready' }));
+    ws?.send(JSON.stringify({ type: 'ready' }));
   };
 
-  ws.onmessage = async (event) => {
+  ws.onmessage = async (event: MessageEvent) => {
+    let incoming: any;
     try {
-      const message = JSON.parse(event.data);
-      console.log('[SiteCheck] Received command:', message.type);
-      const result = await handleCommand(message);
-      ws.send(JSON.stringify({ id: message.id, ...result }));
-    } catch (error) {
+      incoming = JSON.parse(event.data as string);
+      console.log('[SiteCheck] Received command:', incoming.type);
+      const result = await handleCommand(incoming);
+      ws?.send(JSON.stringify({ id: incoming.id, ...result }));
+    } catch (error: any) {
       console.error('[SiteCheck] Error handling message:', error);
-      ws.send(JSON.stringify({ id: message?.id, error: error.message }));
+      ws?.send(JSON.stringify({ id: incoming?.id, error: error.message }));
     }
   };
 
@@ -40,12 +41,12 @@ function connect() {
     }
   };
 
-  ws.onerror = (error) => {
+  ws.onerror = (error: Event) => {
     console.error('[SiteCheck] WebSocket error:', error);
   };
 }
 
-async function handleCommand(message) {
+async function handleCommand(message: any) {
   const { type, ...params } = message;
 
   switch (type) {
@@ -75,8 +76,8 @@ async function handleCommand(message) {
       const tab = await getActiveTab();
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: (selector, value) => {
-          const el = document.querySelector(selector);
+        func: (selector: string, value: string) => {
+          const el = document.querySelector(selector) as HTMLInputElement | null;
           if (!el) return { error: 'Element not found: ' + selector };
           el.focus();
           el.value = value;
@@ -93,7 +94,7 @@ async function handleCommand(message) {
       const tab = await getActiveTab();
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: (selector) => {
+        func: (selector: string) => {
           const el = document.querySelector(selector);
           if (!el) return { error: 'Element not found: ' + selector };
 
@@ -214,11 +215,12 @@ async function handleCommand(message) {
 
           info.cdpClick = true;
         } catch (cdpError) {
-          info.cdpError = cdpError.message;
+          const err = cdpError as Error;
+          info.cdpError = err.message;
           // Fallback to regular click
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            func: (x, y) => {
+            func: (x: number, y: number) => {
               const targetEl = document.elementFromPoint(x, y);
               if (targetEl) {
                 const eventInit = {
@@ -280,7 +282,7 @@ async function handleCommand(message) {
       const tab = await getActiveTab();
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: async (selector, timeout) => {
+        func: async (selector: string, timeout: number) => {
           const start = Date.now();
           while (Date.now() - start < timeout) {
             const el = document.querySelector(selector);
@@ -298,7 +300,7 @@ async function handleCommand(message) {
       const tab = await getActiveTab();
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: (selector) => {
+        func: (selector?: string) => {
           if (selector) {
             const el = document.querySelector(selector);
             return { success: true, content: el?.textContent || null };
@@ -319,15 +321,15 @@ async function handleCommand(message) {
   }
 }
 
-async function getActiveTab() {
+async function getActiveTab(): Promise<any> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab');
   return tab;
 }
 
-function waitForTabLoad(tabId) {
-  return new Promise((resolve) => {
-    const listener = (id, changeInfo) => {
+function waitForTabLoad(tabId: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const listener = (id: number, changeInfo: any) => {
       if (id === tabId && changeInfo.status === 'complete') {
         chrome.tabs.onUpdated.removeListener(listener);
         // Small delay for page scripts to initialize

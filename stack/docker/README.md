@@ -1,6 +1,6 @@
 # Docker Solution
 
-Runs Chrome with the extension inside a Docker container with a virtual display. Fully headless and isolated from your main system.
+Runs Chrome with the extension inside a Docker container with a virtual display.
 
 ## Requirements
 
@@ -12,10 +12,10 @@ Runs Chrome with the extension inside a Docker container with a virtual display.
 1. Create a `.env` file in the project root (or set environment variables):
 
 ```bash
-BOTC_EMAIL=your-email@example.com
-BOTC_PASSWORD=your-password
-BOTC_LOGIN_URL=https://botc.app/
-BOTC_CHECK_INTERVAL_MS=300000
+SITE_EMAIL=your-email@example.com
+SITE_PASSWORD=your-password
+SITE_LOGIN_URL=https://botc.app/
+SITE_CHECK_INTERVAL_MS=300000
 ```
 
 2. Build and run (from repo root):
