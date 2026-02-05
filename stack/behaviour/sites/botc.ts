@@ -1,7 +1,8 @@
 import type { ExtensionHost } from '../../extension/host.js';
 import type { Credentials, TaskConfig, TaskResult } from '../types.js';
-import { fail, log, resetSteps, sleep, StepError } from './site-utils.js';
-import { clickTurnstile } from './turnstile.js';
+import { clickFirst, fillFirst, waitForFirst } from '../utils/selectors.js';
+import { fail, log, resetSteps, sleep, StepError } from '../utils/site-utils.js';
+import { clickTurnstile } from '../utils/turnstile.js';
 
 const TASK = {
   name: 'botcLogin',
@@ -33,12 +34,10 @@ async function navigate(host: ExtensionHost) {
 
 async function findForm(host: ExtensionHost) {
   log(TASK.name, 'findForm', 'Looking for email input');
-  for (const selector of SELECTORS.email) {
-    const result = await host.waitForSelector(selector, TIMINGS.waitEmail);
-    if (result.found) {
-      log(TASK.name, 'findForm', 'Found', { selector });
-      return selector;
-    }
+  const result = await waitForFirst(host, SELECTORS.email, TIMINGS.waitEmail);
+  if (result.found && result.selector) {
+    log(TASK.name, 'findForm', 'Found', { selector: result.selector });
+    return result.selector;
   }
   return fail(TASK.name, 'findForm', 'EMAIL_INPUT_NOT_FOUND', { details: `Selectors tried: ${SELECTORS.email.join(', ')}` });
 }
@@ -47,13 +46,10 @@ async function fillCreds(host: ExtensionHost, creds: Credentials, emailSelector:
   log(TASK.name, 'fillCreds', 'Entering credentials');
   await host.fill(emailSelector, creds.email);
 
-  for (const selector of SELECTORS.password) {
-    const result = await host.waitForSelector(selector, TIMINGS.waitPassword);
-    if (result.found) {
-      await host.fill(selector, creds.password);
-      log(TASK.name, 'fillCreds', 'Done', { selector });
-      return;
-    }
+  const result = await fillFirst(host, SELECTORS.password, creds.password, TIMINGS.waitPassword);
+  if (result.found && result.selector) {
+    log(TASK.name, 'fillCreds', 'Done', { selector: result.selector });
+    return;
   }
   fail(TASK.name, 'fillCreds', 'PASSWORD_INPUT_NOT_FOUND', { details: `Selectors tried: ${SELECTORS.password.join(', ')}` });
 }
@@ -73,19 +69,13 @@ async function turnstile(host: ExtensionHost, phase: 'pre' | 'post') {
 
 async function submit(host: ExtensionHost) {
   log(TASK.name, 'submit', 'Submitting');
-  const errors: string[] = [];
-  for (const selector of SELECTORS.submit) {
-    try {
-      await host.click(selector);
-      log(TASK.name, 'submit', 'Done', { selector });
-      return;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${selector}: ${message}`);
-    }
+  const result = await clickFirst(host, SELECTORS.submit);
+  if (result.found && result.selector) {
+    log(TASK.name, 'submit', 'Done', { selector: result.selector });
+    return;
   }
   fail(TASK.name, 'submit', 'SUBMIT_NOT_FOUND', {
-    details: `Selectors tried: ${SELECTORS.submit.join(', ')}. Errors: ${errors.join('; ')}`
+    details: `Selectors tried: ${SELECTORS.submit.join(', ')}. Errors: ${result.error ?? 'none'}`
   });
 }
 

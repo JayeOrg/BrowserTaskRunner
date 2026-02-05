@@ -7,9 +7,8 @@
   "scripts": {
     "lint": "eslint .",
     "build": "tsc && npm run build:extension",
-    "build:extension": "mkdir -p dist/extension/extension && cp stack/extension/extension/manifest.json dist/extension/extension/ && npm run build:extension-bg && npm run build:extension-content",
+    "build:extension": "mkdir -p dist/extension/extension && cp stack/extension/extension/manifest.json dist/extension/extension/ && npm run build:extension-bg",
     "build:extension-bg": "esbuild stack/extension/extension/background.ts --bundle --outfile=dist/extension/extension/background.js --format=iife --target=chrome100",
-    "build:extension-content": "esbuild stack/extension/extension/content.ts --bundle --outfile=dist/extension/extension/content.js --format=iife --target=chrome100",
     "check": "./stack/infra/check.sh",
     "dev": "npm run build && node dist/behaviour/run-task.js",
     "docker:build": "docker-compose -f stack/infra/docker-compose.yml --env-file .env build",

@@ -109,4 +109,28 @@ We're implementing a **Chrome Extension approach** that:
 - Executes commands using standard DOM APIs
 - Is completely invisible to Cloudflare
 
-The executeScript approach failed due to CSP restrictions on new Function().
+### 9. Remote Code Execution via unsafe-eval CSP
+
+**Approach**: Add `unsafe-eval` to the extension's CSP to allow `executeScript` to send code strings from behavior layer and execute them via `new Function(code)`.
+
+```json
+"content_security_policy": {
+  "extension_pages": "script-src 'self' 'unsafe-eval'; object-src 'self'"
+}
+```
+
+**Result**: Technically works - extension loads and runs fine with this CSP. However, not worth pursuing.
+
+**Why we rejected it**:
+
+1. **Debugging is significantly harder** - Stack traces from eval'd code are opaque, breakpoints don't work, and errors point to generated code rather than source files
+
+2. **No type safety** - Code strings bypass TypeScript entirely. Typos in selectors or API calls become runtime errors instead of compile-time errors
+
+3. **Marginal benefit** - The current primitive-based approach (`click(selector)`, `fill(selector, value)`) already achieves clean separation. Behavior owns *what* to click, extension owns *how* to click. Moving the "how" to behavior gains little
+
+4. **Security surface** - `unsafe-eval` is a code smell even for unpublished extensions. If any part of the behavior layer is compromised, it becomes an arbitrary code execution vector
+
+5. **Maintenance burden** - DOM manipulation code as strings is harder to refactor, search, and maintain than typed functions
+
+**Conclusion**: Keep the typed primitive approach. Extension provides generic commands (`click`, `fill`, `waitForSelector`, `cdpClick`, `querySelectorRect`), behavior provides the parameters. This is the right level of abstraction.

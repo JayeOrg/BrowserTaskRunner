@@ -160,11 +160,6 @@ export class ExtensionHost {
     return this.send(selector ? { type: 'getContent', selector } : { type: 'getContent' });
   }
 
-  executeScript(code: string): Promise<ResponseMessage> {
-    console.log('[Command] Execute script');
-    return this.send({ type: 'executeScript', code });
-  }
-
   querySelectorRect(selectors: string[]): Promise<ResponseMessage> {
     console.log(`[Command] Query selector rect: ${selectors.join(', ')}`);
     return this.send({ type: 'querySelectorRect', selectors });

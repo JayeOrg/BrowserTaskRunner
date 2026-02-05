@@ -7,7 +7,6 @@ export type CommandType =
   | 'cdpClick'
   | 'waitForSelector'
   | 'getContent'
-  | 'executeScript'
   | 'querySelectorRect'
   | 'ping';
 
@@ -49,11 +48,6 @@ export interface GetContentCommand extends BaseCommand {
   selector?: string;
 }
 
-export interface ExecuteScriptCommand extends BaseCommand {
-  type: 'executeScript';
-  code: string;
-}
-
 export interface QuerySelectorRectCommand extends BaseCommand {
   type: 'querySelectorRect';
   selectors: string[];
@@ -70,7 +64,6 @@ export type CommandMessage =
   | CdpClickCommand
   | WaitForSelectorCommand
   | GetContentCommand
-  | ExecuteScriptCommand
   | QuerySelectorRectCommand
   | SimpleCommand;
 
@@ -94,6 +87,4 @@ export interface ResponseMessage {
   rect?: { left: number; top: number; width: number; height: number };
   // Ping response
   pong?: boolean;
-  // Generic result from executeScript - behaviour defines the shape
-  result?: unknown;
 }

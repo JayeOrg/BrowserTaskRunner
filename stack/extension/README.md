@@ -9,8 +9,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 │  Node.js     │◀──────────────────▶│  Chrome Extension   │
 │  Server      │                    │                     │
 │  (host.ts)   │     Commands       │  background.ts      │
-└──────────────┘    ──────────▶     │  content.ts         │
-                                    └──────────┬──────────┘
+└──────────────┘    ──────────▶     └──────────┬──────────┘
                                                │
                                                ▼ DOM APIs
                                     ┌─────────────────────┐
@@ -51,25 +50,27 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 ## Files
 
 - `host.ts` - WebSocket server, sends commands to extension
+- `types.ts` - Shared type definitions for commands and responses
 - `extension/manifest.json` - Extension configuration
 - `extension/background.ts` - WebSocket client, executes commands
-- `extension/content.ts` - Content script (minimal)
 
 ## Available Commands
 
-The extension supports these commands via WebSocket:
+The extension supports these generic commands via WebSocket:
 
 | Command | Description |
 |---------|-------------|
 | `navigate` | Navigate to a URL |
 | `fill` | Fill an input field |
-| `click` | Click an element |
-| `clickTurnstile` | Click Cloudflare Turnstile checkbox |
+| `click` | Click an element (via DOM events) |
+| `cdpClick` | Click at coordinates (via CDP, with JS fallback) |
 | `waitForSelector` | Wait for an element to appear |
+| `querySelectorRect` | Get bounding rect for first matching selector |
 | `getUrl` | Get current page URL |
 | `getContent` | Get page text content |
-| `debugPage` | Get page debug info (iframes, buttons, etc) |
 | `ping` | Test connection |
+
+Note: Site-specific logic (Turnstile detection, login flows) lives in the behaviour layer, not here.
 
 ## Why This Works
 

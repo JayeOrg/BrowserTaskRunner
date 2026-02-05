@@ -1,3 +1,5 @@
+import type { ResponseMessage } from '../types.js';
+
 // WebSocket connection to Node.js server
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -6,7 +8,8 @@ const WS_URL = 'ws://localhost:8765';
 const MAX_RECONNECT_DELAY_MS = 30000;
 const BASE_RECONNECT_DELAY_MS = 1000;
 
-interface CommandMessage {
+// Incoming WebSocket message - intentionally loose since we receive JSON and validate per-command
+interface IncomingCommand {
   id?: number;
   type: string;
   url?: string;
@@ -14,24 +17,8 @@ interface CommandMessage {
   selectors?: string[];
   value?: string;
   timeout?: number;
-  code?: string;
   x?: number;
   y?: number;
-}
-
-interface ResponseMessage {
-  success?: boolean;
-  error?: string;
-  url?: string;
-  title?: string;
-  found?: boolean;
-  content?: string;
-  selector?: string;
-  rect?: { left: number; top: number; width: number; height: number };
-  pong?: boolean;
-  result?: unknown;
-  loaded?: boolean;
-  timedOut?: boolean;
 }
 
 function getReconnectDelay(): number {
@@ -79,7 +66,7 @@ function connect(): void {
       if (typeof event.data !== 'string') {
         throw new Error('Expected string message data');
       }
-      const incoming: CommandMessage = JSON.parse(event.data);
+      const incoming: IncomingCommand = JSON.parse(event.data);
       messageId = incoming.id;
       console.log('[SiteCheck] Received command:', incoming.type);
       const result = await handleCommand(incoming);
@@ -167,20 +154,6 @@ async function handleGetUrl(): Promise<ResponseMessage> {
   const tab = await getActiveTab();
   return { success: true, url: tab.url, title: tab.title };
 }
-
-/* eslint-disable @typescript-eslint/no-implied-eval, sonarjs/code-eval, no-new-func */
-async function handleExecuteScript(code: string): Promise<ResponseMessage> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
-  // Dynamic code execution is the core purpose of this extension
-  const dynamicFunc = new Function(code) as () => unknown;
-  const results = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: dynamicFunc,
-  });
-  return { success: true, result: results[0]?.result };
-}
-/* eslint-enable @typescript-eslint/no-implied-eval, sonarjs/code-eval, no-new-func */
 
 async function handleFill(selector: string, value: string): Promise<ResponseMessage> {
   const tab = await getActiveTab();
@@ -375,7 +348,7 @@ async function handleQuerySelectorRect(selectors: string[]): Promise<ResponseMes
 
 // --- Command dispatcher using lookup table ---
 
-type CommandHandler = (message: CommandMessage) => Promise<ResponseMessage>;
+type CommandHandler = (message: IncomingCommand) => Promise<ResponseMessage>;
 
 const commandHandlers: Record<string, CommandHandler> = {
   navigate: async (msg) => {
@@ -386,13 +359,6 @@ const commandHandlers: Record<string, CommandHandler> = {
   },
 
   getUrl: async () => handleGetUrl(),
-
-  executeScript: async (msg) => {
-    if (!msg.code) {
-      return { error: 'Missing code parameter' };
-    }
-    return handleExecuteScript(msg.code);
-  },
 
   fill: async (msg) => {
     if (!msg.selector || msg.value === undefined) {
@@ -434,7 +400,7 @@ const commandHandlers: Record<string, CommandHandler> = {
   ping: async () => ({ success: true, pong: true }),
 };
 
-async function handleCommand(message: CommandMessage): Promise<ResponseMessage> {
+async function handleCommand(message: IncomingCommand): Promise<ResponseMessage> {
   const handler = commandHandlers[message.type];
   if (!handler) {
     return { error: `Unknown command: ${message.type}` };
