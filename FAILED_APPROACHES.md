@@ -108,3 +108,5 @@ We're implementing a **Chrome Extension approach** that:
 - Communicates via WebSocket (not CDP)
 - Executes commands using standard DOM APIs
 - Is completely invisible to Cloudflare
+
+The executeScript approach failed due to CSP restrictions on new Function().

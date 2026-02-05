@@ -18,6 +18,9 @@ RUN npm install
 
 # Copy source and build inputs
 COPY tsconfig.json ./
+
+# Cache-bust: this arg changes when source files change
+ARG SOURCE_HASH=unknown
 COPY stack ./stack
 
 # Build TypeScript

@@ -125,6 +125,8 @@ export class ExtensionHost {
     });
   }
 
+  // --- Generic browser automation primitives ---
+
   navigate(url: string): Promise<ResponseMessage> {
     console.log(`[Command] Navigate to ${url}`);
     return this.send({ type: 'navigate', url });
@@ -144,14 +146,9 @@ export class ExtensionHost {
     return this.send({ type: 'click', selector });
   }
 
-  clickTurnstile(): Promise<ResponseMessage> {
-    console.log('[Command] Click Cloudflare Turnstile');
-    return this.send({ type: 'clickTurnstile' });
-  }
-
-  debugPage(): Promise<ResponseMessage> {
-    console.log('[Command] Debug page elements');
-    return this.send({ type: 'debugPage' });
+  cdpClick(x: number, y: number): Promise<ResponseMessage> {
+    console.log(`[Command] CDP click at (${x.toString()}, ${y.toString()})`);
+    return this.send({ type: 'cdpClick', x, y });
   }
 
   waitForSelector(selector: string, timeout = 10000): Promise<ResponseMessage> {
@@ -161,6 +158,16 @@ export class ExtensionHost {
 
   getContent(selector: string | null = null): Promise<ResponseMessage> {
     return this.send(selector ? { type: 'getContent', selector } : { type: 'getContent' });
+  }
+
+  executeScript(code: string): Promise<ResponseMessage> {
+    console.log('[Command] Execute script');
+    return this.send({ type: 'executeScript', code });
+  }
+
+  querySelectorRect(selectors: string[]): Promise<ResponseMessage> {
+    console.log(`[Command] Query selector rect: ${selectors.join(', ')}`);
+    return this.send({ type: 'querySelectorRect', selectors });
   }
 
   ping(): Promise<ResponseMessage> {

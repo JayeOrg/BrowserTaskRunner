@@ -1,6 +1,7 @@
 import type { ExtensionHost } from '../../extension/host.js';
 import type { Credentials, TaskConfig, TaskResult } from '../types.js';
 import { fail, log, resetSteps, sleep, StepError } from './site-utils.js';
+import { clickTurnstile } from './turnstile.js';
 
 const TASK = {
   name: 'botcLogin',
@@ -61,7 +62,7 @@ async function turnstile(host: ExtensionHost, phase: 'pre' | 'post') {
   log(TASK.name, 'turnstile', `Checking (${phase}-submit)`);
   await sleep(phase === 'pre' ? TIMINGS.beforeTurnstile : TIMINGS.afterSubmit);
 
-  const result = await host.clickTurnstile();
+  const result = await clickTurnstile(host);
   if (result.found) {
     log(TASK.name, 'turnstile', 'Clicked', { selector: result.selector });
     await sleep(TIMINGS.afterTurnstile);

@@ -4,10 +4,11 @@ export type CommandType =
   | 'getUrl'
   | 'fill'
   | 'click'
-  | 'clickTurnstile'
-  | 'debugPage'
+  | 'cdpClick'
   | 'waitForSelector'
   | 'getContent'
+  | 'executeScript'
+  | 'querySelectorRect'
   | 'ping';
 
 export interface BaseCommand {
@@ -31,6 +32,12 @@ export interface ClickCommand extends BaseCommand {
   selector: string;
 }
 
+export interface CdpClickCommand extends BaseCommand {
+  type: 'cdpClick';
+  x: number;
+  y: number;
+}
+
 export interface WaitForSelectorCommand extends BaseCommand {
   type: 'waitForSelector';
   selector: string;
@@ -42,19 +49,33 @@ export interface GetContentCommand extends BaseCommand {
   selector?: string;
 }
 
+export interface ExecuteScriptCommand extends BaseCommand {
+  type: 'executeScript';
+  code: string;
+}
+
+export interface QuerySelectorRectCommand extends BaseCommand {
+  type: 'querySelectorRect';
+  selectors: string[];
+}
+
 export interface SimpleCommand extends BaseCommand {
-  type: 'getUrl' | 'clickTurnstile' | 'debugPage' | 'ping';
+  type: 'getUrl' | 'ping';
 }
 
 export type CommandMessage =
   | NavigateCommand
   | FillCommand
   | ClickCommand
+  | CdpClickCommand
   | WaitForSelectorCommand
   | GetContentCommand
+  | ExecuteScriptCommand
+  | QuerySelectorRectCommand
   | SimpleCommand;
 
 // Response types sent from extension to host
+// Generic response - behaviour interprets the result field as needed
 export interface ResponseMessage {
   id?: number;
   type?: string;
@@ -63,52 +84,16 @@ export interface ResponseMessage {
   // Navigation/URL responses
   url?: string;
   title?: string;
+  loaded?: boolean;
+  timedOut?: boolean;
   // Selector responses
   found?: boolean;
-  selector?: string;
   content?: string;
-  // Debug responses
-  iframes?: IframeInfo[];
-  cfElements?: ElementInfo[];
-  buttons?: ButtonInfo[];
-  iframeInfo?: IframeInfo[];
-  // Turnstile responses
-  clickX?: number;
-  clickY?: number;
-  containerRect?: DOMRect;
-  cdpClick?: boolean;
-  cdpError?: string;
+  selector?: string;
+  // Element rect response (for querySelectorRect)
+  rect?: { left: number; top: number; width: number; height: number };
   // Ping response
   pong?: boolean;
-  // Generic result
+  // Generic result from executeScript - behaviour defines the shape
   result?: unknown;
-}
-
-export interface IframeInfo {
-  src: string;
-  id: string;
-  className: string;
-  width?: number;
-  height?: number;
-  rect?: DOMRect;
-}
-
-export interface ElementInfo {
-  tag: string;
-  id: string;
-  className: string;
-}
-
-export interface ButtonInfo {
-  text: string | undefined;
-  type: string;
-  className: string;
-  disabled: boolean;
-}
-
-export interface DOMRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
 }

@@ -3,6 +3,8 @@ services:
         build:
             context: ../..
             dockerfile: stack/infra/Dockerfile
+            args:
+                - SOURCE_HASH=${SOURCE_HASH:-unknown}
         environment:
             - TASK_NAME
             - SITE_EMAIL
