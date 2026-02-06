@@ -9,7 +9,7 @@
     "resolveJsonModule": true,
     "lib": ["ES2022", "DOM"],
     // NOTE: "chrome" included to allow co-locating command types with handlers.
-    // Trade-off: chrome.* will autocomplete in Node.js code (host/) even though
+    // Trade-off: chrome.* will autocomplete in Node.js code (browser/) even though
     // it doesn't exist at runtime there. Don't use chrome APIs outside extension/.
     "types": ["node", "chrome"],
     "skipLibCheck": true,
@@ -28,6 +28,6 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["stack/runner/**/*", "stack/tasks/**/*", "stack/common/**/*", "stack/extension/**/*", "stack/host/**/*"],
+  "include": ["stack/engine/**/*", "stack/tasks/**/*", "stack/common/**/*", "stack/extension/**/*", "stack/browser/**/*"],
   "exclude": ["node_modules", "dist", "stack/infra"]
 }

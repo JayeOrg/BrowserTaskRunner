@@ -1,7 +1,7 @@
 The issue I'm trying to solve:
 
 - Login is down for the target URL
-- I want an autonomous test that will check logging into the target every five minutes
+- I want an autonomous task that will check logging into the target every five minutes
 
 The steps are:
 
@@ -10,7 +10,7 @@ The steps are:
 - Pass the cloudflare human check
 - Attempt to log in
 - IF navigation is successful, end and alert
-- ELSE re-attempt logging in each five minutes until navigation is successful or the test errors
+- ELSE re-attempt logging in each five minutes until navigation is successful or the task errors
 
 Notes:
 
@@ -18,7 +18,7 @@ Notes:
 - Prioritise the best end state, not minimal disruption
 - Prioritise developer experience
 - Don't preserve legacy code
-- Avoid adding in-test retries; treat them as a test smell.
+- Avoid adding in-task retries; the engine owns retry logic.
 - Prioritise the DX of callers.
 - Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 - Don't add re-exports or barrel files to simplify imports. IDEs handle import paths. Import from the actual source module.
@@ -34,10 +34,10 @@ Modules with strict separation:
 
 - **Infra**: Docker, Xvfb, Chrome startup. No knowledge of sites or automation logic.
 - **Extension**: Generic browser automation bridge. Receives commands, returns results. No site-specific knowledge.
-- **Runner**: Generic task orchestration. Connects to the host, runs a task, reports results. No site-specific knowledge.
+- **Engine**: Generic task orchestration. Connects to the browser, runs a task, owns retry logic, reports results. No site-specific knowledge.
 - **Tasks**: All site-specific logic lives here - selectors, timing, detection strategies.
 - **Common**: Shared utilities (logging, errors, result types).
-- **Host**: WebSocket server bridging runner and extension.
+- **Browser**: WebSocket server bridging engine and extension.
 
 ### Extension Design Principle
 
@@ -51,4 +51,5 @@ Keep extension commands **minimal and generic** while maintaining **developer ex
 Good extension commands: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`
 Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
-See `agents/adding-extension-commands.md` for how to add a new command.
+See `agents/extension/adding-commands.md` for how to add a new extension command.
+See `agents/tasks/adding-tasks.md` for how to add a new task.

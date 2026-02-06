@@ -3,7 +3,7 @@
  * These provide "try multiple selectors" patterns without adding
  * site-specific knowledge to the extension.
  */
-import type { ExtensionHost } from "../../host/main.js";
+import type { Browser } from "../../browser/main.js";
 
 export type SelectorResult =
   | { found: true; selector: string }
@@ -14,14 +14,14 @@ export type SelectorResult =
  * Returns the first selector that matches, or found: false if none matched.
  */
 export async function waitForFirst(
-  host: ExtensionHost,
+  browser: Browser,
   selectors: readonly string[],
   timeout: number,
 ): Promise<SelectorResult> {
   try {
     return await Promise.any(
       selectors.map(async (selector) => {
-        const result = await host.waitForSelector(selector, timeout);
+        const result = await browser.waitForSelector(selector, timeout);
         if (!result.found) {
           throw new Error("not found");
         }
@@ -42,13 +42,13 @@ export async function waitForFirst(
  * Returns the selector that was clicked, or error if none found.
  */
 export async function clickFirst(
-  host: ExtensionHost,
+  browser: Browser,
   selectors: readonly string[],
 ): Promise<SelectorResult> {
   const errors: string[] = [];
   for (const selector of selectors) {
     try {
-      const result = await host.click(selector);
+      const result = await browser.click(selector);
       if (result.success) {
         return { found: true, selector };
       }
@@ -66,16 +66,16 @@ export async function clickFirst(
  * Races all selectors concurrently (via waitForFirst), then fills the winner.
  */
 export async function fillFirst(
-  host: ExtensionHost,
+  browser: Browser,
   selectors: readonly string[],
   value: string,
   timeout: number,
 ): Promise<SelectorResult> {
-  const found = await waitForFirst(host, selectors, timeout);
+  const found = await waitForFirst(browser, selectors, timeout);
   if (!found.found) {
     return found;
   }
-  const fillResult = await host.fill(found.selector, value);
+  const fillResult = await browser.fill(found.selector, value);
   if (fillResult.success) {
     return found;
   }

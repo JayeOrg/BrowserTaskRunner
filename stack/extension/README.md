@@ -49,7 +49,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 
 ## Files
 
-- `../host/main.ts` - WebSocket server, sends commands to extension
+- `../browser/main.ts` - WebSocket server, sends commands to extension
 - `manifest.json` - Extension configuration
 - `main.ts` - WebSocket client, executes commands
 

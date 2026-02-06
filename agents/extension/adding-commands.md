@@ -59,7 +59,7 @@ const commandHandlers: Record<string, CommandHandler> = {
 };
 ```
 
-## 3. Add convenience method to `stack/host/main.ts`
+## 3. Add convenience method to `stack/browser/main.ts`
 
 ```typescript
 screenshot() {
@@ -71,4 +71,4 @@ The return type is automatically `Promise<ScreenshotResponse>` via the `Response
 
 ## Why convenience methods exist
 
-Callers could use `host.send({ type: "screenshot" })` directly — `send()` infers the return type via the `CommandMessage` discriminated union. We keep the convenience methods because the tasks layer calls them far more often than new commands are added. The one-time cost on the command author relieves every call site.
+Callers could use `browser.send({ type: "screenshot" })` directly — `send()` infers the return type via the `CommandMessage` discriminated union. We keep the convenience methods because the tasks layer calls them far more often than new commands are added. The one-time cost on the command author relieves every call site.

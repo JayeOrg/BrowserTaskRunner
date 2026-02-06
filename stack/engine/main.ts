@@ -1,12 +1,15 @@
 import "dotenv/config";
+import { setTimeout } from "node:timers/promises";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { ExtensionHost } from "../host/main.js";
+import { Browser } from "../browser/main.js";
 import {
-  getTask,
-  listTasks,
-  type TaskContext,
+  findTask,
   type TaskConfig,
+  type TaskContext,
+  type RetryingTask,
+  type SingleAttemptTask,
 } from "./tasks.js";
+import { allTasks } from "./registry.js";
 import {
   StepError,
   getErrorMessage,
@@ -15,12 +18,12 @@ import {
 import { createPrefixLogger } from "../common/logging.js";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
-const logger = createPrefixLogger("Runner");
+const logger = createPrefixLogger("Engine");
 
 function getTaskName(): string {
   const taskName = process.argv[2];
   if (!taskName) {
-    const available = listTasks().join(", ");
+    const available = allTasks.map((task) => task.name).join(", ");
     throw new Error(
       `Missing task name. Usage: node main.js <taskName>\nAvailable tasks: ${available}`,
     );
@@ -28,7 +31,6 @@ function getTaskName(): string {
   return taskName;
 }
 
-// Load all SITE_* env vars as task context
 function loadContext(): TaskContext {
   const context: TaskContext = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -41,6 +43,17 @@ function loadContext(): TaskContext {
     keys: keys.length > 0 ? keys.join(", ") : "(none)",
   });
   return context;
+}
+
+function validateContext(task: TaskConfig, context: TaskContext): void {
+  if (!task.contextSchema) return;
+
+  const result = task.contextSchema.safeParse(context);
+  if (!result.success) {
+    throw new Error(
+      `Context validation failed for "${task.name}": ${result.error.message}`,
+    );
+  }
 }
 
 function logFailureDetails(result: TaskResultFailure): void {
@@ -64,19 +77,65 @@ function writeAlert(taskName: string): void {
   logger.success("ALERT: Task successful!");
 }
 
+async function runSingleAttempt(
+  task: SingleAttemptTask,
+  browser: Browser,
+  context: TaskContext,
+): Promise<void> {
+  await task.run(browser, context);
+  logger.success("TASK SUCCESSFUL!");
+  writeAlert(task.name);
+}
+
+async function runWithRetry(
+  task: RetryingTask,
+  browser: Browser,
+  context: TaskContext,
+): Promise<void> {
+  const envInterval = context.SITE_CHECK_INTERVAL_MS;
+  const intervalMs = envInterval ? parseInt(envInterval, 10) : task.intervalMs;
+  let attempt = 0;
+
+  while (true) {
+    attempt++;
+    logger.log(`Attempt ${attempt.toString()}`, { task: task.name });
+
+    try {
+      await task.run(browser, context);
+      logger.success("TASK SUCCESSFUL!");
+      writeAlert(task.name);
+      return;
+    } catch (error) {
+      if (error instanceof StepError) {
+        logFailureDetails(error.toResult());
+        logger.warn("Not successful yet");
+      } else {
+        logger.warn(`Unexpected: ${getErrorMessage(error)}`);
+      }
+    }
+
+    logger.log("Waiting before next attempt", {
+      seconds: Math.round(intervalMs / 1000),
+    });
+    await setTimeout(intervalMs);
+  }
+}
+
 async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
-  const host = new ExtensionHost(WS_PORT);
+  const browser = new Browser(WS_PORT);
 
   try {
-    await host.start();
+    await browser.start();
 
     logger.log("Testing connection...");
-    await host.ping();
+    await browser.ping();
     logger.success("Extension connected and ready");
 
-    await task.run(host, context);
-    logger.success("TASK SUCCESSFUL!");
-    writeAlert(task.name);
+    if (task.mode === "once") {
+      await runSingleAttempt(task, browser, context);
+    } else {
+      await runWithRetry(task, browser, context);
+    }
   } catch (error) {
     if (error instanceof StepError) {
       logFailureDetails(error.toResult());
@@ -85,16 +144,22 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
     }
     throw error;
   } finally {
-    host.close();
+    browser.close();
   }
 }
 
 async function main(): Promise<void> {
   const taskName = getTaskName();
-  const task = getTask(taskName);
+  const task = findTask(taskName, allTasks);
   const context = loadContext();
 
-  logger.log("Running task", { task: task.name, url: task.url });
+  validateContext(task, context);
+
+  logger.log("Running task", {
+    task: task.name,
+    url: task.url,
+    mode: task.mode,
+  });
 
   await runTask(task, context);
 }

@@ -9,7 +9,7 @@ import { logConnectionInstructions } from "./instructions.js";
 
 export type { CommandMessage, ResponseMessage, ResponseFor };
 
-const logger = createPrefixLogger("Host");
+const logger = createPrefixLogger("Browser");
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
@@ -26,7 +26,7 @@ interface PendingCommand {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
-export class ExtensionHost {
+export class Browser {
   private readonly port: number;
   private ws: WebSocket | null = null;
   private server: WebSocketServer | null = null;
@@ -181,13 +181,18 @@ export class ExtensionHost {
   }
 
   close(): void {
+    for (const pending of this.pendingCommands.values()) {
+      clearTimeout(pending.timeoutId);
+    }
+    this.pendingCommands.clear();
+
+    if (this.ws) {
+      this.ws.terminate();
+      this.ws = null;
+    }
     if (this.server) {
       this.server.close();
       this.server = null;
-    }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
     }
   }
 }

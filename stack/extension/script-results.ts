@@ -1,4 +1,4 @@
-import { z } from "zod/v4/mini";
+import { z } from "zod";
 
 const ScriptErrorSchema = z.object({
   error: z.string(),
@@ -13,9 +13,9 @@ const RectSchema = z.object({
 
 const ScriptFoundSchema = z.object({
   found: z.boolean(),
-  timedOut: z.optional(z.boolean()),
-  selector: z.optional(z.string()),
-  rect: z.optional(RectSchema),
+  timedOut: z.boolean().optional(),
+  selector: z.string().optional(),
+  rect: RectSchema.optional(),
 });
 
 const ScriptContentSchema = z.object({

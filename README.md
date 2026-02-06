@@ -82,20 +82,20 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 1. Create a task in `stack/tasks/yoursite.ts`:
 
     ```typescript
-    import { TaskConfig } from "../runner/tasks.js";
+    import { TaskConfig } from "../engine/tasks.js";
 
     export const yourSiteTask: TaskConfig = {
         name: "yourSite",
         url: "https://yoursite.com/login",
-        run: async (host, context) => {
-            await host.navigate("https://yoursite.com/login");
+        run: async (browser, context) => {
+            await browser.navigate("https://yoursite.com/login");
             // Your login logic here
             return { ok: true, step: "done" };
         },
     };
     ```
 
-2. Register it in `stack/runner/tasks.ts`:
+2. Register it in `stack/engine/registry.ts`:
 
     ```typescript
     import { yourSiteTask } from "../tasks/yoursite.js";
@@ -115,14 +115,14 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 
 ```
 stack/
-├── runner/          # Generic task runner orchestration
+├── engine/          # Generic task orchestration
 │   ├── main.ts      # Entry point
 │   └── tasks.ts     # Task registry + TaskConfig
 ├── tasks/           # Site-specific task implementations
 │   ├── botc.ts      # BotC login task
 │   └── utils/       # Shared task utilities (selectors, timing)
 ├── common/          # Shared utilities (logging, errors, result types)
-├── host/            # WebSocket server for extension communication
+├── browser/         # WebSocket server — typed browser API
 │   └── main.ts
 ├── extension/       # Chrome extension (manifest, messages)
 │   └── main.ts
