@@ -186,7 +186,7 @@ chromium \
     --disable-features=MediaRouter,MediaCapture \
     --disable-notifications \
     --start-maximized \
-    --load-extension=/app/dist/extension/client \
+    --load-extension=/app/dist/extension \
     --user-data-dir=/tmp/chrome-profile \
     "about:blank" >>"$CHROMIUM_LOG" 2>&1 &
 CHROMIUM_PID=$!
@@ -208,4 +208,4 @@ fi
 
 # Run the task
 log "Starting task: $TASK_NAME"
-node /app/dist/behaviour/run-task.js "$TASK_NAME"
+node /app/dist/runner/main.js "$TASK_NAME"

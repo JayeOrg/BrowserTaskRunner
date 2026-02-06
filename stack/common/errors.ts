@@ -1,4 +1,18 @@
-import type { TaskFailReason, TaskResultFailure } from "../types.js";
+export interface TaskResultSuccess {
+  ok: true;
+  step: string;
+  finalUrl?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface TaskResultFailure {
+  ok: false;
+  step: string;
+  reason: string;
+  finalUrl?: string;
+  details?: string;
+  context?: Record<string, unknown>;
+}
 
 export type StepErrorMeta = Record<string, unknown> & {
   finalUrl?: string;
@@ -12,7 +26,7 @@ export class StepError extends Error {
   constructor(
     public readonly task: string,
     public readonly step: string,
-    public readonly reason: TaskFailReason,
+    public readonly reason: string,
     meta: StepErrorMeta = {},
   ) {
     super(`${task}.${step}: ${reason}`);

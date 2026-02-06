@@ -73,32 +73,32 @@ npm run build
 npm run dev <taskName>
 ```
 
-Then load `dist/extension/client/` as an unpacked extension in Chrome.
+Then load `dist/extension/` as an unpacked extension in Chrome.
 
 [Full documentation](./stack/extension/README.md)
 
 ## Adding New Tasks
 
-1. Create a task in `stack/behaviour/sites/yoursite.ts`:
+1. Create a task in `stack/tasks/yoursite.ts`:
 
     ```typescript
-    import { TaskConfig } from "../types.js";
+    import { TaskConfig } from "../runner/tasks.js";
 
     export const yourSiteTask: TaskConfig = {
         name: "yourSite",
         url: "https://yoursite.com/login",
-        run: async (host, creds) => {
+        run: async (host, context) => {
             await host.navigate("https://yoursite.com/login");
             // Your login logic here
-            return true; // Return true on success
+            return { ok: true, step: "done" };
         },
     };
     ```
 
-2. Register it in `stack/behaviour/tasks.ts`:
+2. Register it in `stack/runner/tasks.ts`:
 
     ```typescript
-    import { yourSiteTask } from "./sites/yoursite.js";
+    import { yourSiteTask } from "../tasks/yoursite.js";
 
     const tasks: Record<string, TaskConfig> = {
         botcLogin: botcLoginTask,
@@ -115,16 +115,19 @@ Then load `dist/extension/client/` as an unpacked extension in Chrome.
 
 ```
 stack/
-├── behaviour/       # Task logic and site-specific flows
-│   ├── sites/       # Site-specific login implementations
-│   ├── tasks.ts     # Task registry
-│   ├── types.ts     # Shared types
-│   └── run-task.ts # Main entry point
-├── extension/       # Chrome extension
-│   ├── client/      # Extension source (manifest, background, messages)
-│   └── host.ts      # WebSocket server for extension communication
+├── runner/          # Generic task runner orchestration
+│   ├── main.ts      # Entry point
+│   └── tasks.ts     # Task registry + TaskConfig
+├── tasks/           # Site-specific task implementations
+│   ├── botc.ts      # BotC login task
+│   └── utils/       # Shared task utilities (selectors, timing)
+├── common/          # Shared utilities (logging, errors, result types)
+├── host/            # WebSocket server for extension communication
+│   └── main.ts
+├── extension/       # Chrome extension (manifest, messages)
+│   └── main.ts
 └── infra/           # Docker and deployment
     ├── Dockerfile
     ├── docker-compose.yml
-    └── start.sh
+    └── run.sh
 ```

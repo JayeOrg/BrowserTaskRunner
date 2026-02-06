@@ -1,4 +1,3 @@
-import type { TaskFailReason } from "../types.js";
 import { StepError, type StepErrorMeta } from "./errors.js";
 
 // Injectable output function type
@@ -110,7 +109,7 @@ export interface TaskLogger {
   log: (step: string, msg: string, data?: Record<string, unknown>) => void;
   success: (step: string, msg: string, data?: Record<string, unknown>) => void;
   warn: (step: string, msg: string, data?: Record<string, unknown>) => void;
-  fail: (step: string, reason: TaskFailReason, meta?: StepErrorMeta) => never;
+  fail: (step: string, reason: string, meta?: StepErrorMeta) => never;
 }
 
 // Creates a logger scoped to a specific task - no manual reset needed
@@ -128,7 +127,7 @@ export function createTaskLogger(
 
   const fail = (
     step: string,
-    reason: TaskFailReason,
+    reason: string,
     meta: StepErrorMeta = {},
   ): never => {
     formatLogLine(state, step, reason, meta, "error", output);

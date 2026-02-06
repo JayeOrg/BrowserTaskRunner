@@ -3,8 +3,8 @@ import type {
   CommandMessage,
   ResponseMessage,
   ResponseFor,
-} from "./client/messages/index.js";
-import { createPrefixLogger } from "../behaviour/utils/logging.js";
+} from "../extension/messages/index.js";
+import { createPrefixLogger } from "../common/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
 
 export type { CommandMessage, ResponseMessage, ResponseFor };

@@ -3,7 +3,7 @@
  * These provide "try multiple selectors" patterns without adding
  * site-specific knowledge to the extension.
  */
-import type { ExtensionHost } from "../../extension/host.js";
+import type { ExtensionHost } from "../../host/main.js";
 
 export type SelectorResult =
   | { found: true; selector: string }
@@ -63,7 +63,7 @@ export async function clickFirst(
 
 /**
  * Fill the first matching selector from a list.
- * Returns the selector that was filled, or error if none found.
+ * Races all selectors concurrently (via waitForFirst), then fills the winner.
  */
 export async function fillFirst(
   host: ExtensionHost,
@@ -71,14 +71,13 @@ export async function fillFirst(
   value: string,
   timeout: number,
 ): Promise<SelectorResult> {
-  for (const selector of selectors) {
-    const waitResult = await host.waitForSelector(selector, timeout);
-    if (waitResult.found) {
-      const fillResult = await host.fill(selector, value);
-      if (fillResult.success) {
-        return { found: true, selector };
-      }
-    }
+  const found = await waitForFirst(host, selectors, timeout);
+  if (!found.found) {
+    return found;
   }
-  return { found: false };
+  const fillResult = await host.fill(found.selector, value);
+  if (fillResult.success) {
+    return found;
+  }
+  return { found: false, error: `fill failed for ${found.selector}` };
 }

@@ -1,10 +1,10 @@
 /**
  * Cloudflare Turnstile detection and clicking utilities.
- * This is behaviour-layer code - all knowledge of Turnstile structure lives here.
+ * All knowledge of Turnstile structure lives here in the tasks layer.
  */
-import type { ExtensionHost } from "../../extension/host.js";
+import type { ExtensionHost } from "../../host/main.js";
 
-// Turnstile container selectors - behaviour owns this knowledge
+// Turnstile container selectors - tasks own this knowledge
 const TURNSTILE_SELECTORS = [
   ".turnstile",
   ".cf-turnstile",

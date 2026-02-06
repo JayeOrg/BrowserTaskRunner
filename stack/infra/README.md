@@ -35,7 +35,7 @@ SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
 ENABLE_VNC=true                # Enable VNC debugging (default: true)
 ```
 
-Note: Each task defines its own target URL (see `stack/behaviour/sites/`).
+Note: Each task defines its own target URL (see `stack/tasks/`).
 
 ## Debugging with VNC
 
@@ -74,7 +74,7 @@ npm run check botcLogin --no-vnc
 │                          ▼             │
 │                 ┌──────────────────┐   │
 │                 │   Node.js        │   │
-│                 │   run-task.js    │   │
+│                 │   main.js        │   │
 │                 └──────────────────┘   │
 └────────────────────────────────────────┘
         │

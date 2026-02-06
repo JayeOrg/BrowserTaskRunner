@@ -1,6 +1,3 @@
-DX improvements prioritising callers
-Can we split out the host from the extension in directory structure?
-
 I still feel like the distinction between sections is off:
 
 - Infra

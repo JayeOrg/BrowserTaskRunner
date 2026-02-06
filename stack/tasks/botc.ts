@@ -1,21 +1,21 @@
-import type { ExtensionHost } from "../../extension/host.js";
-import type { TaskConfig, TaskContext, TaskResult } from "../types.js";
-import { StepError } from "../utils/errors.js";
-import { createTaskLogger, type TaskLogger } from "../utils/logging.js";
-import { clickFirst, fillFirst, waitForFirst } from "../utils/selectors.js";
-import { sleep } from "../utils/timing.js";
-import { clickTurnstile } from "../utils/turnstile.js";
+import type { ExtensionHost } from "../host/main.js";
+import type { TaskConfig, TaskContext } from "../runner/tasks.js";
+import {
+  StepError,
+  getErrorMessage,
+  type TaskResultSuccess,
+} from "../common/errors.js";
+import { createTaskLogger, type TaskLogger } from "../common/logging.js";
+import { clickFirst, fillFirst, waitForFirst } from "./utils/selectors.js";
+import { sleep } from "./utils/timing.js";
+import { clickTurnstile } from "./utils/turnstile.js";
 
-// This task requires SITE_EMAIL and SITE_PASSWORD in context
 interface LoginCredentials {
   email: string;
   password: string;
 }
 
-function extractCredentials(
-  context: TaskContext,
-  logger: TaskLogger,
-): LoginCredentials {
+function extractCredentials(context: TaskContext): LoginCredentials {
   const email = context.SITE_EMAIL;
   const password = context.SITE_PASSWORD;
 
@@ -24,9 +24,7 @@ function extractCredentials(
       !email && "SITE_EMAIL",
       !password && "SITE_PASSWORD",
     ].filter(Boolean);
-    return logger.fail("config", "MISSING_CREDENTIALS", {
-      details: `Missing: ${missing.join(", ")}`,
-    });
+    throw new Error(`Missing credentials: ${missing.join(", ")}`);
   }
 
   return { email, password };
@@ -63,10 +61,9 @@ const SELECTORS = {
 
 async function attemptLogin(
   host: ExtensionHost,
-  context: TaskContext,
-): Promise<TaskResult> {
-  const logger = createTaskLogger(TASK.name);
-
+  creds: LoginCredentials,
+  logger: TaskLogger,
+): Promise<TaskResultSuccess> {
   async function navigate() {
     await host.navigate(TASK.url);
     await sleep(TIMINGS.afterNav);
@@ -87,7 +84,7 @@ async function attemptLogin(
     });
   }
 
-  async function fillCreds(creds: LoginCredentials, emailSelector: string) {
+  async function fillCreds(emailSelector: string) {
     await host.fill(emailSelector, creds.email);
 
     const result = await fillFirst(
@@ -143,32 +140,54 @@ async function attemptLogin(
     return finalUrl;
   }
 
-  try {
-    const creds = extractCredentials(context, logger);
-    await navigate();
-    const emailSelector = await findForm();
-    await fillCreds(creds, emailSelector);
-    await turnstile("pre");
-    await submit();
-    await turnstile("post");
-    const finalUrl = await checkResult();
+  await navigate();
+  const emailSelector = await findForm();
+  await fillCreds(emailSelector);
+  await turnstile("pre");
+  await submit();
+  await turnstile("post");
+  const finalUrl = await checkResult();
 
-    return {
-      ok: true,
-      step: "checkResult",
-      finalUrl,
-      context: { task: TASK.name },
-    };
-  } catch (error) {
-    if (error instanceof StepError) {
-      return error.toResult();
+  return {
+    ok: true,
+    step: "checkResult",
+    finalUrl,
+    context: { task: TASK.name },
+  };
+}
+
+async function run(
+  host: ExtensionHost,
+  context: TaskContext,
+): Promise<TaskResultSuccess> {
+  const creds = extractCredentials(context);
+  const intervalMs = parseInt(context.SITE_CHECK_INTERVAL_MS || "300000", 10);
+
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    const logger = createTaskLogger(TASK.name);
+    logger.log("run", `Attempt ${attempt.toString()}`);
+
+    try {
+      return await attemptLogin(host, creds, logger);
+    } catch (error) {
+      if (error instanceof StepError) {
+        logger.warn("retry", "Not successful yet");
+      } else {
+        logger.warn("retry", `Unexpected: ${getErrorMessage(error)}`);
+      }
     }
-    throw error;
+
+    logger.log("retry", "Waiting before next attempt", {
+      seconds: Math.round(intervalMs / 1000),
+    });
+    await sleep(intervalMs);
   }
 }
 
 export const botcLoginTask: TaskConfig = {
   name: TASK.name,
   url: TASK.url,
-  run: attemptLogin,
+  run,
 };

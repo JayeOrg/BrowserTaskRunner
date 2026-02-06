@@ -8,7 +8,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 ┌──────────────┐     WebSocket      ┌─────────────────────┐
 │  Node.js     │◀──────────────────▶│  Chrome Extension   │
 │  Server      │                    │                     │
-│  (host.ts)   │     Commands       │  background.ts      │
+│  (main.ts)   │     Commands       │  main.ts            │
 └──────────────┘    ──────────▶     └──────────┬──────────┘
                                                │
                                                ▼ DOM APIs
@@ -41,7 +41,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 
 5. Click "Load unpacked"
 
-6. Select the `dist/extension/client/` folder
+6. Select the `dist/extension/` folder
 
 7. Open a new tab (extension needs an active tab)
 
@@ -49,9 +49,9 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 
 ## Files
 
-- `host.ts` - WebSocket server, sends commands to extension
-- `client/manifest.json` - Extension configuration
-- `client/background.ts` - WebSocket client, executes commands
+- `../host/main.ts` - WebSocket server, sends commands to extension
+- `manifest.json` - Extension configuration
+- `main.ts` - WebSocket client, executes commands
 
 ## Available Commands
 
@@ -69,7 +69,7 @@ The extension supports these generic commands via WebSocket:
 | `getContent`         | Get page text content                            |
 | `ping`               | Test connection                                  |
 
-Note: Site-specific logic (Turnstile detection, login flows) lives in the behaviour layer, not here.
+Note: Site-specific logic (Turnstile detection, login flows) lives in the tasks layer, not here.
 
 ## Why This Works
 

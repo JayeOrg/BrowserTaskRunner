@@ -2,7 +2,7 @@
 
 To add a new command (e.g., `screenshot`), touch 3 files:
 
-## 1. Create `stack/extension/client/messages/commands/screenshot.ts`
+## 1. Create `stack/extension/messages/commands/screenshot.ts`
 
 Copy an existing command file (`ping.ts` for simple, `click.ts` for one with params). Each file contains:
 
@@ -30,7 +30,7 @@ export async function handleScreenshotCommand(
 }
 ```
 
-## 2. Register in `stack/extension/client/messages/index.ts`
+## 2. Register in `stack/extension/messages/index.ts`
 
 Four edits:
 
@@ -59,7 +59,7 @@ const commandHandlers: Record<string, CommandHandler> = {
 };
 ```
 
-## 3. Add convenience method to `stack/extension/host.ts`
+## 3. Add convenience method to `stack/host/main.ts`
 
 ```typescript
 screenshot() {
@@ -71,4 +71,4 @@ The return type is automatically `Promise<ScreenshotResponse>` via the `Response
 
 ## Why convenience methods exist
 
-Callers could use `host.send({ type: "screenshot" })` directly — `send()` infers the return type via the `CommandMessage` discriminated union. We keep the convenience methods because the behaviour layer calls them far more often than new commands are added. The one-time cost on the command author relieves every call site.
+Callers could use `host.send({ type: "screenshot" })` directly — `send()` infers the return type via the `CommandMessage` discriminated union. We keep the convenience methods because the tasks layer calls them far more often than new commands are added. The one-time cost on the command author relieves every call site.

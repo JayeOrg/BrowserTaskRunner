@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { PrefixLogger } from "../behaviour/utils/logging.js";
+import type { PrefixLogger } from "../common/logging.js";
 
 export function logConnectionInstructions(
   logger: PrefixLogger,

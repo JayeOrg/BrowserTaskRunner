@@ -13,7 +13,7 @@ services:
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - DOCKER=true
-            # Configurable display/port settings (match start.sh defaults)
+            # Configurable display/port settings (match run.sh defaults)
             - DISPLAY_NUM=${DISPLAY_NUM:-99}
             - WS_PORT=${WS_PORT:-8765}
         ports:

@@ -42,4 +42,4 @@ EXPOSE 5900
 EXPOSE 8765
 
 # Start script
-CMD ["./stack/infra/start.sh"]
+CMD ["./stack/infra/run.sh"]
