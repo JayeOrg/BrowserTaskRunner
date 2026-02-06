@@ -10,10 +10,7 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 
 function getReconnectDelay(): number {
-  const delay = Math.min(
-    BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts,
-    MAX_RECONNECT_DELAY_MS,
-  );
+  const delay = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY_MS);
   return delay;
 }
 

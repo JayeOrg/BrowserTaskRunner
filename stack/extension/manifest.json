@@ -13,6 +13,6 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "main.js"
+    "service_worker": "service-worker.js"
   }
 }

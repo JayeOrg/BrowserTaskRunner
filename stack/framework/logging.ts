@@ -74,9 +74,7 @@ function formatData(data?: Record<string, unknown>): string {
     return ` → ${String(values[0])}`;
   }
   // Multiple values: key=value pairs
-  const pairs = Object.entries(data).map(
-    ([key, val]) => `${key}=${String(val)}`,
-  );
+  const pairs = Object.entries(data).map(([key, val]) => `${key}=${String(val)}`);
   return ` → ${pairs.join(", ")}`;
 }
 
@@ -113,10 +111,7 @@ export interface TaskLogger {
 }
 
 // Creates a logger scoped to a specific task - no manual reset needed
-export function createTaskLogger(
-  task: string,
-  output: LogOutput = defaultOutput,
-): TaskLogger {
+export function createTaskLogger(task: string, output: LogOutput = defaultOutput): TaskLogger {
   const state = createStepState();
 
   const logAt =
@@ -125,11 +120,7 @@ export function createTaskLogger(
       formatLogLine(state, step, msg, data, level, output);
     };
 
-  const fail = (
-    step: string,
-    reason: string,
-    meta: StepErrorMeta = {},
-  ): never => {
+  const fail = (step: string, reason: string, meta: StepErrorMeta = {}): never => {
     formatLogLine(state, step, reason, meta, "error", output);
     throw new StepError(task, step, reason, meta);
   };

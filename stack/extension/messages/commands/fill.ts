@@ -14,9 +14,7 @@ export type FillResponse = {
   error?: string;
 } & ({ success: true } | { success: false; error: string });
 
-export async function handleFillCommand(
-  msg: IncomingCommand,
-): Promise<FillResponse> {
+export async function handleFillCommand(msg: IncomingCommand): Promise<FillResponse> {
   if (typeof msg.selector !== "string" || typeof msg.value !== "string") {
     return {
       type: "fill",
@@ -27,10 +25,7 @@ export async function handleFillCommand(
   return handleFill(msg.selector, msg.value);
 }
 
-async function handleFill(
-  selector: string,
-  value: string,
-): Promise<FillResponse> {
+async function handleFill(selector: string, value: string): Promise<FillResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({

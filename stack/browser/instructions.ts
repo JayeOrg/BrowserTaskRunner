@@ -1,10 +1,7 @@
 import path from "node:path";
 import type { PrefixLogger } from "../framework/logging.js";
 
-export function logConnectionInstructions(
-  logger: PrefixLogger,
-  port: number,
-): void {
+export function logConnectionInstructions(logger: PrefixLogger, port: number): void {
   logger.log("WebSocket server listening", { port });
 
   // Skip manual instructions when running in Docker (automated)

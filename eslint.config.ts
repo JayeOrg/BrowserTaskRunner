@@ -11,6 +11,7 @@ export default [
       'dist',
       'node_modules',
       'eslint.config.ts',
+      'vitest.config.ts',
       // Ignore non-TypeScript config files
       '**/*.js',
       '**/*.cjs',

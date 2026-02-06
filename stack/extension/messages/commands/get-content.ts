@@ -13,16 +13,12 @@ export interface GetContentResponse extends BaseResponse {
   content: string;
 }
 
-export async function handleGetContentCommand(
-  msg: IncomingCommand,
-): Promise<GetContentResponse> {
+export async function handleGetContentCommand(msg: IncomingCommand): Promise<GetContentResponse> {
   const selector = typeof msg.selector === "string" ? msg.selector : undefined;
   return handleGetContent(selector);
 }
 
-async function handleGetContent(
-  selector?: string,
-): Promise<GetContentResponse> {
+async function handleGetContent(selector?: string): Promise<GetContentResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({

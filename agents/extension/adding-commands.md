@@ -59,7 +59,7 @@ const commandHandlers: Record<string, CommandHandler> = {
 };
 ```
 
-## 3. Add convenience method to `stack/browser/main.ts`
+## 3. Add convenience method to `stack/browser/browser.ts`
 
 ```typescript
 screenshot() {

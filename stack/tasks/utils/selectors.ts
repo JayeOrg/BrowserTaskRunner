@@ -3,11 +3,9 @@
  * These provide "try multiple selectors" patterns without adding
  * site-specific knowledge to the extension.
  */
-import type { Browser } from "../../browser/main.js";
+import type { Browser } from "../../browser/browser.js";
 
-export type SelectorResult =
-  | { found: true; selector: string }
-  | { found: false; error?: string };
+export type SelectorResult = { found: true; selector: string } | { found: false; error?: string };
 
 /**
  * Race all selectors concurrently within a single timeout window.

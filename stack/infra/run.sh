@@ -208,4 +208,4 @@ fi
 
 # Run the task
 log "Starting task: $TASK_NAME"
-node /app/dist/framework/main.js "$TASK_NAME"
+node /app/dist/framework/run.js "$TASK_NAME"

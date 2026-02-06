@@ -1,4 +1,4 @@
-import type { Browser } from "../browser/main.js";
+import type { Browser } from "../browser/browser.js";
 import type { ZodType } from "zod";
 
 export interface TaskResultSuccess {

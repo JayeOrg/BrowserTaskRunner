@@ -1,10 +1,6 @@
 import { z } from "zod";
-import type { Browser } from "../browser/main.js";
-import type {
-  RetryingTask,
-  TaskContext,
-  TaskResultSuccess,
-} from "../framework/tasks.js";
+import type { Browser } from "../browser/browser.js";
+import type { RetryingTask, TaskContext, TaskResultSuccess } from "../framework/tasks.js";
 import { type TaskLogger, createTaskLogger } from "../framework/logging.js";
 import { clickFirst, fillFirst, waitForFirst } from "./utils/selectors.js";
 import { sleep } from "./utils/timing.js";
@@ -31,11 +27,7 @@ const TIMINGS = {
 
 const SELECTORS = {
   email: ['input[type="email"]', 'input[name="email"]', "input#email"],
-  password: [
-    'input[type="password"]',
-    'input[name="password"]',
-    "input#password",
-  ],
+  password: ['input[type="password"]', 'input[name="password"]', "input#password"],
   submit: [
     'button[type="submit"]',
     'button:contains("Log in")',
@@ -52,11 +44,7 @@ async function navigate(browser: Browser, logger: TaskLogger): Promise<void> {
 }
 
 async function findForm(browser: Browser, logger: TaskLogger): Promise<string> {
-  const result = await waitForFirst(
-    browser,
-    SELECTORS.email,
-    TIMINGS.waitEmail,
-  );
+  const result = await waitForFirst(browser, SELECTORS.email, TIMINGS.waitEmail);
   if (result.found) {
     logger.success("findForm", "Found email input", {
       selector: result.selector,
@@ -77,12 +65,7 @@ async function fillCreds(
 ): Promise<void> {
   await browser.fill(emailSelector, email);
 
-  const result = await fillFirst(
-    browser,
-    SELECTORS.password,
-    password,
-    TIMINGS.waitPassword,
-  );
+  const result = await fillFirst(browser, SELECTORS.password, password, TIMINGS.waitPassword);
   if (result.found) {
     logger.success("fillCreds", "Entered credentials");
     return;
@@ -121,10 +104,7 @@ async function submit(browser: Browser, logger: TaskLogger): Promise<void> {
   });
 }
 
-async function checkResult(
-  browser: Browser,
-  logger: TaskLogger,
-): Promise<string> {
+async function checkResult(browser: Browser, logger: TaskLogger): Promise<string> {
   await sleep(TIMINGS.afterSubmit);
   const { url: finalUrl } = await browser.getUrl();
 
@@ -135,12 +115,8 @@ async function checkResult(
   return finalUrl;
 }
 
-async function run(
-  browser: Browser,
-  context: TaskContext,
-): Promise<TaskResultSuccess> {
-  const { SITE_EMAIL: email, SITE_PASSWORD: password } =
-    contextSchema.parse(context);
+async function run(browser: Browser, context: TaskContext): Promise<TaskResultSuccess> {
+  const { SITE_EMAIL: email, SITE_PASSWORD: password } = contextSchema.parse(context);
   const logger = createTaskLogger(TASK.name);
 
   await navigate(browser, logger);

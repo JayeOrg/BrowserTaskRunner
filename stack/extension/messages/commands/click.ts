@@ -13,9 +13,7 @@ export type ClickResponse = {
   error?: string;
 } & ({ success: true } | { success: false; error: string });
 
-export async function handleClickCommand(
-  msg: IncomingCommand,
-): Promise<ClickResponse> {
+export async function handleClickCommand(msg: IncomingCommand): Promise<ClickResponse> {
   if (typeof msg.selector !== "string") {
     return {
       type: "click",

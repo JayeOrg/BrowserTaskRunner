@@ -11,16 +11,8 @@ import {
   type GetUrlResponse,
   handleGetUrlCommand,
 } from "./commands/get-url.js";
-import {
-  type FillCommand,
-  type FillResponse,
-  handleFillCommand,
-} from "./commands/fill.js";
-import {
-  type ClickCommand,
-  type ClickResponse,
-  handleClickCommand,
-} from "./commands/click.js";
+import { type FillCommand, type FillResponse, handleFillCommand } from "./commands/fill.js";
+import { type ClickCommand, type ClickResponse, handleClickCommand } from "./commands/click.js";
 import {
   type CdpClickCommand,
   type CdpClickResponse,
@@ -41,11 +33,7 @@ import {
   type QuerySelectorRectResponse,
   handleQuerySelectorRectCommand,
 } from "./commands/query-selector-rect.js";
-import {
-  type PingCommand,
-  type PingResponse,
-  handlePingCommand,
-} from "./commands/ping.js";
+import { type PingCommand, type PingResponse, handlePingCommand } from "./commands/ping.js";
 
 export { isIncomingCommand } from "./commands/base.js";
 export type { IncomingCommand } from "./commands/base.js";
@@ -76,10 +64,7 @@ type ResponseMessage =
 
 export type { ResponseMessage };
 
-export type ResponseFor<T extends CommandMessage> = Extract<
-  ResponseMessage,
-  { type: T["type"] }
->;
+export type ResponseFor<T extends CommandMessage> = Extract<ResponseMessage, { type: T["type"] }>;
 
 type CommandHandler = (message: IncomingCommand) => Promise<ResponseMessage>;
 
@@ -95,9 +80,7 @@ const commandHandlers: Record<string, CommandHandler> = {
   ping: handlePingCommand,
 };
 
-export async function handleCommand(
-  message: IncomingCommand,
-): Promise<ResponseMessage> {
+export async function handleCommand(message: IncomingCommand): Promise<ResponseMessage> {
   const handler = commandHandlers[message.type];
   if (!handler) {
     return {

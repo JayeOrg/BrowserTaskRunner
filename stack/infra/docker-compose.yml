@@ -11,6 +11,7 @@ services:
             - SITE_EMAIL
             - SITE_PASSWORD
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
+            - VAULT_PASSWORD
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - DOCKER=true
             # Configurable display/port settings (match run.sh defaults)
@@ -21,6 +22,7 @@ services:
             - "${WS_PORT:-8765}:${WS_PORT:-8765}" # WebSocket
         volumes:
             - ../../logs:/app/logs
+            - ../../vault.enc:/app/vault.enc:ro
         tmpfs:
             - /tmp/chrome-profile
         restart: on-failure

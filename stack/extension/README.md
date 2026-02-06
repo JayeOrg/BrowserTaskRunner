@@ -23,53 +23,28 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 4. Extension executes using standard DOM APIs
 5. No CDP = Cloudflare can't detect automation
 
-## Local Development Setup
+## Running
 
-1. Build the project:
-   ```bash
-   npm run build
-   ```
+```bash
+npm run dev botcLogin
+```
 
-2. Run the server with a task:
-   ```bash
-   npm run dev botcLogin
-   ```
+This builds and runs the server with the given task. The extension must already be loaded in Chrome (see below).
 
-3. Open Chrome and go to `chrome://extensions`
+## First-Time Chrome Setup
 
-4. Enable "Developer mode" (toggle in top right)
+1. Open Chrome and go to `chrome://extensions`
+2. Enable "Developer mode" (toggle in top right)
+3. Click "Load unpacked" and select the `dist/extension/` folder
+4. Open a new tab (extension needs an active tab)
 
-5. Click "Load unpacked"
+The server will detect the connection and start automating. After this one-time setup, you only need `npm run dev <task>`.
 
-6. Select the `dist/extension/` folder
+## Code Layout
 
-7. Open a new tab (extension needs an active tab)
+Entry point is `service-worker.ts`. Commands live in `messages/commands/`. The WebSocket server is in `stack/browser/browser.ts`.
 
-8. The server will detect the connection and start automating
-
-## Files
-
-- `../browser/main.ts` - WebSocket server, sends commands to extension
-- `manifest.json` - Extension configuration
-- `main.ts` - WebSocket client, executes commands
-
-## Available Commands
-
-The extension supports these generic commands via WebSocket:
-
-| Command              | Description                                      |
-| -------------------- | ------------------------------------------------ |
-| `navigate`           | Navigate to a URL                                |
-| `fill`               | Fill an input field                              |
-| `click`              | Click an element (via DOM events)                |
-| `cdpClick`           | Click at coordinates (via CDP, with JS fallback) |
-| `waitForSelector`    | Wait for an element to appear                    |
-| `querySelectorRect`  | Get bounding rect for first matching selector    |
-| `getUrl`             | Get current page URL                             |
-| `getContent`         | Get page text content                            |
-| `ping`               | Test connection                                  |
-
-Note: Site-specific logic (Turnstile detection, login flows) lives in the tasks layer, not here.
+Available commands are defined as types in `messages/index.ts` — that's the source of truth. Site-specific logic (Turnstile detection, login flows) lives in the tasks layer, not here.
 
 ## Why This Works
 

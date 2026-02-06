@@ -1,9 +1,5 @@
 import { WebSocketServer, type WebSocket } from "ws";
-import type {
-  CommandMessage,
-  ResponseMessage,
-  ResponseFor,
-} from "../extension/messages/index.js";
+import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
 
@@ -13,10 +9,7 @@ const logger = createPrefixLogger("Browser");
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof value.type === "string"
+    typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
   );
 }
 
@@ -169,9 +162,7 @@ export class Browser {
     return this.send({ type: "waitForSelector", selector, timeout });
   }
   getContent(selector: string | null = null) {
-    return this.send(
-      selector ? { type: "getContent", selector } : { type: "getContent" },
-    );
+    return this.send(selector ? { type: "getContent", selector } : { type: "getContent" });
   }
   querySelectorRect(selectors: string[]) {
     return this.send({ type: "querySelectorRect", selectors });

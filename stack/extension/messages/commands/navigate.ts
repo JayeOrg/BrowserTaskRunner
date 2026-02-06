@@ -13,9 +13,7 @@ export interface NavigateResponse extends BaseResponse {
   title: string;
 }
 
-export async function handleNavigateCommand(
-  msg: IncomingCommand,
-): Promise<NavigateResponse> {
+export async function handleNavigateCommand(msg: IncomingCommand): Promise<NavigateResponse> {
   if (typeof msg.url !== "string") {
     return {
       type: "navigate",

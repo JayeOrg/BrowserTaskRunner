@@ -34,9 +34,7 @@ export async function handleQuerySelectorRectCommand(
   return handleQuerySelectorRect(msg.selectors as string[]);
 }
 
-async function handleQuerySelectorRect(
-  selectors: string[],
-): Promise<QuerySelectorRectResponse> {
+async function handleQuerySelectorRect(selectors: string[]): Promise<QuerySelectorRectResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({

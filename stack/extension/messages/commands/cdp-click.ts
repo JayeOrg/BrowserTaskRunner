@@ -13,9 +13,7 @@ export interface CdpClickResponse extends BaseResponse {
   success: boolean;
 }
 
-export async function handleCdpClickCommand(
-  msg: IncomingCommand,
-): Promise<CdpClickResponse> {
+export async function handleCdpClickCommand(msg: IncomingCommand): Promise<CdpClickResponse> {
   if (typeof msg.x !== "number" || typeof msg.y !== "number") {
     return {
       type: "cdpClick",
