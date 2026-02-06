@@ -49,7 +49,7 @@ npm run check botcLogin
 To disable VNC:
 
 ```bash
-ENABLE_VNC=false npm run check botcLogin
+npm run check botcLogin --no-vnc
 ```
 
 ## How It Works
@@ -95,9 +95,18 @@ On success, an alert file is written to the project root: `alert-<taskName>.txt`
 ## Other Commands
 
 ```bash
+# Follow container logs
+npm run logs
+
+# Open a shell in the running container
+npm run shell
+
+# Stop containers
+npm run stop
+
 # Build without running
 npm run docker:build
 
-# Stop containers
-npm run docker:down
+# Force a fresh build (no cache)
+npm run check botcLogin --rebuild
 ```

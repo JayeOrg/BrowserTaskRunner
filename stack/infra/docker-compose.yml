@@ -1,5 +1,6 @@
 services:
     sitecheck:
+        container_name: sitecheck
         build:
             context: ../..
             dockerfile: stack/infra/Dockerfile
@@ -17,9 +18,19 @@ services:
             - WS_PORT=${WS_PORT:-8765}
         ports:
             - "5900:5900" # VNC for debugging
-            - "8765:8765" # WebSocket (if needed externally)
+            - "${WS_PORT:-8765}:${WS_PORT:-8765}" # WebSocket
         volumes:
             - ../../logs:/app/logs
         tmpfs:
             - /tmp/chrome-profile
         restart: on-failure
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "node -e \"s=require('net').createConnection(process.env.WS_PORT||8765,'localhost');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)\"",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
