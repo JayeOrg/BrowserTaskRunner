@@ -2,34 +2,33 @@
  * Cloudflare Turnstile detection and clicking utilities.
  * This is behaviour-layer code - all knowledge of Turnstile structure lives here.
  */
-import type { ExtensionHost } from '../../extension/host.js';
+import type { ExtensionHost } from "../../extension/host.js";
 
 // Turnstile container selectors - behaviour owns this knowledge
 const TURNSTILE_SELECTORS = [
-  '.turnstile',
-  '.cf-turnstile',
-  '[data-turnstile-widget]',
-  '#turnstile-wrapper',
+  ".turnstile",
+  ".cf-turnstile",
+  "[data-turnstile-widget]",
+  "#turnstile-wrapper",
   '[class*="turnstile"]',
 ];
 
 // Click offset from left edge of container (where the checkbox typically is)
 const CHECKBOX_OFFSET_X = 30;
 
-export interface TurnstileDetectionResult {
-  found: boolean;
-  selector?: string;
-  clickX?: number;
-  clickY?: number;
-}
+export type TurnstileDetectionResult =
+  | { found: true; selector: string; clickX: number; clickY: number }
+  | { found: false };
 
 /**
  * Detects Turnstile on the page and returns click coordinates if found.
  */
-export async function detectTurnstile(host: ExtensionHost): Promise<TurnstileDetectionResult> {
+export async function detectTurnstile(
+  host: ExtensionHost,
+): Promise<TurnstileDetectionResult> {
   const response = await host.querySelectorRect(TURNSTILE_SELECTORS);
 
-  if (response.found && response.rect && response.selector) {
+  if (response.found) {
     return {
       found: true,
       selector: response.selector,
@@ -45,10 +44,12 @@ export async function detectTurnstile(host: ExtensionHost): Promise<TurnstileDet
  * Detects and clicks Turnstile if present on the page.
  * Returns whether a Turnstile was found and clicked.
  */
-export async function clickTurnstile(host: ExtensionHost): Promise<TurnstileDetectionResult> {
+export async function clickTurnstile(
+  host: ExtensionHost,
+): Promise<TurnstileDetectionResult> {
   const detection = await detectTurnstile(host);
 
-  if (detection.found && detection.clickX !== undefined && detection.clickY !== undefined) {
+  if (detection.found) {
     await host.cdpClick(detection.clickX, detection.clickY);
   }
 

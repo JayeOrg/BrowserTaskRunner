@@ -15,8 +15,12 @@ The steps are:
 Notes:
 
 - Don't care about code churn cost when coming up with new solutions
+- Prioritise the best end state, not minimal disruption
+- Prioritise developer experience
 - Don't preserve legacy code
 - Avoid adding in-test retries; treat them as a test smell.
+- Prioritise the DX of callers.
+- Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 
 Review FAILED_APPROACHES for things to avoid, and add to it as paths fail.
 
@@ -41,3 +45,5 @@ Keep extension commands **minimal and generic** while maintaining **developer ex
 
 Good extension commands: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`
 Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
+
+See `agents/adding-extension-commands.md` for how to add a new command.

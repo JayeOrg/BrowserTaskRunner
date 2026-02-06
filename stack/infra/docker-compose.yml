@@ -12,12 +12,14 @@ services:
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - DOCKER=true
+            # Configurable display/port settings (match start.sh defaults)
+            - DISPLAY_NUM=${DISPLAY_NUM:-99}
+            - WS_PORT=${WS_PORT:-8765}
         ports:
-            - "5900:5900"
+            - "5900:5900" # VNC for debugging
+            - "8765:8765" # WebSocket (if needed externally)
         volumes:
-            - chrome-data:/tmp/chrome-profile
             - ../../logs:/app/logs
+        tmpfs:
+            - /tmp/chrome-profile
         restart: on-failure
-
-volumes:
-    chrome-data:

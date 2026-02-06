@@ -41,7 +41,7 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 
 5. Click "Load unpacked"
 
-6. Select the `dist/extension/extension/` folder
+6. Select the `dist/extension/client/` folder
 
 7. Open a new tab (extension needs an active tab)
 
@@ -50,25 +50,24 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 ## Files
 
 - `host.ts` - WebSocket server, sends commands to extension
-- `types.ts` - Shared type definitions for commands and responses
-- `extension/manifest.json` - Extension configuration
-- `extension/background.ts` - WebSocket client, executes commands
+- `client/manifest.json` - Extension configuration
+- `client/background.ts` - WebSocket client, executes commands
 
 ## Available Commands
 
 The extension supports these generic commands via WebSocket:
 
-| Command | Description |
-|---------|-------------|
-| `navigate` | Navigate to a URL |
-| `fill` | Fill an input field |
-| `click` | Click an element (via DOM events) |
-| `cdpClick` | Click at coordinates (via CDP, with JS fallback) |
-| `waitForSelector` | Wait for an element to appear |
-| `querySelectorRect` | Get bounding rect for first matching selector |
-| `getUrl` | Get current page URL |
-| `getContent` | Get page text content |
-| `ping` | Test connection |
+| Command              | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `navigate`           | Navigate to a URL                                |
+| `fill`               | Fill an input field                              |
+| `click`              | Click an element (via DOM events)                |
+| `cdpClick`           | Click at coordinates (via CDP, with JS fallback) |
+| `waitForSelector`    | Wait for an element to appear                    |
+| `querySelectorRect`  | Get bounding rect for first matching selector    |
+| `getUrl`             | Get current page URL                             |
+| `getContent`         | Get page text content                            |
+| `ping`               | Test connection                                  |
 
 Note: Site-specific logic (Turnstile detection, login flows) lives in the behaviour layer, not here.
 

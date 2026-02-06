@@ -1,10 +1,15 @@
 FROM node:20-slim
 
 # Install Chromium and dependencies (works on ARM64 and amd64)
+# Note: Chromium requires --no-sandbox when running as root in Docker.
+# This is safe because Docker provides its own isolation layer.
+# See: https://github.com/nicholasdille/without-systemd/issues/4
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     xvfb \
     x11vnc \
+    x11-utils \
+    scrot \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory

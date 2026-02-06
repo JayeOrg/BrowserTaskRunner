@@ -2,6 +2,8 @@ import js from '@eslint/js'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import { configs as sonarConfigs } from 'eslint-plugin-sonarjs'
+import eslintConfigPrettier from 'eslint-config-prettier'
+import eslintPluginPrettier from 'eslint-plugin-prettier/recommended'
 
 export default [
   {
@@ -96,4 +98,8 @@ export default [
       'sonarjs/no-duplicate-string': 'off',
     },
   },
+
+  // Prettier – must be last to override formatting rules
+  eslintConfigPrettier,
+  eslintPluginPrettier,
 ]

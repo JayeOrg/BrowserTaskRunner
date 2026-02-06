@@ -73,7 +73,7 @@ npm run build
 npm run dev <taskName>
 ```
 
-Then load `dist/extension/extension/` as an unpacked extension in Chrome.
+Then load `dist/extension/client/` as an unpacked extension in Chrome.
 
 [Full documentation](./stack/extension/README.md)
 
@@ -121,7 +121,7 @@ stack/
 │   ├── types.ts     # Shared types
 │   └── run-task.ts # Main entry point
 ├── extension/       # Chrome extension
-│   ├── extension/   # Extension source (manifest, background, content)
+│   ├── client/      # Extension source (manifest, background, messages)
 │   └── host.ts      # WebSocket server for extension communication
 └── infra/           # Docker and deployment
     ├── Dockerfile

@@ -3,30 +3,38 @@
  * These provide "try multiple selectors" patterns without adding
  * site-specific knowledge to the extension.
  */
-import type { ExtensionHost } from '../../extension/host.js';
+import type { ExtensionHost } from "../../extension/host.js";
 
-export interface SelectorResult {
-  found: boolean;
-  selector?: string;
-  error?: string;
-}
+export type SelectorResult =
+  | { found: true; selector: string }
+  | { found: false; error?: string };
 
 /**
- * Wait for the first matching selector from a list.
- * Returns the selector that matched, or found: false if none matched.
+ * Race all selectors concurrently within a single timeout window.
+ * Returns the first selector that matches, or found: false if none matched.
  */
 export async function waitForFirst(
   host: ExtensionHost,
   selectors: readonly string[],
-  timeout: number
+  timeout: number,
 ): Promise<SelectorResult> {
-  for (const selector of selectors) {
-    const result = await host.waitForSelector(selector, timeout);
-    if (result.found) {
-      return { found: true, selector };
-    }
+  try {
+    return await Promise.any(
+      selectors.map(async (selector) => {
+        const result = await host.waitForSelector(selector, timeout);
+        if (!result.found) {
+          throw new Error("not found");
+        }
+        return {
+          found: true,
+          selector: result.selector,
+        } satisfies SelectorResult;
+      }),
+    );
+  } catch {
+    // All selectors timed out
+    return { found: false };
   }
-  return { found: false };
 }
 
 /**
@@ -35,13 +43,13 @@ export async function waitForFirst(
  */
 export async function clickFirst(
   host: ExtensionHost,
-  selectors: readonly string[]
+  selectors: readonly string[],
 ): Promise<SelectorResult> {
   const errors: string[] = [];
   for (const selector of selectors) {
     try {
       const result = await host.click(selector);
-      if (!result.error) {
+      if (result.success) {
         return { found: true, selector };
       }
       errors.push(`${selector}: ${result.error}`);
@@ -50,7 +58,7 @@ export async function clickFirst(
       errors.push(`${selector}: ${message}`);
     }
   }
-  return { found: false, error: errors.join('; ') };
+  return { found: false, error: errors.join("; ") };
 }
 
 /**
@@ -61,13 +69,13 @@ export async function fillFirst(
   host: ExtensionHost,
   selectors: readonly string[],
   value: string,
-  timeout: number
+  timeout: number,
 ): Promise<SelectorResult> {
   for (const selector of selectors) {
     const waitResult = await host.waitForSelector(selector, timeout);
     if (waitResult.found) {
       const fillResult = await host.fill(selector, value);
-      if (!fillResult.error) {
+      if (fillResult.success) {
         return { found: true, selector };
       }
     }

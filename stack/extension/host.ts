@@ -1,14 +1,23 @@
-import { WebSocketServer, type WebSocket } from 'ws';
-import path from 'node:path';
-import type { CommandMessage, ResponseMessage } from './types.js';
-import { createPrefixLogger } from '../behaviour/utils/site-utils.js';
+import { WebSocketServer, type WebSocket } from "ws";
+import type {
+  CommandMessage,
+  ResponseMessage,
+  ResponseFor,
+} from "./client/messages/index.js";
+import { createPrefixLogger } from "../behaviour/utils/logging.js";
+import { logConnectionInstructions } from "./instructions.js";
 
-export type { CommandMessage, ResponseMessage };
+export type { CommandMessage, ResponseMessage, ResponseFor };
 
-const logger = createPrefixLogger('Host');
+const logger = createPrefixLogger("Host");
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
-  return typeof value === 'object' && value !== null;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof value.type === "string"
+  );
 }
 
 interface PendingCommand {
@@ -29,102 +38,87 @@ export class ExtensionHost {
   }
 
   async start(): Promise<void> {
-    if (this.server) {return;}
+    if (this.server) {
+      return;
+    }
 
-    await new Promise<void>((resolve, reject) => {
-      let settled = false;
+    this.server = new WebSocketServer({ port: this.port });
+    this.server.on("listening", () => {
+      logConnectionInstructions(logger, this.port);
+    });
+
+    await this.waitForConnection();
+  }
+
+  private waitForConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeoutMs = 60000;
       const timeout = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          reject(new Error('Extension did not connect within 60 seconds'));
-        }
-      }, 60000);
+        reject(new Error("Extension did not connect within 60 seconds"));
+      }, timeoutMs);
 
-      this.server = new WebSocketServer({ port: this.port });
+      const clearTimeoutAndRun = (fn: () => void) => {
+        clearTimeout(timeout);
+        fn();
+      };
 
-      this.server.on('listening', () => {
-        this.logInstructions();
-      });
-
-      this.server.on('error', (error: Error) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timeout);
+      this.server?.on("error", (error: Error) => {
+        clearTimeoutAndRun(() => {
           reject(error);
-        }
+        });
       });
 
-      this.server.on('connection', (ws: WebSocket) => {
+      this.server?.on("connection", (ws: WebSocket) => {
         this.ws = ws;
-        ws.on('message', (data: Buffer) => {
-          try {
-            const parsed: unknown = JSON.parse(data.toString());
-            if (!isResponseMessage(parsed)) {
-              logger.log('Invalid message format');
-              return;
-            }
-            const message = parsed;
-
-            if (message.type === 'ready' && !settled) {
-              settled = true;
-              clearTimeout(timeout);
-              resolve();
-              return;
-            }
-
-            if (message.id !== undefined) {
-              const pending = this.pendingCommands.get(message.id);
-              if (pending) {
-                clearTimeout(pending.timeoutId);
-                this.pendingCommands.delete(message.id);
-                if (message.error) {
-                  pending.reject(new Error(message.error));
-                } else {
-                  pending.resolve(message);
-                }
-              }
-            }
-          } catch (error) {
-            logger.log('Error parsing message', { error: String(error) });
-          }
-        });
-
-        ws.on('close', () => {
+        ws.on("close", () => {
           this.ws = null;
+        });
+        ws.on("message", (data: Buffer) => {
+          const message = this.parseMessage(data);
+          if (!message) return;
+
+          if (message.type === "ready") {
+            clearTimeoutAndRun(resolve);
+            return;
+          }
+
+          this.handleResponse(message);
         });
       });
     });
   }
 
-  private logInstructions(): void {
-    logger.log('WebSocket server listening', { port: this.port });
-
-    // Skip manual instructions when running in Docker (automated)
-    if (process.env['DOCKER']) {
-      return;
+  private parseMessage(data: Buffer): ResponseMessage | null {
+    try {
+      const parsed: unknown = JSON.parse(data.toString());
+      if (!isResponseMessage(parsed)) {
+        logger.log("Invalid message format");
+        return null;
+      }
+      return parsed;
+    } catch (error) {
+      logger.log("Error parsing message", { error: String(error) });
+      return null;
     }
-
-    const extensionPath = path.join(process.cwd(), 'dist', 'extension', 'extension');
-    logger.log('Waiting for Chrome extension to connect...');
-    logger.log('='.repeat(50));
-    logger.log('CONNECT THE EXTENSION:');
-    logger.log('1. Open Chrome');
-    logger.log('2. Go to chrome://extensions');
-    logger.log('3. Enable "Developer mode"');
-    logger.log('4. Click "Load unpacked"');
-    logger.log(`5. Select: ${extensionPath}`);
-    logger.log('6. Open a new tab (extension needs an active tab)');
-    logger.log('='.repeat(50));
   }
 
-  private ensureConnection(): WebSocket {
-    if (!this.ws) {
-      throw new Error('Extension not connected');
+  private handleResponse(message: ResponseMessage): void {
+    if (message.id === undefined) return;
+
+    const pending = this.pendingCommands.get(message.id);
+    if (!pending) return;
+
+    clearTimeout(pending.timeoutId);
+    this.pendingCommands.delete(message.id);
+
+    if (message.error) {
+      pending.reject(new Error(message.error));
+    } else {
+      pending.resolve(message);
     }
-    return this.ws;
   }
 
-  send(command: CommandMessage): Promise<ResponseMessage> {
+  send<T extends CommandMessage>(command: T): Promise<ResponseFor<T>> {
     return new Promise((resolve, reject) => {
       const socket = this.ensureConnection();
 
@@ -136,48 +130,54 @@ export class ExtensionHost {
         }
       }, 30000);
 
-      this.pendingCommands.set(id, { resolve, reject, timeoutId });
+      // ResponseFor<T> is always a subtype of ResponseMessage, so this is safe
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      const typedResolve = resolve as (value: ResponseMessage) => void;
+      this.pendingCommands.set(id, {
+        resolve: typedResolve,
+        reject,
+        timeoutId,
+      });
       socket.send(JSON.stringify({ id, ...command }));
     });
   }
 
-  // --- Generic browser automation primitives ---
-  // Command logging removed: task step logs already provide visibility
-
-  navigate(url: string): Promise<ResponseMessage> {
-    return this.send({ type: 'navigate', url });
+  private ensureConnection(): WebSocket {
+    if (!this.ws) {
+      throw new Error("Extension not connected");
+    }
+    return this.ws;
   }
 
-  getUrl(): Promise<ResponseMessage> {
-    return this.send({ type: 'getUrl' });
+  // Browser commands
+  navigate(url: string) {
+    return this.send({ type: "navigate", url });
   }
-
-  fill(selector: string, value: string): Promise<ResponseMessage> {
-    return this.send({ type: 'fill', selector, value });
+  getUrl() {
+    return this.send({ type: "getUrl" });
   }
-
-  click(selector: string): Promise<ResponseMessage> {
-    return this.send({ type: 'click', selector });
+  fill(selector: string, value: string) {
+    return this.send({ type: "fill", selector, value });
   }
-
-  cdpClick(x: number, y: number): Promise<ResponseMessage> {
-    return this.send({ type: 'cdpClick', x, y });
+  click(selector: string) {
+    return this.send({ type: "click", selector });
   }
-
-  waitForSelector(selector: string, timeout = 10000): Promise<ResponseMessage> {
-    return this.send({ type: 'waitForSelector', selector, timeout });
+  cdpClick(x: number, y: number) {
+    return this.send({ type: "cdpClick", x, y });
   }
-
-  getContent(selector: string | null = null): Promise<ResponseMessage> {
-    return this.send(selector ? { type: 'getContent', selector } : { type: 'getContent' });
+  waitForSelector(selector: string, timeout = 10000) {
+    return this.send({ type: "waitForSelector", selector, timeout });
   }
-
-  querySelectorRect(selectors: string[]): Promise<ResponseMessage> {
-    return this.send({ type: 'querySelectorRect', selectors });
+  getContent(selector: string | null = null) {
+    return this.send(
+      selector ? { type: "getContent", selector } : { type: "getContent" },
+    );
   }
-
-  ping(): Promise<ResponseMessage> {
-    return this.send({ type: 'ping' });
+  querySelectorRect(selectors: string[]) {
+    return this.send({ type: "querySelectorRect", selectors });
+  }
+  ping() {
+    return this.send({ type: "ping" });
   }
 
   close(): void {
