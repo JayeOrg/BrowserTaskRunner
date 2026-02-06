@@ -14,11 +14,11 @@ import {
   StepError,
   getErrorMessage,
   type TaskResultFailure,
-} from "../common/errors.js";
-import { createPrefixLogger } from "../common/logging.js";
+} from "./errors.js";
+import { createPrefixLogger } from "./logging.js";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
-const logger = createPrefixLogger("Engine");
+const logger = createPrefixLogger("Framework");
 
 function getTaskName(): string {
   const taskName = process.argv[2];

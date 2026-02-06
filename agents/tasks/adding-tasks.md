@@ -69,9 +69,9 @@ async function navigate(browser: Browser, logger: TaskLogger): Promise<void> {
 }
 ```
 
-Use `logger.fail()` for step failures — it throws a `StepError` which the runner catches and logs.
+Use `logger.fail()` for step failures — it throws a `StepError` which the framework catches and logs.
 
-## 2. Register in `stack/engine/registry.ts`
+## 2. Register in `stack/framework/registry.ts`
 
 Add the import and array entry:
 

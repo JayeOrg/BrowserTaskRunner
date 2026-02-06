@@ -14,7 +14,7 @@
     "build:extension": "mkdir -p dist/extension && cp stack/extension/manifest.json dist/extension/ && npm run build:extension-bg",
     "build:extension-bg": "esbuild stack/extension/main.ts --bundle --outfile=dist/extension/main.js --format=iife --target=chrome100",
     "check": "./stack/infra/check.sh",
-    "dev": "npm run build && node dist/engine/main.js",
+    "dev": "npm run build && node dist/framework/main.js",
     "dev:watch": "npm run build:extension && tsc --watch",
     "logs": "docker compose -f stack/infra/docker-compose.yml logs -f",
     "shell": "docker exec -it sitecheck /bin/bash",

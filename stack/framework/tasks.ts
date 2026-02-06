@@ -1,6 +1,12 @@
 import type { Browser } from "../browser/main.js";
-import type { TaskResultSuccess } from "../common/errors.js";
 import type { ZodType } from "zod";
+
+export interface TaskResultSuccess {
+  ok: true;
+  step: string;
+  finalUrl?: string;
+  context?: Record<string, unknown>;
+}
 
 export type TaskContext = Record<string, string>;
 

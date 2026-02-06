@@ -1,10 +1,3 @@
-export interface TaskResultSuccess {
-  ok: true;
-  step: string;
-  finalUrl?: string;
-  context?: Record<string, unknown>;
-}
-
 export interface TaskResultFailure {
   ok: false;
   step: string;

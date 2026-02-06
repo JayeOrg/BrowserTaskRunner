@@ -99,7 +99,7 @@ function formatLogLine(
 
   const { icon, color } = levelStyles[level];
   const prefix = `[${state.stepNum.toString()} ${step}]`;
-  // Indent task steps (they run under Runner's attempt)
+  // Indent task steps (they run under framework's attempt loop)
   const content = `${color}${icon}${colors.reset}    ${prefix} ${msg}${formatData(data)}`;
   output(rightJustify(content, duration));
 }

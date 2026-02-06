@@ -18,7 +18,7 @@ Notes:
 - Prioritise the best end state, not minimal disruption
 - Prioritise developer experience
 - Don't preserve legacy code
-- Avoid adding in-task retries; the engine owns retry logic.
+- Avoid adding in-task retries; the framework owns retry logic.
 - Prioritise the DX of callers.
 - Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 - Don't add re-exports or barrel files to simplify imports. IDEs handle import paths. Import from the actual source module.
@@ -34,10 +34,9 @@ Modules with strict separation:
 
 - **Infra**: Docker, Xvfb, Chrome startup. No knowledge of sites or automation logic.
 - **Extension**: Generic browser automation bridge. Receives commands, returns results. No site-specific knowledge.
-- **Engine**: Generic task orchestration. Connects to the browser, runs a task, owns retry logic, reports results. No site-specific knowledge.
+- **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
 - **Tasks**: All site-specific logic lives here - selectors, timing, detection strategies.
-- **Common**: Shared utilities (logging, errors, result types).
-- **Browser**: WebSocket server bridging engine and extension.
+- **Browser**: WebSocket server bridging framework and extension.
 
 ### Extension Design Principle
 

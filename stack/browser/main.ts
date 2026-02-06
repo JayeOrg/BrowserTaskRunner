@@ -4,7 +4,7 @@ import type {
   ResponseMessage,
   ResponseFor,
 } from "../extension/messages/index.js";
-import { createPrefixLogger } from "../common/logging.js";
+import { createPrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
 
 export type { CommandMessage, ResponseMessage, ResponseFor };

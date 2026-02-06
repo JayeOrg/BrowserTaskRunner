@@ -82,7 +82,7 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 1. Create a task in `stack/tasks/yoursite.ts`:
 
     ```typescript
-    import { TaskConfig } from "../engine/tasks.js";
+    import { TaskConfig } from "../framework/tasks.js";
 
     export const yourSiteTask: TaskConfig = {
         name: "yourSite",
@@ -95,7 +95,7 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
     };
     ```
 
-2. Register it in `stack/engine/registry.ts`:
+2. Register it in `stack/framework/registry.ts`:
 
     ```typescript
     import { yourSiteTask } from "../tasks/yoursite.js";
@@ -115,13 +115,14 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 
 ```
 stack/
-├── engine/          # Generic task orchestration
+├── framework/       # Orchestration, types, logging, errors
 │   ├── main.ts      # Entry point
-│   └── tasks.ts     # Task registry + TaskConfig
+│   ├── tasks.ts     # TaskConfig types + registry lookup
+│   ├── logging.ts   # Logging infrastructure
+│   └── errors.ts    # Result types + StepError
 ├── tasks/           # Site-specific task implementations
 │   ├── botc.ts      # BotC login task
 │   └── utils/       # Shared task utilities (selectors, timing)
-├── common/          # Shared utilities (logging, errors, result types)
 ├── browser/         # WebSocket server — typed browser API
 │   └── main.ts
 ├── extension/       # Chrome extension (manifest, messages)

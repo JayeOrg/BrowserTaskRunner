@@ -1,8 +1,11 @@
 import { z } from "zod";
 import type { Browser } from "../browser/main.js";
-import type { RetryingTask, TaskContext } from "../engine/tasks.js";
-import type { TaskResultSuccess } from "../common/errors.js";
-import { type TaskLogger, createTaskLogger } from "../common/logging.js";
+import type {
+  RetryingTask,
+  TaskContext,
+  TaskResultSuccess,
+} from "../framework/tasks.js";
+import { type TaskLogger, createTaskLogger } from "../framework/logging.js";
 import { clickFirst, fillFirst, waitForFirst } from "./utils/selectors.js";
 import { sleep } from "./utils/timing.js";
 import { clickTurnstile } from "./utils/turnstile.js";
