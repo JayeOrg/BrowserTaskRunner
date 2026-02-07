@@ -5,6 +5,8 @@ function makeTask(name: string): SingleAttemptTask {
   return {
     name,
     url: "https://example.com",
+    project: "test-project",
+    needs: {},
     mode: "once",
     run: async () => ({ ok: true, step: "done" }),
   };

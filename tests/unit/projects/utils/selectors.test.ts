@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { waitForFirst, clickFirst, fillFirst } from "../../../../stack/tasks/utils/selectors.js";
+import { waitForFirst, clickFirst, fillFirst } from "../../../../stack/projects/utils/selectors.js";
 import { createMockBrowser } from "./testing.js";
 
 describe("waitForFirst", () => {

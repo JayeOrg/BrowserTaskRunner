@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { detectTurnstile, clickTurnstile } from "../../../../stack/tasks/utils/turnstile.js";
+import { detectTurnstile, clickTurnstile } from "../../../../stack/projects/utils/turnstile.js";
 import { createMockBrowser } from "./testing.js";
 
 function mockTurnstileFound(browser: ReturnType<typeof createMockBrowser>) {

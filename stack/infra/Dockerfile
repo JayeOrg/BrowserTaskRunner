@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install Chromium and dependencies (works on ARM64 and amd64)
 # Note: Chromium requires --no-sandbox when running as root in Docker.

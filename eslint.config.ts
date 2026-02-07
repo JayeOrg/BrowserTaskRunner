@@ -97,6 +97,7 @@ export default [
       'max-lines': 'off',
       'no-magic-numbers': 'off',
       'sonarjs/no-duplicate-string': 'off',
+      'sonarjs/no-hardcoded-passwords': 'off',
       'no-empty-function': 'off',
     },
   },

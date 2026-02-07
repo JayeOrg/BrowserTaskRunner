@@ -13,6 +13,8 @@ export type TaskContext = Record<string, string>;
 export interface SingleAttemptTask {
   name: string;
   url: string;
+  project: string;
+  needs: Record<string, string>;
   mode: "once";
   contextSchema?: ZodType;
   run: (browser: BrowserAPI, context: TaskContext) => Promise<TaskResultSuccess>;
@@ -21,6 +23,8 @@ export interface SingleAttemptTask {
 export interface RetryingTask {
   name: string;
   url: string;
+  project: string;
+  needs: Record<string, string>;
   mode: "retry";
   intervalMs: number;
   contextSchema?: ZodType;

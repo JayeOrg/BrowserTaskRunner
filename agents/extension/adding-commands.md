@@ -80,7 +80,7 @@ screenshot() {
 
 The return type is automatically `Promise<ScreenshotResponse>` via the `ResponseFor` type.
 
-## 4. Add to mock browser in `stack/tasks/utils/testing.ts`
+## 4. Add to mock browser in `stack/projects/utils/testing.ts`
 
 ```typescript
 screenshot: vi.fn().mockResolvedValue({ type: "screenshot", data: "" }),

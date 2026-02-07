@@ -110,9 +110,9 @@ if [ ! -f .env ]; then
 fi
 
 # Validate required environment variables in .env
-if ! grep -qE '^SITE_EMAIL=.+' .env || ! grep -qE '^SITE_PASSWORD=.+' .env; then
-    echo "Error: .env must define SITE_EMAIL and SITE_PASSWORD with non-empty values"
-    echo "See .env.example for required variables"
+if ! grep -qE '^VAULT_TOKEN=.+' .env; then
+    echo "Error: .env must define VAULT_TOKEN with a non-empty value"
+    echo "Generate one with: npm run vault -- project export <name>"
     exit 1
 fi
 

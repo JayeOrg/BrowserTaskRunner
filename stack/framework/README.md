@@ -6,7 +6,7 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 
 1. Reads the task name from `process.argv[2]`
 2. Looks up the task in the registry
-3. Loads context from `SITE_`-prefixed environment variables
+3. Loads context from vault using `VAULT_TOKEN` and the task's `needs` mapping
 4. Validates context against the task's optional Zod schema
 5. Starts a `Browser` WebSocket connection
 6. Runs the task in single-attempt or retry mode
@@ -29,6 +29,6 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 
 See `agents/tasks/adding-tasks.md` for the full guide. In short:
 
-1. Create a task file in `stack/tasks/`
-2. Export a `TaskConfig` object
+1. Create a project directory in `stack/projects/<name>/`
+2. Export a `TaskConfig` object with `project` and `needs` fields
 3. Register it in `stack/framework/registry.ts`

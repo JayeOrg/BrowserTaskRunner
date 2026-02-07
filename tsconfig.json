@@ -27,6 +27,6 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["stack/framework/**/*", "stack/tasks/**/*", "stack/extension/**/*", "stack/browser/**/*"],
+  "include": ["stack/framework/**/*", "stack/vault/**/*", "stack/projects/**/*", "stack/extension/**/*", "stack/browser/**/*"],
   "exclude": ["node_modules", "dist", "stack/infra"]
 }

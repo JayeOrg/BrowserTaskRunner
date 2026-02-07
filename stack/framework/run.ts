@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { setTimeout } from "node:timers/promises";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Browser } from "../browser/browser.js";
 import {
@@ -13,10 +13,10 @@ import {
 import { allTasks } from "./registry.js";
 import { StepError, getErrorMessage, type TaskResultFailure } from "./errors.js";
 import { createPrefixLogger } from "./logging.js";
-import { loadVault, getTaskSecrets } from "./vault.js";
+import { openVault, loadProjectDetails, parseToken } from "../vault/vault.js";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
-const VAULT_PATH = resolve(import.meta.dirname, "../../vault.enc");
+const VAULT_PATH = resolve(import.meta.dirname, "../../vault.db");
 const logger = createPrefixLogger("Framework");
 
 function getTaskName(): string {
@@ -30,50 +30,28 @@ function getTaskName(): string {
   return taskName;
 }
 
-function loadEnvContext(): TaskContext {
-  const context: TaskContext = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith("SITE_") && value !== undefined) {
-      context[key] = value;
-    }
-  }
-  return context;
-}
-
-function loadVaultContext(taskName: string): TaskContext {
-  if (!existsSync(VAULT_PATH)) {
-    return {};
+function loadContext(task: TaskConfig): TaskContext {
+  const token = process.env.VAULT_TOKEN;
+  if (!token) {
+    throw new Error(
+      "VAULT_TOKEN environment variable is required. Export a project token from the vault.",
+    );
   }
 
-  const password = process.env.VAULT_PASSWORD;
-  if (!password) {
-    logger.warn("Vault file exists but VAULT_PASSWORD not set — skipping vault");
-    return {};
-  }
+  const projectKey = parseToken(token);
+  const db = openVault(VAULT_PATH);
 
-  const vaultData = loadVault(VAULT_PATH, password);
-  const secrets = getTaskSecrets(vaultData, taskName);
-  const keyCount = Object.keys(secrets).length;
-  if (keyCount > 0) {
-    logger.log("Loaded vault secrets", {
-      task: taskName,
-      keys: keyCount.toString(),
+  try {
+    const context = loadProjectDetails(db, projectKey, task.project, task.needs);
+    const keys = Object.keys(context);
+    logger.log("Loaded context from vault", {
+      project: task.project,
+      keys: keys.length > 0 ? keys.join(", ") : "(none)",
     });
+    return context;
+  } finally {
+    db.close();
   }
-  return secrets;
-}
-
-function loadContext(taskName: string): TaskContext {
-  const envContext = loadEnvContext();
-  const vaultContext = loadVaultContext(taskName);
-  const merged = { ...envContext, ...vaultContext };
-  const keys = Object.keys(merged);
-  const source = Object.keys(vaultContext).length > 0 ? "env+vault" : "env";
-  logger.log("Loaded context", {
-    keys: keys.length > 0 ? keys.join(", ") : "(none)",
-    source,
-  });
-  return merged;
 }
 
 function validateContext(task: TaskConfig, context: TaskContext): void {
@@ -180,7 +158,7 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
 async function main(): Promise<void> {
   const taskName = getTaskName();
   const task = findTask(taskName, allTasks);
-  const context = loadContext(taskName);
+  const context = loadContext(task);
 
   validateContext(task, context);
 

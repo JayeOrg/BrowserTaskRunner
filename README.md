@@ -18,25 +18,25 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
     npm install
     ```
 
-2. Create `.env` file with your credentials:
+2. Initialize the vault and add credentials:
 
     ```bash
-    # Required
-    SITE_EMAIL=your-email@example.com
-    SITE_PASSWORD=your-password
+    npm run vault -- init
+    npm run vault -- project create monitor-botc
+    npm run vault -- detail set monitor-botc email user@example.com
+    npm run vault -- detail set monitor-botc password hunter2
+    ```
 
-    # Optional
-    SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
+    The CLI prompts for the vault password interactively. Save the token from `project create` to `.env`:
+
+    ```bash
+    echo "VAULT_TOKEN=<token>" >> .env
     ```
 
 3. Run a task:
 
     ```bash
-    # Docker (recommended - fully headless)
-    npm run check botcLogin
-
-    # Local development
-    npm run dev botcLogin
+    npm run dev -- botcLogin
     ```
 
 ## Available Tasks
@@ -79,14 +79,19 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 
 ## Adding New Tasks
 
-1. Create a task in `stack/tasks/yoursite.ts`:
+1. Create a project directory in `stack/projects/yoursite/`:
 
     ```typescript
-    import { TaskConfig } from "../framework/tasks.js";
+    // stack/projects/yoursite/yoursite.ts
+    import type { RetryingTask } from "../../framework/tasks.js";
 
-    export const yourSiteTask: TaskConfig = {
+    export const yourSiteTask: RetryingTask = {
         name: "yourSite",
         url: "https://yoursite.com/login",
+        project: "monitor-yoursite",
+        needs: { email: "email", password: "password" },
+        mode: "retry",
+        intervalMs: 300_000,
         run: async (browser, context) => {
             await browser.navigate("https://yoursite.com/login");
             // Your login logic here
@@ -98,17 +103,18 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
 2. Register it in `stack/framework/registry.ts`:
 
     ```typescript
-    import { yourSiteTask } from "../tasks/yoursite.js";
+    import { yourSiteTask } from "../projects/yoursite/yoursite.js";
 
-    const tasks: Record<string, TaskConfig> = {
-        botcLogin: botcLoginTask,
-        yourSiteLogin: yourSiteTask, // Add here
-    };
+    export const allTasks: TaskConfig[] = [botcLoginTask, yourSiteTask];
     ```
 
-3. Run it:
+3. Set up vault secrets and run:
     ```bash
-    npm run check yourSiteLogin
+    npm run vault -- project create monitor-yoursite
+    npm run vault -- detail set monitor-yoursite email user@example.com
+    npm run vault -- detail set monitor-yoursite password hunter2
+    # Save the token from project create to .env
+    npm run dev -- yourSite
     ```
 
 ## Project Structure
@@ -120,9 +126,10 @@ stack/
 │   ├── tasks.ts     # TaskConfig types + registry lookup
 │   ├── logging.ts   # Logging infrastructure
 │   └── errors.ts    # Result types + StepError
-├── tasks/           # Site-specific task implementations
-│   ├── botc.ts      # BotC login task
+├── projects/        # Project-specific task implementations
+│   ├── botc/        # BotC login project
 │   └── utils/       # Shared task utilities (selectors, timing)
+├── vault/           # Local secrets service (SQLite + AES-256-GCM)
 ├── browser/         # WebSocket server — typed browser API
 │   └── main.ts
 ├── extension/       # Chrome extension (manifest, messages)

@@ -36,7 +36,8 @@ Modules with strict separation:
 - **Infra**: Docker, Xvfb, Chrome startup. No knowledge of sites or automation logic.
 - **Extension**: Generic browser automation bridge. Receives commands, returns results. No site-specific knowledge.
 - **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
-- **Tasks**: All site-specific logic lives here - selectors, timing, detection strategies.
+- **Projects**: All site-specific logic lives here. Each project gets its own subdirectory under `stack/projects/`. Shared task utilities live in `stack/projects/utils/`.
+- **Vault**: Local secrets service with project-scoped access control. See `stack/vault/README.md`.
 - **Browser**: WebSocket server bridging framework and extension.
 
 ### Extension Design Principle

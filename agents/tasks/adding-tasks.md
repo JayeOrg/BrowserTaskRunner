@@ -2,9 +2,9 @@
 
 To add a new task (e.g., `acmeLogin`), touch 2 files:
 
-## 1. Create the task file in `stack/tasks/`
+## 1. Create the task file in `stack/projects/`
 
-Copy `stack/tasks/botc.ts` as a starting point. A task file contains:
+Copy `stack/projects/botc.ts` as a starting point. A task file contains:
 
 - Constants: `TASK`, `TIMINGS`, `SELECTORS`
 - Step functions at file scope (not nested in `run`)
@@ -28,6 +28,8 @@ export const acmeCheckTask: SingleAttemptTask = {
 export const acmeLoginTask: RetryingTask = {
   name: "acmeLogin",
   url: "https://example.com",
+  project: "monitor-acme",
+  needs: { email: "email", password: "password" },
   mode: "retry",
   intervalMs: 300_000,
   run,
@@ -38,22 +40,21 @@ The runner owns the retry loop. Tasks implement a single attempt — throw `Step
 
 ### Context validation (optional)
 
-Add a `contextSchema` using `zod` to validate required environment variables:
+Add a `contextSchema` using `zod` to validate the context loaded from the vault:
 
 ```typescript
 import { z } from "zod";
 
 const contextSchema = z.object({
-  SITE_EMAIL: z.string().min(1),
-  SITE_PASSWORD: z.string().min(1),
+  email: z.string().min(1),
+  password: z.string().min(1),
 });
 ```
 
 The runner calls `contextSchema.safeParse(context)` before `run()` and fails fast with a clear message if validation fails. Inside `run()`, use `contextSchema.parse(context)` for type narrowing:
 
 ```typescript
-const { SITE_EMAIL: email, SITE_PASSWORD: password } =
-  contextSchema.parse(context);
+const { email, password } = contextSchema.parse(context);
 ```
 
 ### Step functions
@@ -77,8 +78,8 @@ Add the import and array entry:
 
 ```typescript
 import type { TaskConfig } from "./tasks.js";
-import { botcLoginTask } from "../tasks/botc.js";
-import { acmeLoginTask } from "../tasks/acme.js";
+import { botcLoginTask } from "../projects/botc/botc.js";
+import { acmeLoginTask } from "../projects/acme/acme.js";
 
 export const allTasks: TaskConfig[] = [botcLoginTask, acmeLoginTask];
 ```
@@ -92,4 +93,4 @@ npm run check acmeLogin          # Docker
 npm run dev -- acmeLogin          # Local (after npm run build)
 ```
 
-Environment variables starting with `SITE_` are loaded from `.env` and passed as `TaskContext`.
+Context is loaded from the vault using the task's `project` and `needs` fields. See `stack/vault/README.md`.

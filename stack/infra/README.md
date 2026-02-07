@@ -23,19 +23,20 @@ npm run check botcLogin
 
 ## Configuration
 
-Create a `.env` file in the project root:
+Secrets are stored in the vault (see `stack/vault/README.md`). The `.env` file needs the project token:
 
 ```bash
-# Required
-SITE_EMAIL=your-email@example.com
-SITE_PASSWORD=your-password
+# Required — export from vault
+VAULT_TOKEN=<base64 project token>
 
 # Optional
-SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
-ENABLE_VNC=true                # Enable VNC debugging (default: true)
+# SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
+# ENABLE_VNC=true                # Enable VNC debugging (default: true)
 ```
 
-Note: Each task defines its own target URL (see `stack/tasks/`).
+The vault database (`vault.db`) is mounted read-only into the container. At runtime, the framework uses `VAULT_TOKEN` to decrypt the project's secrets from the vault.
+
+Each task declares which project and detail keys it needs (see `stack/projects/`).
 
 ## Debugging with VNC
 

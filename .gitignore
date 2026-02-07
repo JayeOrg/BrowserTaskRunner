@@ -4,6 +4,9 @@ node_modules/
 .vscode
 dist/
 vault.enc
+vault.db
+vault.db-wal
+vault.db-shm
 logs/
 alert-*.txt
 coverage/

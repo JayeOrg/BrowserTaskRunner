@@ -1,14 +1,14 @@
 import { z } from "zod";
-import type { BrowserAPI } from "../browser/browser.js";
-import type { RetryingTask, TaskContext, TaskResultSuccess } from "../framework/tasks.js";
-import { type TaskLogger, createTaskLogger } from "../framework/logging.js";
-import { clickFirst, fillFirst, waitForFirst } from "./utils/selectors.js";
-import { sleep } from "./utils/timing.js";
-import { clickTurnstile } from "./utils/turnstile.js";
+import type { BrowserAPI } from "../../../browser/browser.js";
+import type { RetryingTask, TaskContext, TaskResultSuccess } from "../../../framework/tasks.js";
+import { type TaskLogger, createTaskLogger } from "../../../framework/logging.js";
+import { clickFirst, fillFirst, waitForFirst } from "../../utils/selectors.js";
+import { sleep } from "../../utils/timing.js";
+import { clickTurnstile } from "../../utils/turnstile.js";
 
 const contextSchema = z.object({
-  SITE_EMAIL: z.string().min(1),
-  SITE_PASSWORD: z.string().min(1),
+  email: z.string().min(1),
+  password: z.string().min(1),
 });
 
 const TASK = {
@@ -116,7 +116,7 @@ async function checkResult(browser: BrowserAPI, logger: TaskLogger): Promise<str
 }
 
 async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResultSuccess> {
-  const { SITE_EMAIL: email, SITE_PASSWORD: password } = contextSchema.parse(context);
+  const { email, password } = contextSchema.parse(context);
   const logger = createTaskLogger(TASK.name);
 
   await navigate(browser, logger);
@@ -138,6 +138,9 @@ async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResul
 export const botcLoginTask: RetryingTask = {
   name: TASK.name,
   url: TASK.url,
+  project: "monitor-botc",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- vault detail key name, not a password
+  needs: { email: "email", password: "password" },
   mode: "retry",
   intervalMs: 300_000,
   contextSchema,
