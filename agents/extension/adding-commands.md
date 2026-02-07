@@ -59,7 +59,18 @@ const commandHandlers: Record<string, CommandHandler> = {
 };
 ```
 
-## 3. Add convenience method to `stack/browser/browser.ts`
+## 3. Add to `BrowserAPI` interface and `Browser` class in `stack/browser/browser.ts`
+
+Add the method to the `BrowserAPI` interface:
+
+```typescript
+export interface BrowserAPI {
+  ...existing,
+  screenshot(): Promise<Resp<"screenshot">>;
+}
+```
+
+Add the convenience method to the `Browser` class:
 
 ```typescript
 screenshot() {
@@ -68,6 +79,14 @@ screenshot() {
 ```
 
 The return type is automatically `Promise<ScreenshotResponse>` via the `ResponseFor` type.
+
+## 4. Add to mock browser in `stack/tasks/utils/testing.ts`
+
+```typescript
+screenshot: vi.fn().mockResolvedValue({ type: "screenshot", data: "" }),
+```
+
+Pick a sensible default that matches the response shape.
 
 ## Why convenience methods exist
 

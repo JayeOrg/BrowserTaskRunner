@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { loadVault } from "./vault.js";
+import { loadVault } from "../../../stack/framework/vault.js";
 
 // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- test fixtures
 const PASSWORD = "test-cli-password";
-const CLI_PATH = join(import.meta.dirname, "../../dist/framework/vault-manage.js");
+const CLI_PATH = join(import.meta.dirname, "../../../dist/framework/vault-manage.js");
 
 let tempDir: string;
 let vaultPath: string;

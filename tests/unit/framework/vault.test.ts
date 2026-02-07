@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { loadVault, saveVault, getTaskSecrets } from "./vault.js";
+import { loadVault, saveVault, getTaskSecrets } from "../../../stack/framework/vault.js";
 
 // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- test fixtures
 const PASSWORD = "test-password-123";

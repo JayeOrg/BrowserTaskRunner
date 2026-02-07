@@ -29,7 +29,7 @@ export default [
   ...tseslint.configs.strictTypeChecked,
 
   {
-    files: ['stack/**/*.ts'],
+    files: ['stack/**/*.ts', 'tests/**/*.ts'],
     languageOptions: {
       parser: tseslint.parser,
       ecmaVersion: 2022,
@@ -97,6 +97,7 @@ export default [
       'max-lines': 'off',
       'no-magic-numbers': 'off',
       'sonarjs/no-duplicate-string': 'off',
+      'no-empty-function': 'off',
     },
   },
 

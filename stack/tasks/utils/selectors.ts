@@ -3,7 +3,7 @@
  * These provide "try multiple selectors" patterns without adding
  * site-specific knowledge to the extension.
  */
-import type { Browser } from "../../browser/browser.js";
+import type { BrowserAPI } from "../../browser/browser.js";
 
 export type SelectorResult = { found: true; selector: string } | { found: false; error?: string };
 
@@ -12,7 +12,7 @@ export type SelectorResult = { found: true; selector: string } | { found: false;
  * Returns the first selector that matches, or found: false if none matched.
  */
 export async function waitForFirst(
-  browser: Browser,
+  browser: BrowserAPI,
   selectors: readonly string[],
   timeout: number,
 ): Promise<SelectorResult> {
@@ -40,7 +40,7 @@ export async function waitForFirst(
  * Returns the selector that was clicked, or error if none found.
  */
 export async function clickFirst(
-  browser: Browser,
+  browser: BrowserAPI,
   selectors: readonly string[],
 ): Promise<SelectorResult> {
   const errors: string[] = [];
@@ -64,7 +64,7 @@ export async function clickFirst(
  * Races all selectors concurrently (via waitForFirst), then fills the winner.
  */
 export async function fillFirst(
-  browser: Browser,
+  browser: BrowserAPI,
   selectors: readonly string[],
   value: string,
   timeout: number,

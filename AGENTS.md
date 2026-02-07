@@ -23,6 +23,7 @@ Notes:
 - Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 - Don't add re-exports or barrel files to simplify imports. IDEs handle import paths. Import from the actual source module.
 - Don't create `types.ts` files. Colocate types with the code that uses them and export from there.
+- Don't use import complexity as an argument against a design. Long import paths are fine — IDEs autocomplete them and they have zero runtime cost.
 
 Review FAILED_APPROACHES for things to avoid, and add to it as paths fail.
 

@@ -5,6 +5,22 @@ import { logConnectionInstructions } from "./instructions.js";
 
 export type { CommandMessage, ResponseMessage, ResponseFor };
 
+// Response type helper: extracts the response type for a given command name
+type Resp<T extends CommandMessage["type"]> = Extract<ResponseMessage, { type: T }>;
+
+export interface BrowserAPI {
+  navigate(url: string): Promise<Resp<"navigate">>;
+  getUrl(): Promise<Resp<"getUrl">>;
+  fill(selector: string, value: string): Promise<Resp<"fill">>;
+  click(selector: string): Promise<Resp<"click">>;
+  cdpClick(x: number, y: number): Promise<Resp<"cdpClick">>;
+  waitForSelector(selector: string, timeout?: number): Promise<Resp<"waitForSelector">>;
+  getContent(selector?: string | null): Promise<Resp<"getContent">>;
+  querySelectorRect(selectors: string[]): Promise<Resp<"querySelectorRect">>;
+  ping(): Promise<Resp<"ping">>;
+  close(): void;
+}
+
 const logger = createPrefixLogger("Browser");
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
@@ -19,7 +35,7 @@ interface PendingCommand {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
-export class Browser {
+export class Browser implements BrowserAPI {
   private readonly port: number;
   private ws: WebSocket | null = null;
   private server: WebSocketServer | null = null;

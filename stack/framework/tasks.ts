@@ -1,4 +1,4 @@
-import type { Browser } from "../browser/browser.js";
+import type { BrowserAPI } from "../browser/browser.js";
 import type { ZodType } from "zod";
 
 export interface TaskResultSuccess {
@@ -15,7 +15,7 @@ export interface SingleAttemptTask {
   url: string;
   mode: "once";
   contextSchema?: ZodType;
-  run: (browser: Browser, context: TaskContext) => Promise<TaskResultSuccess>;
+  run: (browser: BrowserAPI, context: TaskContext) => Promise<TaskResultSuccess>;
 }
 
 export interface RetryingTask {
@@ -24,7 +24,7 @@ export interface RetryingTask {
   mode: "retry";
   intervalMs: number;
   contextSchema?: ZodType;
-  run: (browser: Browser, context: TaskContext) => Promise<TaskResultSuccess>;
+  run: (browser: BrowserAPI, context: TaskContext) => Promise<TaskResultSuccess>;
 }
 
 export type TaskConfig = SingleAttemptTask | RetryingTask;

@@ -2,7 +2,7 @@
  * Cloudflare Turnstile detection and clicking utilities.
  * All knowledge of Turnstile structure lives here in the tasks layer.
  */
-import type { Browser } from "../../browser/browser.js";
+import type { BrowserAPI } from "../../browser/browser.js";
 
 // Turnstile container selectors - tasks own this knowledge
 const TURNSTILE_SELECTORS = [
@@ -23,7 +23,7 @@ export type TurnstileDetectionResult =
 /**
  * Detects Turnstile on the page and returns click coordinates if found.
  */
-export async function detectTurnstile(browser: Browser): Promise<TurnstileDetectionResult> {
+export async function detectTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
   const response = await browser.querySelectorRect(TURNSTILE_SELECTORS);
 
   if (response.found) {
@@ -42,7 +42,7 @@ export async function detectTurnstile(browser: Browser): Promise<TurnstileDetect
  * Detects and clicks Turnstile if present on the page.
  * Returns whether a Turnstile was found and clicked.
  */
-export async function clickTurnstile(browser: Browser): Promise<TurnstileDetectionResult> {
+export async function clickTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
   const detection = await detectTurnstile(browser);
 
   if (detection.found) {

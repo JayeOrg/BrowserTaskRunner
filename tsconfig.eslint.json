@@ -4,6 +4,6 @@
     "noEmit": true,
     "types": ["node", "chrome"]
   },
-  "include": ["stack/**/*.ts"],
+  "include": ["stack/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

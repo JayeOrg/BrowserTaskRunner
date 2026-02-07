@@ -6,3 +6,4 @@ dist/
 vault.enc
 logs/
 alert-*.txt
+coverage/
