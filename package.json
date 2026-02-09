@@ -29,6 +29,7 @@
     "shell": "docker exec -it sitecheck /bin/bash",
     "docker:build": "docker compose -f stack/infra/docker-compose.yml --env-file .env build",
     "docker:up": "docker compose -f stack/infra/docker-compose.yml --env-file .env up --build",
+    "stop": "docker compose -f stack/infra/docker-compose.yml down",
     "docker:down": "docker compose -f stack/infra/docker-compose.yml down",
     "ci:local": "act push --container-architecture linux/amd64"
   },

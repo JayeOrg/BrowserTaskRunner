@@ -4,7 +4,7 @@ import { KEY_LENGTH, aesEncrypt, aesDecrypt } from "../crypto.js";
 import { requireBlob } from "../rows.js";
 
 const SESSION_ID_LENGTH = 16;
-const DEFAULT_SESSION_MINUTES = 30;
+export const DEFAULT_SESSION_MINUTES = 30;
 
 function createSession(db: DatabaseSync, masterKey: Buffer, durationMinutes?: number): string {
   const minutes = durationMinutes ?? DEFAULT_SESSION_MINUTES;
@@ -44,6 +44,8 @@ function getMasterKeyFromSession(db: DatabaseSync, token: string): Buffer {
   if (!row) throw new Error("Admin session not found");
 
   const expiresAt = row.expires_at;
+  // Unreachable typeof branch: sessions table uses STRICT mode with `expires_at INTEGER NOT NULL`,
+  // So SQLite rejects non-integer writes at the DB level. Kept for defense-in-depth.
   if (typeof expiresAt !== "number" || Date.now() > expiresAt) {
     throw new Error("Admin session expired");
   }
@@ -70,6 +72,7 @@ function getSessionExpiry(db: DatabaseSync, token: string): number | null {
   if (!row) return null;
 
   const expiresAt = row.expires_at;
+  // Unreachable: sessions table STRICT mode guarantees expires_at is INTEGER. Defense-in-depth.
   if (typeof expiresAt !== "number") return null;
   return expiresAt;
 }

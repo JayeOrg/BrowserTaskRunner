@@ -1,6 +1,7 @@
 services:
     sitecheck:
         container_name: sitecheck
+        user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
         build:
             context: ../..
             dockerfile: stack/infra/Dockerfile
@@ -20,17 +21,5 @@ services:
             - "${WS_PORT:-8765}:${WS_PORT:-8765}" # WebSocket
         volumes:
             - ../../logs:/app/logs
-            - ../../vault.db:/app/vault.db:ro
-        tmpfs:
-            - /tmp/chrome-profile
+            - ../../vault.db:/app/vault.db
         restart: on-failure
-        healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "node -e \"s=require('net').createConnection(process.env.WS_PORT||8765,'localhost');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)\"",
-                ]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 30s

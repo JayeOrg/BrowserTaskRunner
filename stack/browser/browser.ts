@@ -1,28 +1,32 @@
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
-import { createPrefixLogger } from "../framework/logging.js";
+import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
 
-export type { CommandMessage, ResponseMessage, ResponseFor };
-
-// Response type helper: extracts the response type for a given command name
-type Resp<T extends CommandMessage["type"]> = Extract<ResponseMessage, { type: T }>;
-
-export interface BrowserAPI {
-  navigate(url: string): Promise<Resp<"navigate">>;
-  getUrl(): Promise<Resp<"getUrl">>;
-  fill(selector: string, value: string): Promise<Resp<"fill">>;
-  click(selector: string): Promise<Resp<"click">>;
-  cdpClick(x: number, y: number): Promise<Resp<"cdpClick">>;
-  waitForSelector(selector: string, timeout?: number): Promise<Resp<"waitForSelector">>;
-  getContent(selector?: string | null): Promise<Resp<"getContent">>;
-  querySelectorRect(selectors: string[]): Promise<Resp<"querySelectorRect">>;
-  ping(): Promise<Resp<"ping">>;
-  close(): void;
+export interface BrowserOptions {
+  commandTimeoutMs?: number;
+  connectionTimeoutMs?: number;
 }
 
-const logger = createPrefixLogger("Browser");
+export interface BrowserAPI {
+  navigate(url: string): Promise<ResponseFor<"navigate">>;
+  getUrl(): Promise<ResponseFor<"getUrl">>;
+  fill(selector: string, value: string): Promise<ResponseFor<"fill">>;
+  click(selector: string): Promise<ResponseFor<"click">>;
+  cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
+  waitForSelector(selector: string, timeout?: number): Promise<ResponseFor<"waitForSelector">>;
+  getContent(selector?: string): Promise<ResponseFor<"getContent">>;
+  querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
+  ping(): Promise<ResponseFor<"ping">>;
+}
 
+/*
+ * Intentionally loose: checks structure, not known type values. The narrowing to
+ * ResponseMessage is technically unsound (any {type: string} passes), but harmless —
+ * handleResponse drops messages with unrecognized IDs. Validating against a set of
+ * known types would duplicate info already in the ResponseMessage union and require
+ * manual updates when adding commands.
+ */
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
@@ -37,13 +41,19 @@ interface PendingCommand {
 
 export class Browser implements BrowserAPI {
   private readonly port: number;
+  private readonly commandTimeoutMs: number;
+  private readonly connectionTimeoutMs: number;
+  private readonly logger: PrefixLogger;
   private ws: WebSocket | null = null;
   private server: WebSocketServer | null = null;
   private pendingCommands: Map<number, PendingCommand> = new Map();
   private commandId = 0;
 
-  constructor(port: number) {
+  constructor(port: number, options: BrowserOptions = {}) {
     this.port = port;
+    this.commandTimeoutMs = options.commandTimeoutMs ?? 30000;
+    this.connectionTimeoutMs = options.connectionTimeoutMs ?? 60000;
+    this.logger = createPrefixLogger(`Browser:${port.toString()}`);
   }
 
   async start(): Promise<void> {
@@ -53,7 +63,7 @@ export class Browser implements BrowserAPI {
 
     this.server = new WebSocketServer({ port: this.port });
     this.server.on("listening", () => {
-      logConnectionInstructions(logger, this.port);
+      logConnectionInstructions(this.logger, this.port);
     });
 
     await this.waitForConnection();
@@ -61,33 +71,34 @@ export class Browser implements BrowserAPI {
 
   private waitForConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const timeoutMs = 60000;
       const timeout = setTimeout(() => {
-        reject(new Error("Extension did not connect within 60 seconds"));
-      }, timeoutMs);
+        const seconds = (this.connectionTimeoutMs / 1000).toString();
+        reject(new Error(`Extension did not connect within ${seconds} seconds`));
+      }, this.connectionTimeoutMs);
 
-      const clearTimeoutAndRun = (fn: () => void) => {
+      const onServerError = (error: Error) => {
         clearTimeout(timeout);
-        fn();
+        this.server?.close();
+        this.server = null;
+        reject(error);
       };
 
-      this.server?.on("error", (error: Error) => {
-        clearTimeoutAndRun(() => {
-          reject(error);
-        });
-      });
+      this.server?.on("error", onServerError);
 
       this.server?.on("connection", (ws: WebSocket) => {
         this.ws = ws;
         ws.on("close", () => {
           this.ws = null;
+          this.rejectAllPending(new Error("Extension disconnected"));
         });
         ws.on("message", (data: Buffer) => {
           const message = this.parseMessage(data);
           if (!message) return;
 
           if (message.type === "ready") {
-            clearTimeoutAndRun(resolve);
+            clearTimeout(timeout);
+            this.server?.removeListener("error", onServerError);
+            resolve();
             return;
           }
 
@@ -101,12 +112,12 @@ export class Browser implements BrowserAPI {
     try {
       const parsed: unknown = JSON.parse(data.toString());
       if (!isResponseMessage(parsed)) {
-        logger.log("Invalid message format");
+        this.logger.log("Invalid message format");
         return null;
       }
       return parsed;
     } catch (error) {
-      logger.log("Error parsing message", { error: String(error) });
+      this.logger.log("Error parsing message", { error: String(error) });
       return null;
     }
   }
@@ -127,17 +138,25 @@ export class Browser implements BrowserAPI {
     }
   }
 
-  send<T extends CommandMessage>(command: T): Promise<ResponseFor<T>> {
+  private send<T extends CommandMessage>(command: T): Promise<ResponseFor<T>> {
     return new Promise((resolve, reject) => {
       const socket = this.ensureConnection();
 
+      if (socket.readyState !== WebSocket.OPEN) {
+        reject(new Error("Extension connection is not open"));
+        return;
+      }
+
       const id = ++this.commandId;
+      const { type, ...payload } = command;
+      const detail = Object.keys(payload).length > 0 ? ` ${JSON.stringify(payload)}` : "";
+
       const timeoutId = setTimeout(() => {
         if (this.pendingCommands.has(id)) {
           this.pendingCommands.delete(id);
-          reject(new Error(`Command timeout: ${command.type}`));
+          reject(new Error(`Command timeout: ${type}${detail}`));
         }
-      }, 30000);
+      }, this.commandTimeoutMs);
 
       // ResponseFor<T> is always a subtype of ResponseMessage, so this is safe
       // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
@@ -147,7 +166,15 @@ export class Browser implements BrowserAPI {
         reject,
         timeoutId,
       });
-      socket.send(JSON.stringify({ id, ...command }));
+
+      try {
+        socket.send(JSON.stringify({ id, ...command }));
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.pendingCommands.delete(id);
+        const reason = error instanceof Error ? error.message : String(error);
+        reject(new Error(`Failed to send command: ${reason}`));
+      }
     });
   }
 
@@ -177,7 +204,7 @@ export class Browser implements BrowserAPI {
   waitForSelector(selector: string, timeout = 10000) {
     return this.send({ type: "waitForSelector", selector, timeout });
   }
-  getContent(selector: string | null = null) {
+  getContent(selector?: string) {
     return this.send(selector ? { type: "getContent", selector } : { type: "getContent" });
   }
   querySelectorRect(selectors: string[]) {
@@ -187,11 +214,16 @@ export class Browser implements BrowserAPI {
     return this.send({ type: "ping" });
   }
 
-  close(): void {
+  private rejectAllPending(error: Error): void {
     for (const pending of this.pendingCommands.values()) {
       clearTimeout(pending.timeoutId);
+      pending.reject(error);
     }
     this.pendingCommands.clear();
+  }
+
+  close(): void {
+    this.rejectAllPending(new Error("Browser closed"));
 
     if (this.ws) {
       this.ws.terminate();

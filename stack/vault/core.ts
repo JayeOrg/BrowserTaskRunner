@@ -18,6 +18,10 @@ function openVault(path: string): DatabaseSync {
   return db;
 }
 
+function openVaultReadOnly(path: string): DatabaseSync {
+  return new DatabaseSync(path);
+}
+
 function initVault(db: DatabaseSync, password: string): void {
   const existing = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
   if (existing) {
@@ -67,6 +71,8 @@ function getMasterKey(db: DatabaseSync, password: string): Buffer {
 
 function changePassword(db: DatabaseSync, oldPassword: string, newPassword: string): void {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
+  // Defense-in-depth: unreachable via CLI because authentication (which checks salt) precedes
+  // Password change. Duplicates the guard in getMasterKey for direct callers.
   if (!saltRow) throw new Error("Vault not initialized. Run 'vault init' first.");
   const oldSalt = requireBlob(saltRow, "value");
   const oldMasterKey = deriveKey(oldPassword, oldSalt);
@@ -136,4 +142,4 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
   }
 }
 
-export { openVault, initVault, getMasterKey, changePassword };
+export { openVault, openVaultReadOnly, initVault, getMasterKey, changePassword };

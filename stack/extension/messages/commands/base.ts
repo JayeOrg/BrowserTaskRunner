@@ -1,7 +1,3 @@
-export interface BaseCommand {
-  id?: number;
-}
-
 export interface IncomingCommand {
   id?: number;
   type: string;

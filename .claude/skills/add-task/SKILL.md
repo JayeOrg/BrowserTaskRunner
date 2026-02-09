@@ -1,3 +1,7 @@
+---
+description: Add a new task to an existing project. Use when creating a new site-specific automation task.
+---
+
 # Adding a Task
 
 To add a new task (e.g., `acmeLogin`), touch 2 files:

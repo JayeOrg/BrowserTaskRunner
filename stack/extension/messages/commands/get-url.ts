@@ -1,10 +1,10 @@
-import type { BaseCommand } from "./base.js";
+import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab } from "../../tabs.js";
 
-export interface GetUrlCommand extends BaseCommand {
-  type: "getUrl";
-}
+export const getUrlSchema = z.object({});
+
+export type GetUrlCommand = { type: "getUrl" };
 
 export interface GetUrlResponse extends BaseResponse {
   type: "getUrl";
@@ -12,7 +12,7 @@ export interface GetUrlResponse extends BaseResponse {
   title: string;
 }
 
-export async function handleGetUrlCommand(): Promise<GetUrlResponse> {
+export async function handleGetUrl(): Promise<GetUrlResponse> {
   const tab = await getActiveTab();
   return { type: "getUrl", url: tab.url ?? "", title: tab.title ?? "" };
 }

@@ -1,6 +1,6 @@
 node_modules/
 .env
-.claude
+.claude/settings.local.json
 .vscode
 dist/
 vault.enc

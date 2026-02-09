@@ -1,24 +1,22 @@
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab, getTabId } from "../../tabs.js";
 import { isScriptContent } from "../../script-results.js";
 
-export interface GetContentCommand extends BaseCommand {
-  type: "getContent";
-  selector?: string;
-}
+export const getContentSchema = z.object({
+  selector: z.string().optional(),
+});
+
+export type GetContentCommand = z.infer<typeof getContentSchema> & { type: "getContent" };
 
 export interface GetContentResponse extends BaseResponse {
   type: "getContent";
   content: string;
 }
 
-export async function handleGetContentCommand(msg: IncomingCommand): Promise<GetContentResponse> {
-  const selector = typeof msg.selector === "string" ? msg.selector : undefined;
-  return handleGetContent(selector);
-}
-
-async function handleGetContent(selector?: string): Promise<GetContentResponse> {
+export async function handleGetContent(
+  input: z.infer<typeof getContentSchema>,
+): Promise<GetContentResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
@@ -30,7 +28,7 @@ async function handleGetContent(selector?: string): Promise<GetContentResponse> 
       }
       return { content: document.body.innerText };
     },
-    args: [selector],
+    args: [input.selector],
   });
   const result = results[0]?.result;
   if (isScriptContent(result)) {

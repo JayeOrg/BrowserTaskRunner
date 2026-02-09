@@ -1,3 +1,26 @@
+## Builder stage — install all deps, compile TypeScript
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+# Copy only package manifests to maximize cache reuse
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build inputs
+COPY tsconfig.json ./
+
+# Cache-bust: this arg changes when source files change
+ARG SOURCE_HASH=unknown
+COPY stack ./stack
+
+# Build TypeScript
+RUN npm run build
+
+# Prune dev dependencies
+RUN npm prune --omit=dev
+
+## Runtime stage — lean image with only production deps
 FROM node:22-slim
 
 # Install Chromium and dependencies (works on ARM64 and amd64)
@@ -12,24 +35,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     scrot \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
 WORKDIR /app
 
-# Copy only package manifests to maximize cache reuse
-COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy source and build inputs
-COPY tsconfig.json ./
-
-# Cache-bust: this arg changes when source files change
-ARG SOURCE_HASH=unknown
-COPY stack ./stack
-
-# Build TypeScript
-RUN npm run build
+# Copy production node_modules and built output from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
+COPY stack/infra/run.sh ./stack/infra/run.sh
 
 # Set display for Xvfb
 ENV DISPLAY=:99

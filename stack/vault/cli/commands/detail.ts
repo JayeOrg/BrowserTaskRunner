@@ -1,5 +1,6 @@
 import { openVault } from "../../core.js";
 import { setDetail, getDetail, listDetails, removeDetail } from "../../ops/details.js";
+import { requireArg } from "../args.js";
 import { getAdminMasterKey } from "../auth.js";
 import { VAULT_PATH } from "../env.js";
 import { getSecretValue } from "../prompt.js";
@@ -7,10 +8,8 @@ import { getSecretValue } from "../prompt.js";
 async function handleDetailSet(subArgs: string[]): Promise<void> {
   const project = subArgs[0];
   const key = subArgs[1];
-  if (!project || !key) {
-    console.error("Usage: detail set <project> <key>");
-    process.exit(1);
-  }
+  requireArg(project, "detail set <project> <key>");
+  requireArg(key, "detail set <project> <key>");
   const db = openVault(VAULT_PATH);
   try {
     const masterKey = await getAdminMasterKey(db);
@@ -25,10 +24,8 @@ async function handleDetailSet(subArgs: string[]): Promise<void> {
 async function handleDetailGet(subArgs: string[]): Promise<void> {
   const project = subArgs[0];
   const key = subArgs[1];
-  if (!project || !key) {
-    console.error("Usage: detail get <project> <key>");
-    process.exit(1);
-  }
+  requireArg(project, "detail get <project> <key>");
+  requireArg(key, "detail get <project> <key>");
   const db = openVault(VAULT_PATH);
   try {
     const masterKey = await getAdminMasterKey(db);
@@ -59,10 +56,8 @@ async function handleDetailList(subArgs: string[]): Promise<void> {
 async function handleDetailRemove(subArgs: string[]): Promise<void> {
   const project = subArgs[0];
   const key = subArgs[1];
-  if (!project || !key) {
-    console.error("Usage: detail remove <project> <key>");
-    process.exit(1);
-  }
+  requireArg(project, "detail remove <project> <key>");
+  requireArg(key, "detail remove <project> <key>");
   const db = openVault(VAULT_PATH);
   try {
     await getAdminMasterKey(db);

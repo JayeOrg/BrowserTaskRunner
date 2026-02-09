@@ -52,17 +52,25 @@ export function connect(): void {
         throw new Error("Expected string message data");
       }
       const parsed: unknown = JSON.parse(event.data);
+      // Extract message ID before validation for error correlation
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "id" in parsed &&
+        typeof parsed.id === "number"
+      ) {
+        messageId = parsed.id;
+      }
       if (!isIncomingCommand(parsed)) {
         throw new Error("Invalid command format");
       }
-      messageId = parsed.id;
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
       ws?.send(JSON.stringify({ id: messageId, ...result }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log("Error handling message", { error: message });
-      ws?.send(JSON.stringify({ id: messageId, error: message }));
+      ws?.send(JSON.stringify({ id: messageId, type: "error", error: message }));
     }
   };
 

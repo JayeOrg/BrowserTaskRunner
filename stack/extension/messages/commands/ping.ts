@@ -1,15 +1,15 @@
-import type { BaseCommand } from "./base.js";
+import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 
-export interface PingCommand extends BaseCommand {
-  type: "ping";
-}
+export const pingSchema = z.object({});
+
+export type PingCommand = { type: "ping" };
 
 export interface PingResponse extends BaseResponse {
   type: "ping";
   pong: true;
 }
 
-export async function handlePingCommand(): Promise<PingResponse> {
+export async function handlePing(): Promise<PingResponse> {
   return { type: "ping", pong: true };
 }

@@ -9,9 +9,9 @@ export function createMockBrowser(): BrowserAPI {
   return {
     navigate: vi.fn().mockResolvedValue({ type: "navigate", url: "", title: "" }),
     getUrl: vi.fn().mockResolvedValue({ type: "getUrl", url: "", title: "" }),
-    fill: vi.fn().mockResolvedValue({ type: "fill", success: true }),
-    click: vi.fn().mockResolvedValue({ type: "click", success: true }),
-    cdpClick: vi.fn().mockResolvedValue({ type: "cdpClick", success: true }),
+    fill: vi.fn().mockResolvedValue({ type: "fill" }),
+    click: vi.fn().mockResolvedValue({ type: "click" }),
+    cdpClick: vi.fn().mockResolvedValue({ type: "cdpClick" }),
     waitForSelector: vi.fn().mockResolvedValue({ type: "waitForSelector", found: false }),
     getContent: vi.fn().mockResolvedValue({ type: "getContent", content: "" }),
     querySelectorRect: vi.fn().mockResolvedValue({ type: "querySelectorRect", found: false }),

@@ -1,30 +1,19 @@
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
+import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab, getTabId } from "../../tabs.js";
 import { isScriptError } from "../../script-results.js";
 
-export interface ClickCommand extends BaseCommand {
+export const clickSchema = z.object({
+  selector: z.string(),
+});
+
+export type ClickCommand = z.infer<typeof clickSchema> & { type: "click" };
+
+export interface ClickResponse extends BaseResponse {
   type: "click";
-  selector: string;
 }
 
-export type ClickResponse = {
-  type: "click";
-  id?: number;
-  error?: string;
-} & ({ success: true } | { success: false; error: string });
-
-export async function handleClickCommand(msg: IncomingCommand): Promise<ClickResponse> {
-  if (typeof msg.selector !== "string") {
-    return {
-      type: "click",
-      success: false,
-      error: "Missing selector parameter",
-    };
-  }
-  return handleClick(msg.selector);
-}
-
-async function handleClick(selector: string): Promise<ClickResponse> {
+export async function handleClick(input: z.infer<typeof clickSchema>): Promise<ClickResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
@@ -55,13 +44,16 @@ async function handleClick(selector: string): Promise<ClickResponse> {
       element.dispatchEvent(new MouseEvent("mouseup", eventOptions));
       element.dispatchEvent(new MouseEvent("click", eventOptions));
 
-      return { success: true };
+      return {};
     },
-    args: [selector],
+    args: [input.selector],
   });
   const result = results[0]?.result;
   if (isScriptError(result)) {
-    return { type: "click", success: false, error: result.error };
+    return { type: "click", error: result.error };
   }
-  return { type: "click", success: true };
+  if (result === undefined) {
+    return { type: "click", error: "Script did not execute" };
+  }
+  return { type: "click" };
 }

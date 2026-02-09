@@ -7,6 +7,7 @@ import {
   removeProject,
   rotateProject,
 } from "../../ops/projects.js";
+import { requireArg } from "../args.js";
 import { getAdminMasterKey } from "../auth.js";
 import { VAULT_PATH } from "../env.js";
 
@@ -17,10 +18,7 @@ async function handleProject(args: string[]): Promise<void> {
   switch (subcommand) {
     case "create": {
       const name = subArgs[0];
-      if (!name) {
-        console.error("Usage: project create <name>");
-        process.exit(1);
-      }
+      requireArg(name, "project create <name>");
       const db = openVault(VAULT_PATH);
       try {
         const masterKey = await getAdminMasterKey(db);
@@ -35,10 +33,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "export": {
       const name = subArgs[0];
-      if (!name) {
-        console.error("Usage: project export <name>");
-        process.exit(1);
-      }
+      requireArg(name, "project export <name>");
       const db = openVault(VAULT_PATH);
       try {
         const masterKey = await getAdminMasterKey(db);
@@ -68,10 +63,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "remove": {
       const name = subArgs[0];
-      if (!name) {
-        console.error("Usage: project remove <name>");
-        process.exit(1);
-      }
+      requireArg(name, "project remove <name>");
       const db = openVault(VAULT_PATH);
       try {
         await getAdminMasterKey(db);
@@ -84,10 +76,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "rotate": {
       const name = subArgs[0];
-      if (!name) {
-        console.error("Usage: project rotate <name>");
-        process.exit(1);
-      }
+      requireArg(name, "project rotate <name>");
       const db = openVault(VAULT_PATH);
       try {
         const masterKey = await getAdminMasterKey(db);

@@ -56,7 +56,7 @@ function run(
   });
   if (!options?.expectFailure && result.status !== 0) {
     throw new Error(
-      `Command failed (exit ${String(result.status)}): ${result.stderr}\n${result.stdout}`,
+      `vault-manage ${args.join(" ")} failed (exit ${String(result.status)}):\n${result.stderr}\n${result.stdout}`,
     );
   }
   return {
@@ -285,7 +285,7 @@ describe("vault login/logout", () => {
     const token = readAdminToken();
     const result = run(["status"], { adminToken: token, password: "" });
     expect(result.stdout).toContain("Admin session active");
-    expect(result.stdout).toContain("minutes");
+    expect(result.stdout).toContain("min remaining");
   });
 
   it("status shows no session when not logged in", () => {
@@ -345,5 +345,65 @@ describe("change-password", () => {
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
+  });
+});
+
+describe("project remove", () => {
+  it("removes a project and cascades its details", () => {
+    run(["project", "create", "doomed"], TOKEN());
+    run(["detail", "set", "doomed", "secret"], { ...TOKEN(), secretValue: "val" });
+
+    const result = run(["project", "remove", "doomed"], TOKEN());
+    expect(result.stdout).toContain('Removed project "doomed"');
+
+    const list = run(["project", "list"], TOKEN());
+    expect(list.stdout).not.toContain("doomed");
+
+    const details = run(["detail", "list"], TOKEN());
+    expect(details.stdout).not.toContain("secret");
+  });
+
+  it("fails for nonexistent project", () => {
+    const result = run(["project", "remove", "nope"], {
+      ...TOKEN(),
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("nope");
+  });
+});
+
+describe("project rotate", () => {
+  it("rotates the project key and outputs a new token", () => {
+    const createResult = run(["project", "create", "rotating"], TOKEN());
+    const oldToken = /Token: (?<token>.+)/u.exec(createResult.stdout)?.groups?.token;
+    expect(oldToken).toBeTruthy();
+
+    run(["detail", "set", "rotating", "secret"], { ...TOKEN(), secretValue: "my-val" });
+
+    const rotateResult = run(["project", "rotate", "rotating"], TOKEN());
+    expect(rotateResult.stdout).toContain("Rotated key");
+    const newToken = /New token: (?<token>.+)/u.exec(rotateResult.stdout)?.groups?.token;
+    expect(newToken).toBeTruthy();
+    expect(newToken).not.toBe(oldToken);
+  });
+
+  it("details are still accessible after rotation via admin", () => {
+    run(["project", "create", "rot-proj"], TOKEN());
+    run(["detail", "set", "rot-proj", "email"], { ...TOKEN(), secretValue: "user@test.com" });
+
+    run(["project", "rotate", "rot-proj"], TOKEN());
+
+    const result = run(["detail", "get", "rot-proj", "email"], TOKEN());
+    expect(result.stdout.trim()).toBe("user@test.com");
+  });
+
+  it("fails for nonexistent project", () => {
+    const result = run(["project", "rotate", "nope"], {
+      ...TOKEN(),
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("nope");
   });
 });

@@ -46,11 +46,8 @@ export async function clickFirst(
   const errors: string[] = [];
   for (const selector of selectors) {
     try {
-      const result = await browser.click(selector);
-      if (result.success) {
-        return { found: true, selector };
-      }
-      errors.push(`${selector}: ${result.error}`);
+      await browser.click(selector);
+      return { found: true, selector };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${selector}: ${message}`);
@@ -73,9 +70,11 @@ export async function fillFirst(
   if (!found.found) {
     return found;
   }
-  const fillResult = await browser.fill(found.selector, value);
-  if (fillResult.success) {
+  try {
+    await browser.fill(found.selector, value);
     return found;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { found: false, error: `fill failed for ${found.selector}: ${message}` };
   }
-  return { found: false, error: `fill failed for ${found.selector}` };
 }

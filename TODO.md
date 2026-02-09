@@ -1,5 +1,3 @@
-Review vault code structure
-
 Add nandos task
 
 - Create two branches to test PR review ability of codex and claude

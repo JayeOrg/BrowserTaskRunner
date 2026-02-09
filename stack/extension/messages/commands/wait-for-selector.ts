@@ -1,37 +1,28 @@
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
+import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab, getTabId } from "../../tabs.js";
 import { isScriptFound } from "../../script-results.js";
 
-export interface WaitForSelectorCommand extends BaseCommand {
+export const waitForSelectorSchema = z.object({
+  selector: z.string(),
+  timeout: z.number().optional(),
+});
+
+export type WaitForSelectorCommand = z.infer<typeof waitForSelectorSchema> & {
   type: "waitForSelector";
-  selector: string;
-  timeout?: number;
-}
+};
 
-export type WaitForSelectorResponse = {
-  type: "waitForSelector";
-  id?: number;
-  error?: string;
-} & ({ found: true; selector: string } | { found: false; timedOut?: boolean });
+const DEFAULT_TIMEOUT_MS = 10000;
 
-export async function handleWaitForSelectorCommand(
-  msg: IncomingCommand,
+export type WaitForSelectorResponse = BaseResponse & { type: "waitForSelector" } & (
+    | { found: true; selector: string }
+    | { found: false; timedOut?: boolean }
+  );
+
+export async function handleWaitForSelector(
+  input: z.infer<typeof waitForSelectorSchema>,
 ): Promise<WaitForSelectorResponse> {
-  if (typeof msg.selector !== "string") {
-    return {
-      type: "waitForSelector",
-      found: false,
-      error: "Missing selector parameter",
-    };
-  }
-  const timeout = typeof msg.timeout === "number" ? msg.timeout : 10000;
-  return handleWaitForSelector(msg.selector, timeout);
-}
-
-async function handleWaitForSelector(
-  selector: string,
-  timeout: number,
-): Promise<WaitForSelectorResponse> {
+  const timeout = input.timeout ?? DEFAULT_TIMEOUT_MS;
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
@@ -49,12 +40,12 @@ async function handleWaitForSelector(
       }
       return { found: false, timedOut: true };
     },
-    args: [selector, timeout],
+    args: [input.selector, timeout],
   });
   const result = results[0]?.result;
   if (isScriptFound(result)) {
     if (result.found) {
-      return { type: "waitForSelector", found: true, selector };
+      return { type: "waitForSelector", found: true, selector: input.selector };
     }
     return {
       type: "waitForSelector",

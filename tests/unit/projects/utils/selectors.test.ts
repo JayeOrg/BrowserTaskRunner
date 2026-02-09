@@ -33,8 +33,8 @@ describe("clickFirst", () => {
   it("returns first successfully clicked selector", async () => {
     const browser = createMockBrowser();
     vi.mocked(browser.click)
-      .mockResolvedValueOnce({ type: "click", success: false, error: "not found" })
-      .mockResolvedValueOnce({ type: "click", success: true });
+      .mockRejectedValueOnce(new Error("not found"))
+      .mockResolvedValueOnce({ type: "click" });
 
     const result = await clickFirst(browser, [".a", ".b"]);
     expect(result).toEqual({ found: true, selector: ".b" });
@@ -43,8 +43,8 @@ describe("clickFirst", () => {
   it("returns error when none succeed", async () => {
     const browser = createMockBrowser();
     vi.mocked(browser.click)
-      .mockResolvedValueOnce({ type: "click", success: false, error: "nope1" })
-      .mockResolvedValueOnce({ type: "click", success: false, error: "nope2" });
+      .mockRejectedValueOnce(new Error("nope1"))
+      .mockRejectedValueOnce(new Error("nope2"));
 
     const result = await clickFirst(browser, [".a", ".b"]);
     expect(result.found).toBe(false);
@@ -58,7 +58,7 @@ describe("clickFirst", () => {
     const browser = createMockBrowser();
     vi.mocked(browser.click)
       .mockRejectedValueOnce(new Error("network error"))
-      .mockResolvedValueOnce({ type: "click", success: true });
+      .mockResolvedValueOnce({ type: "click" });
 
     const result = await clickFirst(browser, [".a", ".b"]);
     expect(result).toEqual({ found: true, selector: ".b" });
@@ -84,7 +84,7 @@ describe("fillFirst", () => {
       found: true,
       selector: "#email",
     });
-    vi.mocked(browser.fill).mockResolvedValue({ type: "fill", success: true });
+    vi.mocked(browser.fill).mockResolvedValue({ type: "fill" });
 
     const result = await fillFirst(browser, ["#email"], "test@example.com", 5000);
     expect(result).toEqual({ found: true, selector: "#email" });
@@ -105,11 +105,7 @@ describe("fillFirst", () => {
       found: true,
       selector: "#input",
     });
-    vi.mocked(browser.fill).mockResolvedValue({
-      type: "fill",
-      success: false,
-      error: "element detached",
-    });
+    vi.mocked(browser.fill).mockRejectedValue(new Error("element detached"));
 
     const result = await fillFirst(browser, ["#input"], "val", 5000);
     expect(result.found).toBe(false);

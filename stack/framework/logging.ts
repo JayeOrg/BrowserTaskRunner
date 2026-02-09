@@ -39,7 +39,9 @@ function formatDuration(ms: number): string {
 }
 
 // Terminal width for right-justified elapsed time
-const TERM_WIDTH = 120;
+function getTermWidth(): number {
+  return process.stdout.columns || 120;
+}
 
 // eslint-disable-next-line no-control-regex, require-unicode-regexp, sonarjs/no-control-regex
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
@@ -48,7 +50,7 @@ function rightJustify(content: string, suffix: string): string {
   // Strip ANSI codes for length calculation
   const visibleLength = content.replace(ANSI_PATTERN, "").length;
   const suffixLength = suffix.length;
-  const padding = Math.max(1, TERM_WIDTH - visibleLength - suffixLength);
+  const padding = Math.max(1, getTermWidth() - visibleLength - suffixLength);
   return `${content}${" ".repeat(padding)}${colors.dim}${suffix}${colors.reset}`;
 }
 

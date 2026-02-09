@@ -1,31 +1,20 @@
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
+import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab, getTabId } from "../../tabs.js";
 import { isScriptError } from "../../script-results.js";
 
-export interface FillCommand extends BaseCommand {
+export const fillSchema = z.object({
+  selector: z.string(),
+  value: z.string(),
+});
+
+export type FillCommand = z.infer<typeof fillSchema> & { type: "fill" };
+
+export interface FillResponse extends BaseResponse {
   type: "fill";
-  selector: string;
-  value: string;
 }
 
-export type FillResponse = {
-  type: "fill";
-  id?: number;
-  error?: string;
-} & ({ success: true } | { success: false; error: string });
-
-export async function handleFillCommand(msg: IncomingCommand): Promise<FillResponse> {
-  if (typeof msg.selector !== "string" || typeof msg.value !== "string") {
-    return {
-      type: "fill",
-      success: false,
-      error: "Missing selector or value parameter",
-    };
-  }
-  return handleFill(msg.selector, msg.value);
-}
-
-async function handleFill(selector: string, value: string): Promise<FillResponse> {
+export async function handleFill(input: z.infer<typeof fillSchema>): Promise<FillResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
@@ -35,20 +24,23 @@ async function handleFill(selector: string, value: string): Promise<FillResponse
       if (!element) {
         return { error: `Element not found: ${sel}` };
       }
-      if (!(element instanceof HTMLInputElement)) {
-        return { error: `Element is not an input: ${sel}` };
+      if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) {
+        return { error: `Element is not fillable: ${sel}` };
       }
       element.focus();
       element.value = val;
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
-      return { success: true };
+      return {};
     },
-    args: [selector, value],
+    args: [input.selector, input.value],
   });
   const result = results[0]?.result;
   if (isScriptError(result)) {
-    return { type: "fill", success: false, error: result.error };
+    return { type: "fill", error: result.error };
   }
-  return { type: "fill", success: true };
+  if (result === undefined) {
+    return { type: "fill", error: "Script did not execute" };
+  }
+  return { type: "fill" };
 }

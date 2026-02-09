@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { DatabaseSync } from "node:sqlite";
-import { exportToken, parseToken } from "../../../stack/vault/crypto.js";
+import { exportToken, parseToken, aesEncrypt } from "../../../stack/vault/crypto.js";
 import { openVault, initVault, getMasterKey, changePassword } from "../../../stack/vault/core.js";
 import {
   createProject,
@@ -21,9 +21,11 @@ import {
 import {
   createSession,
   getMasterKeyFromSession,
+  getSessionExpiry,
   deleteSession,
 } from "../../../stack/vault/ops/sessions.js";
 import { loadProjectDetails } from "../../../stack/vault/ops/runtime.js";
+import { requireBlob, requireString } from "../../../stack/vault/rows.js";
 
 const PASSWORD = "test-password-123";
 
@@ -397,5 +399,147 @@ describe("sessions", () => {
     expect(() => {
       deleteSession(db, fake);
     }).toThrow("not found");
+  });
+});
+
+describe("getSessionExpiry", () => {
+  it("returns expiry timestamp for a valid session", () => {
+    const token = createSession(db, masterKey, 30);
+    const expiry = getSessionExpiry(db, token);
+    expect(expiry).toBeTypeOf("number");
+    expect(expiry).toBeGreaterThan(Date.now());
+  });
+
+  it("returns null for invalid token length", () => {
+    expect(getSessionExpiry(db, "dG9vc2hvcnQ=")).toBeNull();
+  });
+
+  it("returns null for nonexistent session", () => {
+    const fake = Buffer.alloc(48, 0).toString("base64");
+    expect(getSessionExpiry(db, fake)).toBeNull();
+  });
+
+  it("returns expiry even when session is expired", () => {
+    const token = createSession(db, masterKey, -1);
+    const expiry = getSessionExpiry(db, token);
+    expect(expiry).toBeTypeOf("number");
+    expect(expiry).toBeLessThan(Date.now());
+  });
+});
+
+describe("session housekeeping", () => {
+  it("createSession purges expired sessions", () => {
+    const expiredToken = createSession(db, masterKey, -1);
+
+    // Creating a new session triggers housekeeping
+    createSession(db, masterKey, 30);
+
+    // The expired session should have been purged
+    expect(getSessionExpiry(db, expiredToken)).toBeNull();
+  });
+});
+
+describe("requireBlob", () => {
+  it("returns Buffer for Uint8Array values", () => {
+    const row = { field: new Uint8Array([1, 2, 3]) };
+    const result = requireBlob(row, "field");
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it("throws for non-Uint8Array values", () => {
+    expect(() => requireBlob({ field: "not-a-blob" }, "field")).toThrow(
+      'Expected BLOB for field "field"',
+    );
+    expect(() => requireBlob({ field: 42 }, "field")).toThrow('Expected BLOB for field "field"');
+    expect(() => requireBlob({}, "field")).toThrow('Expected BLOB for field "field"');
+  });
+});
+
+describe("requireString", () => {
+  it("returns string values", () => {
+    expect(requireString({ name: "hello" }, "name")).toBe("hello");
+  });
+
+  it("throws for non-string values", () => {
+    expect(() => requireString({ name: 42 }, "name")).toThrow('Expected TEXT for field "name"');
+    expect(() => requireString({ name: null }, "name")).toThrow('Expected TEXT for field "name"');
+    expect(() => requireString({}, "name")).toThrow('Expected TEXT for field "name"');
+  });
+});
+
+describe("rotateProject rollback", () => {
+  it("rolls back on failure mid-rotation", () => {
+    createProject(db, masterKey, "rollback-rot");
+    setDetail(db, masterKey, "rollback-rot", "secret", "val");
+
+    // Corrupt a detail row so decryption fails mid-rotation
+    db.prepare(
+      "UPDATE details SET project_dek_iv = zeroblob(1) WHERE project = 'rollback-rot'",
+    ).run();
+
+    expect(() => rotateProject(db, masterKey, "rollback-rot")).toThrow();
+
+    // Project should still exist (rollback preserved it)
+    expect(listProjects(db)).toContain("rollback-rot");
+  });
+});
+
+describe("changePassword rollback", () => {
+  it("rolls back on failure mid-password-change", () => {
+    createProject(db, masterKey, "rollback-pw");
+    setDetail(db, masterKey, "rollback-pw", "secret", "val");
+
+    // Corrupt a detail row so re-wrapping fails
+    db.prepare(
+      "UPDATE details SET master_dek_iv = zeroblob(1) WHERE project = 'rollback-pw'",
+    ).run();
+
+    expect(() => {
+      changePassword(db, PASSWORD, "new-pw");
+    }).toThrow();
+
+    // Original password should still work (rollback preserved state)
+    const key = getMasterKey(db, PASSWORD);
+    expect(key).toBeInstanceOf(Buffer);
+  });
+});
+
+describe("vault corruption defenses", () => {
+  it("throws 'Vault corrupted' when password_check row is missing", () => {
+    db.prepare("DELETE FROM config WHERE key = 'password_check'").run();
+    expect(() => getMasterKey(db, PASSWORD)).toThrow("Vault corrupted");
+  });
+
+  it("throws when password_check decrypts to wrong magic string", () => {
+    const wrongMagic = aesEncrypt(masterKey, Buffer.from("wrong-magic", "utf8"));
+    const wrongBlob = Buffer.concat([wrongMagic.iv, wrongMagic.authTag, wrongMagic.ciphertext]);
+    db.prepare("UPDATE config SET value = ? WHERE key = ?").run(wrongBlob, "password_check");
+
+    expect(() => getMasterKey(db, PASSWORD)).toThrow("wrong password or corrupted vault");
+  });
+
+  it("getProjectKey throws 'wrong master password' with wrong key", () => {
+    createProject(db, masterKey, "proj");
+    const fakeKey = Buffer.alloc(32, 0);
+    expect(() => getProjectKey(db, fakeKey, "proj")).toThrow("wrong master password");
+  });
+
+  it("loadProjectDetails throws 'corrupted data' when value ciphertext is corrupted", () => {
+    const projectKey = createProject(db, masterKey, "corrupt-val");
+    setDetail(db, masterKey, "corrupt-val", "secret", "my-value");
+
+    // Corrupt just the value ciphertext — DEK columns remain valid
+    db.prepare("UPDATE details SET ciphertext = zeroblob(1) WHERE project = 'corrupt-val'").run();
+
+    expect(() => loadProjectDetails(db, projectKey, "corrupt-val", { val: "secret" })).toThrow(
+      "corrupted data",
+    );
+  });
+
+  it("deleteSession throws with invalid token length", () => {
+    expect(() => {
+      deleteSession(db, "dG9vc2hvcnQ=");
+    }).toThrow("Invalid admin token");
   });
 });

@@ -20,6 +20,9 @@ export interface TabLoadResult {
   timedOut: boolean;
 }
 
+// Delay after tab reports "complete" to let post-load JavaScript settle
+const POST_LOAD_SETTLE_MS = 500;
+
 export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoadResult> {
   return new Promise<TabLoadResult>((resolve) => {
     let resolved = false;
@@ -30,7 +33,7 @@ export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoa
         chrome.tabs.onUpdated.removeListener(listener);
         setTimeout(() => {
           resolve({ loaded: true, timedOut: false });
-        }, 500);
+        }, POST_LOAD_SETTLE_MS);
       }
     };
 

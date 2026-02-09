@@ -53,5 +53,24 @@ Keep extension commands **minimal and generic** while maintaining **developer ex
 Good extension commands: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`
 Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
-See `agents/extension/adding-commands.md` for how to add a new extension command.
-See `agents/tasks/adding-tasks.md` for how to add a new task.
+Use `/add-extension-command` to add a new extension command.
+Use `/update-browser-api` to modify an existing extension command.
+Use `/add-task` to add a new task.
+Use `/add-task-mode` to add a new task execution mode.
+Use `/add-test` to add tests for a module.
+Use `/add-vault-command` to add a new vault CLI command.
+Use `/add-vault-detail` to add or manage project secrets.
+Use `/rotate-vault-key` to rotate a project's vault key.
+Use `/add-env-var` to thread a new env var through Docker.
+Use `/add-docker-service` to add a new Docker service.
+Use `/add-alert-channel` to add a new alert channel.
+Use `/add-browser-instruction` to modify browser setup instructions.
+Use `/create-project` for end-to-end project setup.
+Use `/add-task-util` to add a shared task utility.
+Use `/debug-task` to debug a failing task.
+
+## CI
+
+- **Remote**: GitHub Actions runs on push/PR to `main` via `.github/workflows/ci.yml`.
+- **Local**: `npm run ci:local` runs the workflow locally using [`act`](https://github.com/nektos/act). The "Upload coverage" step will fail locally with `Unable to get the ACTIONS_RUNTIME_TOKEN env variable` — this is expected because `act` doesn't provide GitHub's artifact upload API. The actual validation (lint, build, tests, coverage) still runs and its pass/fail is what matters.
+- **Quick check**: `npm run validate` runs lint + build + test:coverage directly without Docker, which is faster for local iteration.

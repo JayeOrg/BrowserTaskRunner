@@ -14,7 +14,7 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 
 ## Files
 
-- `main.ts` - Entry point and orchestration (retry loop, single-attempt runner)
+- `run.ts` - Entry point and orchestration (retry loop, single-attempt runner)
 - `tasks.ts` - Task type definitions (`SingleAttemptTask`, `RetryingTask`, `TaskConfig`)
 - `registry.ts` - Manual task registry
 - `logging.ts` - `TaskLogger` (scoped, step-based) and `PrefixLogger` (simple prefix)

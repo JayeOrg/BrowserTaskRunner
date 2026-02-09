@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { getMasterKey } from "../core.js";
 import { getMasterKeyFromSession } from "../ops/sessions.js";
+import { removeEnvVar } from "./env.js";
 import { getPassword } from "./prompt.js";
 
 async function getAdminMasterKey(db: DatabaseSync): Promise<Buffer> {
@@ -9,7 +10,8 @@ async function getAdminMasterKey(db: DatabaseSync): Promise<Buffer> {
     try {
       return getMasterKeyFromSession(db, adminToken);
     } catch {
-      console.error("Admin session expired or invalid — falling back to password");
+      removeEnvVar("VAULT_ADMIN");
+      console.error("Admin session expired — cleared from .env, falling back to password");
     }
   }
   const password = await getPassword();

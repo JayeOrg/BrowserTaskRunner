@@ -1,5 +1,10 @@
 import { openVault, initVault, getMasterKey, changePassword } from "../../core.js";
-import { createSession, getSessionExpiry, deleteSession } from "../../ops/sessions.js";
+import {
+  createSession,
+  getSessionExpiry,
+  deleteSession,
+  DEFAULT_SESSION_MINUTES,
+} from "../../ops/sessions.js";
 import { VAULT_PATH, setEnvVar, removeEnvVar } from "../env.js";
 import { getPassword, promptHidden, readStdinLine } from "../prompt.js";
 
@@ -16,7 +21,7 @@ async function handleInit(): Promise<void> {
 
 function parseDuration(args: string[]): number {
   const idx = args.indexOf("--duration");
-  if (idx === -1) return 30;
+  if (idx === -1) return DEFAULT_SESSION_MINUTES;
   const val = Number(args[idx + 1]);
   if (!Number.isFinite(val) || val <= 0) {
     console.error("--duration must be a positive number of minutes");
@@ -72,7 +77,7 @@ function handleStatus(): void {
       return;
     }
     const remaining = Math.round((expiresAt - Date.now()) / 1000 / 60);
-    console.log(`Admin session active — expires in ${remaining.toString()} minutes`);
+    console.log(`Admin session active — ${remaining.toString()}min remaining (${VAULT_PATH})`);
   } finally {
     db.close();
   }

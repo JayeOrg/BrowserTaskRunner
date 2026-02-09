@@ -1,45 +1,53 @@
+---
+description: Add a new extension command (e.g., screenshot, scroll). Use when adding browser automation primitives to the extension layer.
+---
+
 # Adding an Extension Command
 
-To add a new command (e.g., `screenshot`), touch 3 files:
+To add a new command (e.g., `screenshot`), touch 4 files:
 
 ## 1. Create `stack/extension/messages/commands/screenshot.ts`
 
 Copy an existing command file (`ping.ts` for simple, `click.ts` for one with params). Each file contains:
 
-- `ScreenshotCommand` interface extending `BaseCommand` with `type: "screenshot"`
+- A zod schema for input validation
+- `ScreenshotCommand` type derived from the schema with `type: "screenshot"`
 - `ScreenshotResponse` interface extending `BaseResponse` with `type: "screenshot"`
-- `handleScreenshotCommand(msg: IncomingCommand)` — validates params from the raw message, then implements or delegates to a private function
+- `handleScreenshot` function that receives the validated input
 
 ```typescript
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 
-export interface ScreenshotCommand extends BaseCommand {
-  type: "screenshot";
-}
+export const screenshotSchema = z.object({
+  selector: z.string().optional(),
+});
+
+export type ScreenshotCommand = z.infer<typeof screenshotSchema> & { type: "screenshot" };
 
 export interface ScreenshotResponse extends BaseResponse {
   type: "screenshot";
   data: string;
 }
 
-export async function handleScreenshotCommand(
-  _msg: IncomingCommand,
+export async function handleScreenshot(
+  input: z.infer<typeof screenshotSchema>,
 ): Promise<ScreenshotResponse> {
-  // implementation
+  // Implementation — input is already validated by the schema
 }
 ```
 
 ## 2. Register in `stack/extension/messages/index.ts`
 
-Four edits:
+Five edits:
 
 ```typescript
 // 1. Add import
 import {
+  screenshotSchema,
+  handleScreenshot,
   type ScreenshotCommand,
   type ScreenshotResponse,
-  handleScreenshotCommand,
 } from "./commands/screenshot.js";
 
 // 2. Add to CommandMessage union
@@ -52,12 +60,14 @@ type ResponseMessage =
   | ...existing
   | ScreenshotResponse;
 
-// 4. Add to commandHandlers
-const commandHandlers: Record<string, CommandHandler> = {
+// 4. Add to commandHandlers (uses `satisfies` — missing entries are compile errors)
+const commandHandlers = {
   ...existing,
-  screenshot: handleScreenshotCommand,
-};
+  screenshot: createHandler(screenshotSchema, handleScreenshot),
+} satisfies Record<CommandMessage["type"], CommandHandler>;
 ```
+
+The `satisfies` constraint guarantees every command in the union has a handler. If you add to `CommandMessage` but forget the handler, TypeScript will error.
 
 ## 3. Add to `BrowserAPI` interface and `Browser` class in `stack/browser/browser.ts`
 
@@ -66,7 +76,7 @@ Add the method to the `BrowserAPI` interface:
 ```typescript
 export interface BrowserAPI {
   ...existing,
-  screenshot(): Promise<Resp<"screenshot">>;
+  screenshot(): Promise<ResponseFor<"screenshot">>;
 }
 ```
 
@@ -80,7 +90,7 @@ screenshot() {
 
 The return type is automatically `Promise<ScreenshotResponse>` via the `ResponseFor` type.
 
-## 4. Add to mock browser in `stack/projects/utils/testing.ts`
+## 4. Add to mock browser in `tests/unit/projects/utils/testing.ts`
 
 ```typescript
 screenshot: vi.fn().mockResolvedValue({ type: "screenshot", data: "" }),

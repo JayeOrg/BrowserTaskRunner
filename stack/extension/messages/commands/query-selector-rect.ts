@@ -1,40 +1,28 @@
-import type { BaseCommand, IncomingCommand } from "./base.js";
+import { z } from "zod";
+import type { BaseResponse } from "../responses/base.js";
 import { getActiveTab, getTabId } from "../../tabs.js";
 import { isScriptFound } from "../../script-results.js";
 
-export interface QuerySelectorRectCommand extends BaseCommand {
-  type: "querySelectorRect";
-  selectors: string[];
-}
+export const querySelectorRectSchema = z.object({
+  selectors: z.array(z.string()),
+});
 
-export type QuerySelectorRectResponse = {
+export type QuerySelectorRectCommand = z.infer<typeof querySelectorRectSchema> & {
   type: "querySelectorRect";
-  id?: number;
-  error?: string;
-} & (
-  | {
-      found: true;
-      selector: string;
-      rect: { left: number; top: number; width: number; height: number };
-    }
-  | { found: false }
-);
+};
 
-export async function handleQuerySelectorRectCommand(
-  msg: IncomingCommand,
+export type QuerySelectorRectResponse = BaseResponse & { type: "querySelectorRect" } & (
+    | {
+        found: true;
+        selector: string;
+        rect: { left: number; top: number; width: number; height: number };
+      }
+    | { found: false }
+  );
+
+export async function handleQuerySelectorRect(
+  input: z.infer<typeof querySelectorRectSchema>,
 ): Promise<QuerySelectorRectResponse> {
-  if (!Array.isArray(msg.selectors) || msg.selectors.length === 0) {
-    return {
-      type: "querySelectorRect",
-      found: false,
-      error: "Missing selectors parameter",
-    };
-  }
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  return handleQuerySelectorRect(msg.selectors as string[]);
-}
-
-async function handleQuerySelectorRect(selectors: string[]): Promise<QuerySelectorRectResponse> {
   const tab = await getActiveTab();
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
@@ -58,7 +46,7 @@ async function handleQuerySelectorRect(selectors: string[]): Promise<QuerySelect
       }
       return { found: false };
     },
-    args: [selectors],
+    args: [input.selectors],
   });
   const result = results[0]?.result;
   if (isScriptFound(result) && result.found && result.selector) {

@@ -9,7 +9,7 @@ export function logConnectionInstructions(logger: PrefixLogger, port: number): v
     return;
   }
 
-  const extensionPath = path.join(process.cwd(), "dist", "extension", "client");
+  const extensionPath = path.resolve(import.meta.dirname, "../../dist/extension/client");
   logger.log("Waiting for Chrome extension to connect...");
   logger.log("=".repeat(50));
   logger.log("CONNECT THE EXTENSION:");

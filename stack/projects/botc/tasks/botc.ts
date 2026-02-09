@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { BrowserAPI } from "../../../browser/browser.js";
 import type { RetryingTask, TaskContext, TaskResultSuccess } from "../../../framework/tasks.js";
-import { type TaskLogger, createTaskLogger } from "../../../framework/logging.js";
+import type { TaskLogger } from "../../../framework/logging.js";
 import { clickFirst, fillFirst, waitForFirst } from "../../utils/selectors.js";
 import { sleep } from "../../utils/timing.js";
 import { clickTurnstile } from "../../utils/turnstile.js";
@@ -109,15 +109,18 @@ async function checkResult(browser: BrowserAPI, logger: TaskLogger): Promise<str
   const { url: finalUrl } = await browser.getUrl();
 
   if (finalUrl.toLowerCase().includes("login")) {
-    logger.fail("checkResult", "STILL_ON_LOGIN_PAGE", { finalUrl });
+    return logger.fail("checkResult", "STILL_ON_LOGIN_PAGE", { finalUrl });
   }
   logger.success("checkResult", "Login successful", { finalUrl });
   return finalUrl;
 }
 
-async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResultSuccess> {
+async function run(
+  browser: BrowserAPI,
+  context: TaskContext,
+  logger: TaskLogger,
+): Promise<TaskResultSuccess> {
   const { email, password } = contextSchema.parse(context);
-  const logger = createTaskLogger(TASK.name);
 
   await navigate(browser, logger);
   const emailSelector = await findForm(browser, logger);

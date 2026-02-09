@@ -6,7 +6,6 @@ set -e
 # =============================================================================
 
 COMPOSE_FILE="stack/infra/docker-compose.yml"
-CONTAINER_NAME="sitecheck"
 
 show_help() {
     cat << EOF
@@ -22,9 +21,6 @@ Options:
   --no-vnc          Disable VNC server
   --no-build        Skip Docker build step
   --rebuild         Force fresh build (no cache)
-  --shell           Open a shell in running container
-  --logs            Follow logs of running container
-  --stop            Stop running container
   --help, -h        Show this help message
 
 Shortcuts:
@@ -36,9 +32,6 @@ Examples:
   npm run check botcLogin           Run botcLogin task
   npm run check botcLogin --detach  Run in background
   npm run check botcLogin --no-vnc  Run without VNC
-  npm run check -- --shell          Open shell in container
-  npm run check -- --logs           Follow container logs
-  npm run check -- --stop           Stop container
   npm run check botcLogin --rebuild Force fresh Docker build
 EOF
 }
@@ -56,20 +49,8 @@ for arg in "$@"; do
             show_help
             exit 0
             ;;
-        --shell)
-            docker exec -it "$CONTAINER_NAME" /bin/bash
-            exit $?
-            ;;
-        --logs)
-            docker compose -f "$COMPOSE_FILE" logs -f
-            exit $?
-            ;;
-        --stop)
-            docker compose -f "$COMPOSE_FILE" down
-            exit $?
-            ;;
         --detach|-d)
-            DETACH="-d"
+            DETACH="true"
             ;;
         --no-vnc)
             NO_VNC="true"
@@ -116,12 +97,18 @@ if ! grep -qE '^VAULT_TOKEN=.+' .env; then
     exit 1
 fi
 
-# Compute hash from git index (fast - reads blob hashes, not file contents)
+# Compute hash from git index (fast - reads blob hashes, not file contents).
+# Falls back to timestamp when git isn't available (CI artifacts, tarballs).
 SOURCE_HASH=$(git ls-files -s stack/ package.json package-lock.json 2>/dev/null | shasum -a 256 | cut -c1-12)
+if [ -z "$SOURCE_HASH" ] || [ "$SOURCE_HASH" = "$(echo '' | shasum -a 256 | cut -c1-12)" ]; then
+    SOURCE_HASH=$(date +%s)
+fi
 
 # Set environment variables
 export TASK_NAME
 export SOURCE_HASH
+export HOST_UID=$(id -u)
+export HOST_GID=$(id -g)
 
 if [ "$NO_VNC" = "true" ]; then
     export ENABLE_VNC=false
@@ -133,19 +120,19 @@ if [ "$REBUILD" = "true" ]; then
     docker compose -f "$COMPOSE_FILE" --env-file .env build --no-cache
 fi
 
-# Build compose command
-COMPOSE_CMD="docker compose -f $COMPOSE_FILE --env-file .env up"
+# Build compose command as an array for safe word splitting
+COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE" --env-file .env up)
 
 if [ -z "$NO_BUILD" ] && [ -z "$REBUILD" ]; then
-    COMPOSE_CMD="$COMPOSE_CMD --build"
+    COMPOSE_CMD+=(--build)
 fi
 
 if [ -n "$DETACH" ]; then
-    COMPOSE_CMD="$COMPOSE_CMD -d"
+    COMPOSE_CMD+=(-d)
     echo "Starting in background..."
     echo "Use 'npm run logs' to follow logs"
     echo "Use 'npm run stop' to stop"
 fi
 
 # Run
-$COMPOSE_CMD
+"${COMPOSE_CMD[@]}"

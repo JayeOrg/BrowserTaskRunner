@@ -7,7 +7,8 @@ Each project is a goal that may span multiple tasks across multiple sites. Proje
 ```
 projects/
   botc/           # One directory per project
-    botc.ts       # Task implementation
+    tasks/
+      botc.ts     # Task implementation
     README.md     # Project-specific docs
   utils/          # Shared task utilities
     selectors.ts  # waitForFirst, clickFirst, fillFirst

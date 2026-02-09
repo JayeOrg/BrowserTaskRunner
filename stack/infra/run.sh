@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # =============================================================================
 # Configuration
@@ -20,18 +20,20 @@ LOG_FILES=("$XVFB_LOG" "$CHROMIUM_LOG" "$VNC_LOG")
 # =============================================================================
 # Logging utilities
 # =============================================================================
-LAST_TIME=$(date +%s)
+PREVIOUS_LOG_TIME=$(date +%s)
 TERM_WIDTH=120
 
-get_elapsed() {
+# Returns time elapsed since the previous log line, then resets the clock.
+# Durations show "time since last step", not wall-clock time.
+elapsed_since_last_log() {
     local now=$(date +%s)
-    local elapsed=$((now - LAST_TIME))
-    LAST_TIME=$now
+    local elapsed=$((now - PREVIOUS_LOG_TIME))
+    PREVIOUS_LOG_TIME=$now
     echo "${elapsed}.0s"
 }
 
 log() {
-    local duration=$(get_elapsed)
+    local duration=$(elapsed_since_last_log)
     local text="[Infra] $1"
     local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
     if [ $padding -lt 1 ]; then padding=1; fi
@@ -39,7 +41,7 @@ log() {
 }
 
 log_success() {
-    local duration=$(get_elapsed)
+    local duration=$(elapsed_since_last_log)
     local text="[Infra] $1"
     local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
     if [ $padding -lt 1 ]; then padding=1; fi
@@ -47,7 +49,7 @@ log_success() {
 }
 
 log_error() {
-    local duration=$(get_elapsed)
+    local duration=$(elapsed_since_last_log)
     local text="[Infra] $1"
     local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
     if [ $padding -lt 1 ]; then padding=1; fi
@@ -72,31 +74,14 @@ wait_for_display() {
     done
 }
 
-wait_for_process() {
-    local pid=$1
-    local timeout=$2
-    local start=$(date +%s)
-    while true; do
-        if kill -0 $pid 2>/dev/null; then
-            return 0
-        fi
-        local elapsed=$(($(date +%s) - start))
-        if [ $elapsed -ge $timeout ]; then
-            return 1
-        fi
-        sleep 0.2
-    done
-}
-
 # =============================================================================
 # Cleanup and lifecycle
 # =============================================================================
 mkdir -p "$LOG_DIR"
 
-preventChromeProfileInUseErrors() {
-    rm -f /tmp/chrome-profile/SingletonLock
-    rm -f /tmp/chrome-profile/SingletonSocket
-    rm -f /tmp/chrome-profile/SingletonCookie
+resetChromeProfile() {
+    rm -rf /tmp/chrome-profile 2>/dev/null || true
+    mkdir -p /tmp/chrome-profile
 }
 
 cleanupStaleProcessesAndFiles() {
@@ -104,7 +89,7 @@ cleanupStaleProcessesAndFiles() {
     pkill -f chromium || true
     rm -f /tmp/.X${DISPLAY_NUM}-lock
     rm -f /tmp/.X11-unix/X${DISPLAY_NUM}
-    preventChromeProfileInUseErrors
+    resetChromeProfile
     log "Cleaned up stale processes"
 }
 
@@ -148,6 +133,12 @@ trap 'on_exit $?' EXIT
 # =============================================================================
 # Startup sequence
 # =============================================================================
+# Validate task name before starting any services
+if [ -z "${TASK_NAME:-}" ]; then
+    log_error "TASK_NAME environment variable is required"
+    exit 1
+fi
+
 cleanupStaleProcessesAndFiles
 
 log "Configuration: display=:${DISPLAY_NUM}, ws_port=${WS_PORT}, screen=${SCREEN_SIZE}"
@@ -165,7 +156,7 @@ fi
 log_success "Virtual display :${DISPLAY_NUM} ready"
 
 # Start VNC if enabled
-if [ "$ENABLE_VNC" = "true" ]; then
+if [ "${ENABLE_VNC:-}" = "true" ]; then
     x11vnc -display :${DISPLAY_NUM} -forever -nopw -quiet >>"$VNC_LOG" 2>&1 &
     log_success "VNC server started on port 5900"
 fi
@@ -191,7 +182,7 @@ chromium \
     "about:blank" >>"$CHROMIUM_LOG" 2>&1 &
 CHROMIUM_PID=$!
 
-# Wait for Chromium to start (brief delay for extension to load)
+# Wait for Chromium process to survive startup
 sleep 2
 if ! kill -0 $CHROMIUM_PID 2>/dev/null; then
     log_error "Chromium failed to start"
@@ -200,11 +191,9 @@ if ! kill -0 $CHROMIUM_PID 2>/dev/null; then
 fi
 log_success "Chromium started with extension (pid: $CHROMIUM_PID)"
 
-# Validate task name
-if [ -z "$TASK_NAME" ]; then
-    log_error "TASK_NAME environment variable is required"
-    exit 1
-fi
+# Copy vault to writable location (SQLite WAL mode needs sibling -wal/-shm files)
+cp /app/vault.db /tmp/vault.db
+export VAULT_PATH=/tmp/vault.db
 
 # Run the task
 log "Starting task: $TASK_NAME"
