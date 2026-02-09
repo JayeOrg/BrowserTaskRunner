@@ -1,12 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, copyFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 
 const PASSWORD = "test-cli-password";
-const CLI_PATH = join(import.meta.dirname, "../../../dist/vault/vault-manage.js");
+const CLI_PATH = join(import.meta.dirname, "../../../dist/vault/cli/main.js");
 
+// Template vault created once in beforeAll, copied per test
+let templateDir: string;
+let templateVaultPath: string;
+let templateToken: string;
+
+// Per-test paths
 let tempDir: string;
 let vaultPath: string;
 let envPath: string;
@@ -60,16 +66,69 @@ function run(
   };
 }
 
+// Create a template vault once (2 scrypt calls) — all tests copy from this
+beforeAll(() => {
+  templateDir = mkdtempSync(join(tmpdir(), "vault-cli-template-"));
+  templateVaultPath = join(templateDir, "vault.db");
+  const templateEnvPath = join(templateDir, ".env");
+
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- test setup
+  spawnSync("node", [CLI_PATH, "init"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      VAULT_PATH: templateVaultPath,
+      ENV_PATH: templateEnvPath,
+      DOTENV_CONFIG_PATH: templateEnvPath,
+      NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
+    },
+    input: `${PASSWORD}\n`,
+  });
+
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- test setup
+  spawnSync("node", [CLI_PATH, "login", "--duration", "120"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      VAULT_PATH: templateVaultPath,
+      ENV_PATH: templateEnvPath,
+      DOTENV_CONFIG_PATH: templateEnvPath,
+      NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
+    },
+    input: `${PASSWORD}\n`,
+  });
+
+  const envContent = readFileSync(templateEnvPath, "utf8");
+  const match = /^VAULT_ADMIN=(?<token>.+)$/mu.exec(envContent);
+  if (!match?.groups?.token) throw new Error("Template VAULT_ADMIN not found in .env");
+  templateToken = match.groups.token;
+});
+
+afterAll(() => {
+  rmSync(templateDir, { recursive: true, force: true });
+});
+
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "vault-cli-test-"));
   vaultPath = join(tempDir, "vault.db");
   envPath = join(tempDir, ".env");
-  run(["init"]);
+  copyFileSync(templateVaultPath, vaultPath);
+  // Write clean .env (no VAULT_ADMIN) — tests opt in to token via adminToken option
+  writeFileSync(envPath, "", "utf8");
 });
 
 afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
+
+function readAdminToken(): string {
+  const content = readFileSync(envPath, "utf8");
+  const result = /^VAULT_ADMIN=(?<token>.+)$/mu.exec(content);
+  if (!result?.groups?.token) throw new Error("VAULT_ADMIN not found in .env");
+  return result.groups.token;
+}
+
+const TOKEN = () => ({ adminToken: templateToken, password: "" });
 
 describe("vault CLI", () => {
   it("initializes a new vault", () => {
@@ -79,64 +138,64 @@ describe("vault CLI", () => {
   });
 
   it("sets and gets a detail", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "my-email"], { secretValue: "hello@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"]);
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "hello@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], TOKEN());
     expect(result.stdout.trim()).toBe("hello@test.com");
   });
 
   it("lists details", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "a-key"], { secretValue: "val1" });
-    run(["detail", "set", "proj", "b-key"], { secretValue: "val2" });
-    const result = run(["detail", "list"]);
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "a-key"], { ...TOKEN(), secretValue: "val1" });
+    run(["detail", "set", "proj", "b-key"], { ...TOKEN(), secretValue: "val2" });
+    const result = run(["detail", "list"], TOKEN());
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).toContain("b-key");
   });
 
   it("lists details filtered by project", () => {
-    run(["project", "create", "proj-a"]);
-    run(["project", "create", "proj-b"]);
-    run(["detail", "set", "proj-a", "a-key"], { secretValue: "val1" });
-    run(["detail", "set", "proj-b", "b-key"], { secretValue: "val2" });
-    const result = run(["detail", "list", "proj-a"]);
+    run(["project", "create", "proj-a"], TOKEN());
+    run(["project", "create", "proj-b"], TOKEN());
+    run(["detail", "set", "proj-a", "a-key"], { ...TOKEN(), secretValue: "val1" });
+    run(["detail", "set", "proj-b", "b-key"], { ...TOKEN(), secretValue: "val2" });
+    const result = run(["detail", "list", "proj-a"], TOKEN());
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).not.toContain("b-key");
   });
 
   it("removes a detail", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "doomed"], { secretValue: "val" });
-    run(["detail", "remove", "proj", "doomed"]);
-    const result = run(["detail", "list", "proj"]);
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "doomed"], { ...TOKEN(), secretValue: "val" });
+    run(["detail", "remove", "proj", "doomed"], TOKEN());
+    const result = run(["detail", "list", "proj"], TOKEN());
     expect(result.stdout).toContain("No details");
   });
 
   it("overwrites an existing detail", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "my-email"], { secretValue: "old@test.com" });
-    run(["detail", "set", "proj", "my-email"], { secretValue: "new@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"]);
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "old@test.com" });
+    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "new@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], TOKEN());
     expect(result.stdout.trim()).toBe("new@test.com");
   });
 
   it("creates a project and shows token", () => {
-    const result = run(["project", "create", "test-proj"]);
+    const result = run(["project", "create", "test-proj"], TOKEN());
     expect(result.stdout).toContain("test-proj");
     expect(result.stdout).toContain("Token:");
   });
 
   it("lists projects", () => {
-    run(["project", "create", "alpha"]);
-    run(["project", "create", "beta"]);
-    const result = run(["project", "list"]);
+    run(["project", "create", "alpha"], TOKEN());
+    run(["project", "create", "beta"], TOKEN());
+    const result = run(["project", "list"], TOKEN());
     expect(result.stdout).toContain("alpha");
     expect(result.stdout).toContain("beta");
   });
 
   it("fails with wrong password on detail get", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "my-key"], { secretValue: "val" });
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "my-key"], { ...TOKEN(), secretValue: "val" });
 
     const result = run(["detail", "get", "proj", "my-key"], {
       password: "wrong",
@@ -156,20 +215,13 @@ describe("vault CLI", () => {
   });
 
   it("shows empty state messages", () => {
-    const detailResult = run(["detail", "list"]);
+    const detailResult = run(["detail", "list"], TOKEN());
     expect(detailResult.stdout).toContain("No details");
 
-    const projectResult = run(["project", "list"]);
+    const projectResult = run(["project", "list"], TOKEN());
     expect(projectResult.stdout).toContain("No projects");
   });
 });
-
-function readAdminToken(): string {
-  const content = readFileSync(envPath, "utf8");
-  const result = /^VAULT_ADMIN=(?<token>.+)$/mu.exec(content);
-  if (!result?.groups?.token) throw new Error("VAULT_ADMIN not found in .env");
-  return result.groups.token;
-}
 
 describe("vault login/logout", () => {
   it("login creates a session and writes token to .env", () => {
@@ -244,22 +296,54 @@ describe("vault login/logout", () => {
 
 describe("detail set value prompting", () => {
   it("reads value from stdin, not CLI args", () => {
-    run(["project", "create", "proj"]);
-    run(["detail", "set", "proj", "secret-key"], { secretValue: "from-stdin" });
-    const result = run(["detail", "get", "proj", "secret-key"]);
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "secret-key"], { ...TOKEN(), secretValue: "from-stdin" });
+    const result = run(["detail", "get", "proj", "secret-key"], TOKEN());
     expect(result.stdout.trim()).toBe("from-stdin");
   });
 
   it("fails when no value is provided on stdin", () => {
-    run(["project", "create", "proj"]);
+    run(["project", "create", "proj"], TOKEN());
+    const result = run(["detail", "set", "proj", "k"], {
+      ...TOKEN(),
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("No value");
+  });
+});
+
+describe("change-password", () => {
+  it("changes the vault password", () => {
+    run(["project", "create", "proj"], TOKEN());
+    run(["detail", "set", "proj", "k"], { ...TOKEN(), secretValue: "secret-val" });
+
+    // Change password: stdin line 1 = old password, line 2 = new password
+    run(["change-password"], { password: PASSWORD, secretValue: "new-password-123" });
+
+    // Old password fails
+    const fail = run(["detail", "get", "proj", "k"], {
+      password: PASSWORD,
+      expectFailure: true,
+    });
+    expect(fail.exitCode).not.toBe(0);
+
+    // New password works
+    const ok = run(["detail", "get", "proj", "k"], { password: "new-password-123" });
+    expect(ok.stdout.trim()).toBe("secret-val");
+  });
+
+  it("invalidates admin sessions", () => {
     run(["login"]);
     const token = readAdminToken();
-    const result = run(["detail", "set", "proj", "k"], {
+
+    run(["change-password"], { password: PASSWORD, secretValue: "new-pw" });
+
+    const result = run(["project", "create", "after-change"], {
       adminToken: token,
       password: "",
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("No value");
   });
 });

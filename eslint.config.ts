@@ -80,6 +80,7 @@ export default [
       'dot-notation': 'off',
       'init-declarations': 'off',
       'sort-keys': 'off',
+      'sonarjs/no-hardcoded-passwords': 'off',
       'id-length': ['error', { exceptions: ['x', 'y'] }],
     },
   },

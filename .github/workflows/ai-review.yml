@@ -1,0 +1,73 @@
+name: AI Review
+
+on:
+  pull_request:
+    types: [ready_for_review, opened, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    if: |
+      (github.event_name == 'pull_request' &&
+       !github.event.pull_request.draft &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@6c61301d8e1ee91bef7b65172f93462bbb216394 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude"
+          prompt: |
+            Review this PR for both code quality and security. Check for:
+            - Bugs, logic errors, and edge cases
+            - Adherence to project conventions in AGENTS.md
+            - Injection risks (command injection, path traversal)
+            - Secrets or credentials in code
+            - Unsafe deserialization or eval usage
+            - WebSocket security issues
+            - Vault/crypto implementation concerns
+            Only flag security issues if they are real — no hypotheticals.
+
+  codex-review:
+    name: Codex Code Review
+    if: |
+      (github.event_name == 'pull_request' &&
+       !github.event.pull_request.draft &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@codex'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Codex Code Review
+        uses: openai/codex-action@94bb7a052e529936e5260a35838e61b190855739 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Review this pull request. Check for:
+            - Bugs, logic errors, and edge cases
+            - Security issues (injection, secrets in code, unsafe patterns)
+            - Adherence to project conventions in AGENTS.md
+            - Code clarity and maintainability
+            Post your review as PR comments.

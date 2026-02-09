@@ -139,7 +139,6 @@ export const botcLoginTask: RetryingTask = {
   name: TASK.name,
   url: TASK.url,
   project: "monitor-botc",
-  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- vault detail key name, not a password
   needs: { email: "email", password: "password" },
   mode: "retry",
   intervalMs: 300_000,

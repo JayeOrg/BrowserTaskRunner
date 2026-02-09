@@ -4,8 +4,8 @@ import type { PrefixLogger } from "../framework/logging.js";
 export function logConnectionInstructions(logger: PrefixLogger, port: number): void {
   logger.log("WebSocket server listening", { port });
 
-  // Skip manual instructions when running in Docker (automated)
-  if (process.env["DOCKER"]) {
+  // Skip manual instructions in automated environments
+  if (process.env["DOCKER"] || process.env["CI"] || process.env["VITEST"]) {
     return;
   }
 

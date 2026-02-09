@@ -1,45 +1,57 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { DatabaseSync } from "node:sqlite";
+import { exportToken, parseToken } from "../../../stack/vault/crypto.js";
+import { openVault, initVault, getMasterKey, changePassword } from "../../../stack/vault/core.js";
 import {
-  openVault,
-  initVault,
-  getMasterKey,
   createProject,
   getProjectKey,
-  exportToken,
-  parseToken,
   listProjects,
   removeProject,
   rotateProject,
+} from "../../../stack/vault/ops/projects.js";
+import {
   setDetail,
   getDetail,
   listDetails,
   removeDetail,
-  loadProjectDetails,
+} from "../../../stack/vault/ops/details.js";
+import {
   createSession,
   getMasterKeyFromSession,
   deleteSession,
-} from "../../../stack/vault/vault.js";
+} from "../../../stack/vault/ops/sessions.js";
+import { loadProjectDetails } from "../../../stack/vault/ops/runtime.js";
 
 const PASSWORD = "test-password-123";
 
 let tempDir: string;
 let vaultPath: string;
 let db: DatabaseSync;
+let masterKey: Buffer;
 
-beforeEach(() => {
+beforeAll(() => {
   tempDir = mkdtempSync(join(tmpdir(), "vault-test-"));
   vaultPath = join(tempDir, "vault.db");
   db = openVault(vaultPath);
   initVault(db, PASSWORD);
+  masterKey = getMasterKey(db, PASSWORD);
+});
+
+afterAll(() => {
+  db.close();
+  rmSync(tempDir, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  db.exec("SAVEPOINT test_start");
 });
 
 afterEach(() => {
-  db.close();
-  rmSync(tempDir, { recursive: true, force: true });
+  db.exec("ROLLBACK TO test_start");
+  db.exec("RELEASE test_start");
 });
 
 describe("initVault", () => {
@@ -74,7 +86,6 @@ describe("getMasterKey", () => {
 
 describe("projects", () => {
   it("creates a project and retrieves its key", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const projectKey = createProject(db, masterKey, "test-project");
     expect(projectKey).toBeInstanceOf(Buffer);
     expect(projectKey.length).toBe(32);
@@ -84,19 +95,16 @@ describe("projects", () => {
   });
 
   it("throws when getting a nonexistent project", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     expect(() => getProjectKey(db, masterKey, "nope")).toThrow('Project not found: "nope"');
   });
 
   it("lists projects", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "alpha");
     createProject(db, masterKey, "beta");
     expect(listProjects(db)).toEqual(["alpha", "beta"]);
   });
 
   it("removes a project", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "doomed");
     removeProject(db, "doomed");
     expect(listProjects(db)).toEqual([]);
@@ -111,7 +119,6 @@ describe("projects", () => {
 
 describe("exportToken / parseToken", () => {
   it("roundtrips a project key through token encoding", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const projectKey = createProject(db, masterKey, "tok-test");
     const token = exportToken(projectKey);
     const parsed = parseToken(token);
@@ -125,7 +132,6 @@ describe("exportToken / parseToken", () => {
 
 describe("details", () => {
   it("sets and gets a detail", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj");
 
     setDetail(db, masterKey, "proj", "my-email", "user@example.com");
@@ -133,7 +139,6 @@ describe("details", () => {
   });
 
   it("updates an existing detail", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj");
 
     setDetail(db, masterKey, "proj", "my-email", "old@example.com");
@@ -142,13 +147,11 @@ describe("details", () => {
   });
 
   it("throws when getting a nonexistent detail", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj");
     expect(() => getDetail(db, masterKey, "proj", "nope")).toThrow('Detail not found: "proj/nope"');
   });
 
   it("lists all details", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj-a");
     createProject(db, masterKey, "proj-b");
     setDetail(db, masterKey, "proj-a", "email", "val");
@@ -161,7 +164,6 @@ describe("details", () => {
   });
 
   it("lists details filtered by project", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj-a");
     createProject(db, masterKey, "proj-b");
     setDetail(db, masterKey, "proj-a", "email", "val");
@@ -170,7 +172,6 @@ describe("details", () => {
   });
 
   it("removes a detail", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj");
     setDetail(db, masterKey, "proj", "doomed", "val");
     removeDetail(db, "proj", "doomed");
@@ -184,7 +185,6 @@ describe("details", () => {
   });
 
   it("same key in different projects are independent", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "proj-a");
     createProject(db, masterKey, "proj-b");
 
@@ -198,7 +198,6 @@ describe("details", () => {
 
 describe("loadProjectDetails", () => {
   it("decrypts details using project token", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const projectKey = createProject(db, masterKey, "runtime-proj");
 
     setDetail(db, masterKey, "runtime-proj", "email", "user@test.com");
@@ -216,7 +215,6 @@ describe("loadProjectDetails", () => {
   });
 
   it("throws when detail does not exist", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const projectKey = createProject(db, masterKey, "limited");
 
     expect(() => loadProjectDetails(db, projectKey, "limited", { key: "missing" })).toThrow(
@@ -225,7 +223,6 @@ describe("loadProjectDetails", () => {
   });
 
   it("fails with wrong project token", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const correctKey = createProject(db, masterKey, "proj-a");
     createProject(db, masterKey, "proj-b");
     setDetail(db, masterKey, "proj-a", "secret", "val");
@@ -242,7 +239,6 @@ describe("loadProjectDetails", () => {
 
 describe("project isolation", () => {
   it("projects cannot decrypt each other's details", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const keyA = createProject(db, masterKey, "proj-a");
     const keyB = createProject(db, masterKey, "proj-b");
 
@@ -263,23 +259,15 @@ describe("project isolation", () => {
 
 describe("cascade deletes", () => {
   it("removing a project cascades its details", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     createProject(db, masterKey, "temp-proj");
     setDetail(db, masterKey, "temp-proj", "email", "val");
     removeProject(db, "temp-proj");
-
-    const freshDb = openVault(vaultPath);
-    try {
-      expect(listDetails(freshDb, "temp-proj")).toEqual([]);
-    } finally {
-      freshDb.close();
-    }
+    expect(listDetails(db, "temp-proj")).toEqual([]);
   });
 });
 
 describe("rotateProject", () => {
   it("rotates the key and new token works", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const oldKey = createProject(db, masterKey, "rotating");
     setDetail(db, masterKey, "rotating", "secret", "rot-value");
 
@@ -291,7 +279,6 @@ describe("rotateProject", () => {
   });
 
   it("old token fails after rotation", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const oldKey = createProject(db, masterKey, "rotating2");
     setDetail(db, masterKey, "rotating2", "secret", "val");
 
@@ -305,7 +292,6 @@ describe("rotateProject", () => {
 
 describe("setDetail update", () => {
   it("updating a detail value still works via project token", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const projectKey = createProject(db, masterKey, "rewrap");
     setDetail(db, masterKey, "rewrap", "secret", "old-value");
     setDetail(db, masterKey, "rewrap", "secret", "new-value");
@@ -315,16 +301,52 @@ describe("setDetail update", () => {
   });
 });
 
+describe("changePassword", () => {
+  it("changes the password and re-wraps everything", () => {
+    createProject(db, masterKey, "proj");
+    setDetail(db, masterKey, "proj", "secret", "my-value");
+
+    changePassword(db, PASSWORD, "new-password");
+
+    // Old password fails
+    expect(() => getMasterKey(db, PASSWORD)).toThrow("wrong password");
+
+    // New password works
+    const newMasterKey = getMasterKey(db, "new-password");
+    expect(getDetail(db, newMasterKey, "proj", "secret")).toBe("my-value");
+  });
+
+  it("preserves project token access after password change", () => {
+    const projectKey = createProject(db, masterKey, "proj");
+    setDetail(db, masterKey, "proj", "secret", "token-value");
+
+    changePassword(db, PASSWORD, "new-password");
+
+    const context = loadProjectDetails(db, projectKey, "proj", { val: "secret" });
+    expect(context).toEqual({ val: "token-value" });
+  });
+
+  it("invalidates admin sessions", () => {
+    const token = createSession(db, masterKey);
+    changePassword(db, PASSWORD, "new-password");
+    expect(() => getMasterKeyFromSession(db, token)).toThrow("not found");
+  });
+
+  it("throws with wrong old password", () => {
+    expect(() => {
+      changePassword(db, "wrong", "new");
+    }).toThrow("wrong password");
+  });
+});
+
 describe("sessions", () => {
   it("creates a session and retrieves the master key", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const token = createSession(db, masterKey);
     const retrieved = getMasterKeyFromSession(db, token);
     expect(Buffer.compare(masterKey, retrieved)).toBe(0);
   });
 
   it("session token can perform admin operations", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const token = createSession(db, masterKey);
     const sessionMasterKey = getMasterKeyFromSession(db, token);
 
@@ -334,14 +356,12 @@ describe("sessions", () => {
   });
 
   it("accepts custom duration", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const token = createSession(db, masterKey, 60);
     const retrieved = getMasterKeyFromSession(db, token);
     expect(Buffer.compare(masterKey, retrieved)).toBe(0);
   });
 
   it("throws on expired session", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     // Create a session with negative duration (already expired)
     const token = createSession(db, masterKey, -1);
     expect(() => getMasterKeyFromSession(db, token)).toThrow("expired");
@@ -352,7 +372,6 @@ describe("sessions", () => {
   });
 
   it("throws on tampered token", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const token = createSession(db, masterKey);
     const buf = Buffer.from(token, "base64");
     // Corrupt the last byte in the session key portion
@@ -368,7 +387,6 @@ describe("sessions", () => {
   });
 
   it("deletes a session", () => {
-    const masterKey = getMasterKey(db, PASSWORD);
     const token = createSession(db, masterKey);
     deleteSession(db, token);
     expect(() => getMasterKeyFromSession(db, token)).toThrow("not found");

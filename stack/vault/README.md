@@ -37,7 +37,7 @@ SQLite database (`vault.db` at project root). Three tables:
 | `details` | Secret values + DEK wrapped with both master and project key | `ciphertext`, `master_wrapped_dek`, `project_wrapped_dek` |
 | `sessions` | Time-limited admin sessions, master key encrypted with session key | `encrypted_master_key` |
 
-Details have a composite primary key `(project, key)` — the same key name can exist in different projects. Metadata (detail keys, project names) is visible without the password. Only values and keys are encrypted.
+Details have a composite primary key `(project, key)` — the same key name can exist in different projects. All CLI commands require authentication (password or admin session). Only values and keys are encrypted; metadata (detail keys, project names) is stored in plaintext columns.
 
 ## CLI
 
@@ -65,6 +65,9 @@ npm run vault -- project export <name>       # re-export token
 npm run vault -- project list
 npm run vault -- project remove <name>       # cascades details
 npm run vault -- project rotate <name>       # new key, re-wraps all DEKs
+
+# Password management
+npm run vault -- change-password             # prompts for old + new + confirm
 ```
 
 ## Task Integration
@@ -118,9 +121,28 @@ npm run dev -- myTask
 
 ## Crypto
 
-All encryption uses AES-256-GCM via `node:crypto`. Key derivation uses scrypt (cost=16384, blockSize=8, parallelization=1). No external crypto dependencies.
+All encryption uses AES-256-GCM via `node:crypto`. Key derivation uses scrypt (cost=131072, blockSize=8, parallelization=1). No external crypto dependencies.
 
 ## Files
 
-- `vault.ts` — core library (crypto, database, all operations)
-- `vault-manage.ts` — CLI entry point
+```
+stack/vault/
+├── core.ts              DB init, master key, password change
+├── crypto.ts            AES-256-GCM, scrypt, token serialization
+├── rows.ts              SQLite row type extractors
+├── schema.ts            SQL DDL
+├── ops/
+│   ├── details.ts       Detail CRUD (admin, master key)
+│   ├── projects.ts      Project CRUD (admin, master key)
+│   ├── runtime.ts       Load secrets (project token, no master key)
+│   └── sessions.ts      Admin session lifecycle
+└── cli/
+    ├── main.ts          Entry point, usage, command dispatch
+    ├── auth.ts          Smart auth (session token → password fallback)
+    ├── env.ts           VAULT_PATH, .env read/write
+    ├── prompt.ts        stdin/terminal input helpers
+    └── commands/
+        ├── detail.ts    detail set/get/list/remove handlers
+        ├── project.ts   project create/export/list/remove/rotate handlers
+        └── session.ts   init/login/logout/status/change-password handlers
+```

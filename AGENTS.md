@@ -38,6 +38,7 @@ Modules with strict separation:
 - **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
 - **Projects**: All site-specific logic lives here. Each project gets its own subdirectory under `stack/projects/`. Shared task utilities live in `stack/projects/utils/`.
 - **Vault**: Local secrets service with project-scoped access control. See `stack/vault/README.md`.
+  - Note: `node:sqlite` enables `PRAGMA foreign_keys = ON` by default (unlike the C library). Don't add it manually — it's already on.
 - **Browser**: WebSocket server bridging framework and extension.
 
 ### Extension Design Principle

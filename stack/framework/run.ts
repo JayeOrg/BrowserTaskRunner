@@ -13,7 +13,9 @@ import {
 import { allTasks } from "./registry.js";
 import { StepError, getErrorMessage, type TaskResultFailure } from "./errors.js";
 import { createPrefixLogger } from "./logging.js";
-import { openVault, loadProjectDetails, parseToken } from "../vault/vault.js";
+import { parseToken } from "../vault/crypto.js";
+import { openVault } from "../vault/core.js";
+import { loadProjectDetails } from "../vault/ops/runtime.js";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
 const VAULT_PATH = resolve(import.meta.dirname, "../../vault.db");

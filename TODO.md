@@ -1,10 +1,4 @@
-Review vault code structure, security and dx
-How are the project read tokens handled?
-
-What are best practice good dx things to have in CI/CD?
-What are options and tradeoffs?
-Set up CI/CD via github actions and put some credits in for developing it.
-We want tests, static analysis, security, and whatever hooks are required to trigger agentic code review
+Review vault code structure
 
 Add nandos task
 
