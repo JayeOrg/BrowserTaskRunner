@@ -32,6 +32,12 @@ VAULT_TOKEN=<base64 project token>
 # Optional
 # SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
 # ENABLE_VNC=true                # Enable VNC debugging (default: true)
+# PERSIST_CHROME_PROFILE=false   # Keep Chrome profile between runs
+# SCREEN_SIZE=1280x720x24        # Xvfb resolution + depth
+# DISPLAY_NUM=99                 # X display number
+# WS_PORT=8765                   # WebSocket bridge port
+# LOG_DIR=logs                   # Host log directory
+# READINESS_TIMEOUT=30           # Seconds to wait for Xvfb
 ```
 
 The vault database (`vault.db`) is mounted read-only into the container. At runtime, the framework uses `VAULT_TOKEN` to decrypt the project's secrets from the vault.
@@ -52,6 +58,17 @@ To disable VNC:
 ```bash
 npm run check botcLogin --no-vnc
 ```
+
+### Fast local iterations (use host build)
+
+Mount your locally built `dist/` into the container to skip image rebuilds while iterating:
+
+```bash
+npm run docker:build                 # one-time to build base image + deps
+npm run check botcLogin --host-dist --no-build
+```
+
+The `--host-dist` flag runs `npm run build` on the host, then mounts `./dist` read-only into the container via `stack/infra/docker-compose.dev.yml`.
 
 ## How It Works
 

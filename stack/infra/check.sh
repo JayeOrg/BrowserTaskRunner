@@ -21,6 +21,7 @@ Options:
   --no-vnc          Disable VNC server
   --no-build        Skip Docker build step
   --rebuild         Force fresh build (no cache)
+  --host-dist       Mount local ./dist into container (fast iterations)
   --persist-profile Persist Chrome profile across runs (keeps login sessions)
   --help, -h        Show this help message
 
@@ -44,6 +45,7 @@ DETACH=""
 NO_VNC=""
 NO_BUILD=""
 REBUILD=""
+HOST_DIST=""
 PERSIST_PROFILE=""
 
 for arg in "$@"; do
@@ -63,6 +65,9 @@ for arg in "$@"; do
             ;;
         --rebuild)
             REBUILD="true"
+            ;;
+        --host-dist)
+            HOST_DIST="true"
             ;;
         --persist-profile)
             PERSIST_PROFILE="true"
@@ -126,6 +131,11 @@ if [ "$PERSIST_PROFILE" = "true" ]; then
     export PERSIST_CHROME_PROFILE=true
 fi
 
+if [ "$HOST_DIST" = "true" ]; then
+    echo "Using host dist mount: building locally before run..."
+    npm run build
+fi
+
 # Force fresh build if requested
 if [ "$REBUILD" = "true" ]; then
     echo "Forcing fresh build (no cache)..."
@@ -133,7 +143,13 @@ if [ "$REBUILD" = "true" ]; then
 fi
 
 # Build compose command as an array for safe word splitting
-COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE" --env-file .env up)
+COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
+
+if [ "$HOST_DIST" = "true" ]; then
+    COMPOSE_CMD+=(-f stack/infra/docker-compose.dev.yml)
+fi
+
+COMPOSE_CMD+=(--env-file .env up)
 
 if [ -z "$NO_BUILD" ] && [ -z "$REBUILD" ]; then
     COMPOSE_CMD+=(--build)
