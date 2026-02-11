@@ -78,6 +78,21 @@ async function cdpClickSelector(
   return { found: true, selector: rect.selector };
 }
 
+/** Try navigating to the menu page directly. Returns true if already logged in. */
+async function checkAlreadyLoggedIn(browser: BrowserAPI, logger: TaskLogger): Promise<boolean> {
+  await browser.navigate("https://www.nandos.com.au/menu");
+  await sleep(TIMINGS.afterNav);
+  const { url } = await browser.getUrl();
+
+  if (url.includes("/menu")) {
+    logger.success("checkSession", "Already logged in — skipping login flow", { url });
+    return true;
+  }
+
+  logger.log("checkSession", "Not logged in, proceeding with login flow", { url });
+  return false;
+}
+
 async function navigate(browser: BrowserAPI, logger: TaskLogger): Promise<void> {
   await browser.navigate(TASK.url);
   await sleep(TIMINGS.afterNav);
@@ -697,6 +712,7 @@ async function run(
 ): Promise<TaskResultSuccess> {
   const { email, password } = contextSchema.parse(context);
   let finalUrl = "";
+  let alreadyLoggedIn = false;
 
   const runner = new StepRunner({
     sendStepUpdate: (update) => {
@@ -709,11 +725,24 @@ async function run(
   });
 
   runner
-    .step("navigate", () => navigate(browser, logger))
-    .step("fillLogin", () => findAndFillLogin(browser, logger, email, password))
-    .step("signIn", () => clickSignIn(browser, logger))
-    .step("handleMfa", () => handleMfa(browser, logger))
-    .step("verifyLogin", () => verifyLoginAndNavigateToMenu(browser, logger))
+    .step("checkSession", async () => {
+      alreadyLoggedIn = await checkAlreadyLoggedIn(browser, logger);
+    })
+    .step("navigate", async () => {
+      if (!alreadyLoggedIn) await navigate(browser, logger);
+    })
+    .step("fillLogin", async () => {
+      if (!alreadyLoggedIn) await findAndFillLogin(browser, logger, email, password);
+    })
+    .step("signIn", async () => {
+      if (!alreadyLoggedIn) await clickSignIn(browser, logger);
+    })
+    .step("handleMfa", async () => {
+      if (!alreadyLoggedIn) await handleMfa(browser, logger);
+    })
+    .step("verifyLogin", async () => {
+      if (!alreadyLoggedIn) await verifyLoginAndNavigateToMenu(browser, logger);
+    })
     .step("deliveryModal", () => handleDeliveryModal(browser, logger))
     .step("navigateToCategory", () => navigateToCategory(browser, logger));
 

@@ -21,6 +21,7 @@ Options:
   --no-vnc          Disable VNC server
   --no-build        Skip Docker build step
   --rebuild         Force fresh build (no cache)
+  --persist-profile Persist Chrome profile across runs (keeps login sessions)
   --help, -h        Show this help message
 
 Shortcuts:
@@ -29,10 +30,11 @@ Shortcuts:
   npm run stop      Stop container
 
 Examples:
-  npm run check botcLogin           Run botcLogin task
-  npm run check botcLogin --detach  Run in background
-  npm run check botcLogin --no-vnc  Run without VNC
-  npm run check botcLogin --rebuild Force fresh Docker build
+  npm run check botcLogin                    Run botcLogin task
+  npm run check botcLogin --detach           Run in background
+  npm run check botcLogin --no-vnc           Run without VNC
+  npm run check botcLogin --rebuild          Force fresh Docker build
+  npm run check nandosOrder --persist-profile Keep login session across runs
 EOF
 }
 
@@ -42,6 +44,7 @@ DETACH=""
 NO_VNC=""
 NO_BUILD=""
 REBUILD=""
+PERSIST_PROFILE=""
 
 for arg in "$@"; do
     case $arg in
@@ -60,6 +63,9 @@ for arg in "$@"; do
             ;;
         --rebuild)
             REBUILD="true"
+            ;;
+        --persist-profile)
+            PERSIST_PROFILE="true"
             ;;
         -*)
             echo "Unknown option: $arg"
@@ -114,6 +120,10 @@ export HOST_GID=$(id -g)
 
 if [ "$NO_VNC" = "true" ]; then
     export ENABLE_VNC=false
+fi
+
+if [ "$PERSIST_PROFILE" = "true" ]; then
+    export PERSIST_CHROME_PROFILE=true
 fi
 
 # Force fresh build if requested

@@ -80,8 +80,13 @@ wait_for_display() {
 mkdir -p "$LOG_DIR"
 
 resetChromeProfile() {
-    rm -rf /tmp/chrome-profile 2>/dev/null || true
-    mkdir -p /tmp/chrome-profile
+    if [ "${PERSIST_CHROME_PROFILE:-}" = "true" ]; then
+        log "Chrome profile persistence enabled — preserving existing profile"
+        mkdir -p /tmp/chrome-profile
+    else
+        rm -rf /tmp/chrome-profile 2>/dev/null || true
+        mkdir -p /tmp/chrome-profile
+    fi
 }
 
 cleanupStaleProcessesAndFiles() {
@@ -162,9 +167,11 @@ if [ "${ENABLE_VNC:-}" = "true" ]; then
 fi
 
 # Set Chrome preferences (disable password save prompt, etc.)
+# Only write defaults if no existing preferences (preserves persisted profile state)
 CHROME_PREFS_DIR="/tmp/chrome-profile/Default"
 mkdir -p "$CHROME_PREFS_DIR"
-cat > "$CHROME_PREFS_DIR/Preferences" <<'PREFS'
+if [ ! -f "$CHROME_PREFS_DIR/Preferences" ]; then
+    cat > "$CHROME_PREFS_DIR/Preferences" <<'PREFS'
 {
   "credentials_enable_service": false,
   "profile": {
@@ -172,6 +179,7 @@ cat > "$CHROME_PREFS_DIR/Preferences" <<'PREFS'
   }
 }
 PREFS
+fi
 
 # Start Chromium
 # Note: --no-sandbox is required when running as root in Docker.

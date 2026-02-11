@@ -38,7 +38,15 @@ npm run vault -- detail set nandos password
 ## Run
 
 ```bash
-npm run check nandosOrder
+npm run check nandosOrder --persist-profile
+```
+
+The `--persist-profile` flag keeps Chrome's login session across Docker runs, so you only need to complete MFA once. Subsequent runs detect the existing session and skip straight to the menu.
+
+To clear the persisted profile:
+
+```bash
+docker volume rm sitecheck_chrome-profile
 ```
 
 ## Task Config

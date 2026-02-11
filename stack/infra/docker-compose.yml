@@ -13,6 +13,7 @@ services:
             - TASK_NAME
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
+            - PERSIST_CHROME_PROFILE=${PERSIST_CHROME_PROFILE:-false}
             - DOCKER=true
             # Configurable display/port settings (match run.sh defaults)
             - DISPLAY_NUM=${DISPLAY_NUM:-99}
@@ -23,4 +24,8 @@ services:
         volumes:
             - ../../logs:/app/logs
             - ../../vault.db:/app/vault.db
+            - chrome-profile:/tmp/chrome-profile
         restart: "no"
+
+volumes:
+    chrome-profile:
