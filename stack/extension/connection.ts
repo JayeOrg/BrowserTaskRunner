@@ -8,6 +8,7 @@ const BASE_RECONNECT_DELAY_MS = 1000;
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let cachedStepUpdate: unknown = null;
 
 function getReconnectDelay(): number {
   const delay = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY_MS);
@@ -52,6 +53,14 @@ export function connect(): void {
         throw new Error("Expected string message data");
       }
       const parsed: unknown = JSON.parse(event.data);
+
+      // Step updates from Node.js — forward to content script overlay
+      if (isStepUpdateMessage(parsed)) {
+        cachedStepUpdate = parsed;
+        void forwardStepUpdateToContentScript(parsed);
+        return;
+      }
+
       // Extract message ID before validation for error correlation
       if (
         typeof parsed === "object" &&
@@ -83,4 +92,32 @@ export function connect(): void {
   ws.onerror = () => {
     log("WebSocket error");
   };
+}
+
+function isStepUpdateMessage(value: unknown): value is { type: "stepUpdate" } {
+  return (
+    typeof value === "object" && value !== null && "type" in value && value.type === "stepUpdate"
+  );
+}
+
+async function forwardStepUpdateToContentScript(update: unknown): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (tab && tab.id !== undefined) {
+      await chrome.tabs.sendMessage(tab.id, update);
+    }
+  } catch {
+    // Content script not injected yet or tab closed — ignore
+  }
+}
+
+export function sendControlToServer(action: string): void {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stepControl", action }));
+  }
+}
+
+export function getCachedStepUpdate(): unknown {
+  return cachedStepUpdate;
 }

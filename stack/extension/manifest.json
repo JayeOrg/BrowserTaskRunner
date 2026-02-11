@@ -14,5 +14,12 @@
   ],
   "background": {
     "service_worker": "service-worker.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["overlay.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }

@@ -6,6 +6,7 @@ import type {
   TaskResultSuccess,
 } from "../../../framework/tasks.js";
 import type { TaskLogger } from "../../../framework/logging.js";
+import { StepRunner } from "../../../framework/step-runner.js";
 import { waitForFirst } from "../../utils/selectors.js";
 import { sleep } from "../../utils/timing.js";
 
@@ -695,43 +696,43 @@ async function run(
   logger: TaskLogger,
 ): Promise<TaskResultSuccess> {
   const { email, password } = contextSchema.parse(context);
+  let finalUrl = "";
 
-  // Step 1: Navigate and login
-  await navigate(browser, logger);
-  await findAndFillLogin(browser, logger, email, password);
-  await clickSignIn(browser, logger);
+  const runner = new StepRunner({
+    sendStepUpdate: (update) => {
+      browser.sendStepUpdate(update);
+    },
+    onControl: (handler) => {
+      browser.onControl(handler);
+    },
+    pauseOnError: true,
+  });
 
-  // Step 2: Handle MFA (manual)
-  await handleMfa(browser, logger);
+  runner
+    .step("navigate", () => navigate(browser, logger))
+    .step("fillLogin", () => findAndFillLogin(browser, logger, email, password))
+    .step("signIn", () => clickSignIn(browser, logger))
+    .step("handleMfa", () => handleMfa(browser, logger))
+    .step("verifyLogin", () => verifyLoginAndNavigateToMenu(browser, logger))
+    .step("deliveryModal", () => handleDeliveryModal(browser, logger))
+    .step("navigateToCategory", () => navigateToCategory(browser, logger));
 
-  // Step 3: Verify login and navigate to menu
-  await verifyLoginAndNavigateToMenu(browser, logger);
-
-  // Step 4: Handle delivery modal
-  await handleDeliveryModal(browser, logger);
-
-  // Step 5: Navigate to Burgers, Wraps & Pitas
-  await navigateToCategory(browser, logger);
-
-  // Step 6: Add each menu item
   for (const item of MENU_ITEMS) {
-    await addMenuItem(browser, logger, item);
+    runner.step(`addItem:${item.name}`, () => addMenuItem(browser, logger, item));
   }
 
-  // Step 7: Verify cart count and open cart
-  await verifyCartAndOpen(browser, logger);
+  runner
+    .step("verifyCart", () => verifyCartAndOpen(browser, logger))
+    .step("checkout", () => dismissSuggestionsAndCheckout(browser, logger))
+    .step("payment", async () => {
+      finalUrl = await selectPaymentAndConfirm(browser, logger);
+    });
 
-  // Step 8: Dismiss suggestions, verify order, checkout
-  // NOTE: Outside Nando's business hours, the task will get stuck here
-  // Because the menu/ordering system is unavailable
-  await dismissSuggestionsAndCheckout(browser, logger);
-
-  // Step 9: Payment
-  const finalUrl = await selectPaymentAndConfirm(browser, logger);
+  await runner.execute();
 
   return {
     ok: true,
-    step: "selectPayment",
+    step: "payment",
     finalUrl,
     context: { task: TASK.name },
   };

@@ -55,6 +55,43 @@ Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
 **`chrome.scripting.executeScript` args gotcha**: Chrome cannot serialize `undefined` in the `args` array — it throws `"Value is unserializable"` at runtime. When a Zod schema has optional fields (e.g. `selector: z.string().optional()`), the parsed value is `undefined` when omitted. Always coalesce to a concrete value before passing: `args: [input.selector ?? null, input.html ?? false]`.
 
+### Task Execution: StepRunner
+
+All tasks must use `StepRunner` to register named steps. This enables the debug overlay (pause/rewind/play controls via `Ctrl+Shift+.` in the browser).
+
+```typescript
+import { StepRunner } from "../../../framework/step-runner.js";
+
+async function run(browser, context, logger): Promise<TaskResultSuccess> {
+  let finalUrl = "";
+
+  const runner = new StepRunner({
+    sendStepUpdate: (update) => { browser.sendStepUpdate(update); },
+    onControl: (handler) => { browser.onControl(handler); },
+    pauseOnError: true,
+  });
+
+  runner
+    .step("navigate", () => navigate(browser, logger))
+    .step("fillLogin", () => fillLogin(browser, logger, email, password))
+    .step("submit", () => submit(browser, logger))
+    .step("verify", async () => {
+      finalUrl = await verify(browser, logger);
+    });
+
+  await runner.execute();
+
+  return { ok: true, step: "verify", finalUrl };
+}
+```
+
+**Rules:**
+- Each `.step(name, fn)` is a named logical step (not every browser command — group related commands)
+- Steps that return values used later: capture into a closure variable (`let emailSelector = ""`), assign inside the step fn
+- Step names should match the existing helper function names
+- The runner chains with `.step()` returning `this` — use a single chain, break with `for` loops for dynamic steps
+- Always set `pauseOnError: true` — it only activates when `STEP_DEBUG=1` is set in the environment, so it's safe in CI/tests. When active, failed steps pause instead of throwing, letting you inspect via VNC and rewind/retry from the overlay
+
 ### Task Design Principle
 
 **Poll for readiness, then act once.** Don't repeatedly click/interact and check if it worked. Instead: poll until the element or condition is present, then perform the action a single time. This keeps steps predictable and logs clean.

@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
+import type { StepUpdate } from "../framework/step-runner.js";
 
 export interface BrowserOptions {
   commandTimeoutMs?: number;
@@ -22,6 +23,8 @@ export interface BrowserAPI {
     options?: { tag?: string; exact?: boolean; cdp?: boolean },
   ): Promise<ResponseFor<"clickText">>;
   ping(): Promise<ResponseFor<"ping">>;
+  sendStepUpdate(update: StepUpdate): void;
+  onControl(handler: (action: string) => void): void;
 }
 
 /*
@@ -34,6 +37,17 @@ export interface BrowserAPI {
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
+  );
+}
+
+function isStepControlMessage(value: unknown): value is { type: "stepControl"; action: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "stepControl" &&
+    "action" in value &&
+    typeof value.action === "string"
   );
 }
 
@@ -52,6 +66,7 @@ export class Browser implements BrowserAPI {
   private server: WebSocketServer | null = null;
   private pendingCommands: Map<number, PendingCommand> = new Map();
   private commandId = 0;
+  private controlHandler: ((action: string) => void) | null = null;
 
   constructor(port: number, options: BrowserOptions = {}) {
     this.port = port;
@@ -96,34 +111,38 @@ export class Browser implements BrowserAPI {
           this.rejectAllPending(new Error("Extension disconnected"));
         });
         ws.on("message", (data: Buffer) => {
-          const message = this.parseMessage(data);
-          if (!message) return;
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(data.toString());
+          } catch (error) {
+            this.logger.log("Error parsing message", { error: String(error) });
+            return;
+          }
 
-          if (message.type === "ready") {
+          // Step control messages (fire-and-forget from extension overlay)
+          if (isStepControlMessage(parsed)) {
+            if (this.controlHandler) {
+              this.controlHandler(parsed.action);
+            }
+            return;
+          }
+
+          if (!isResponseMessage(parsed)) {
+            this.logger.log("Invalid message format");
+            return;
+          }
+
+          if (parsed.type === "ready") {
             clearTimeout(timeout);
             this.server?.removeListener("error", onServerError);
             resolve();
             return;
           }
 
-          this.handleResponse(message);
+          this.handleResponse(parsed);
         });
       });
     });
-  }
-
-  private parseMessage(data: Buffer): ResponseMessage | null {
-    try {
-      const parsed: unknown = JSON.parse(data.toString());
-      if (!isResponseMessage(parsed)) {
-        this.logger.log("Invalid message format");
-        return null;
-      }
-      return parsed;
-    } catch (error) {
-      this.logger.log("Error parsing message", { error: String(error) });
-      return null;
-    }
   }
 
   private handleResponse(message: ResponseMessage): void {
@@ -219,6 +238,15 @@ export class Browser implements BrowserAPI {
   }
   ping() {
     return this.send({ type: "ping" });
+  }
+
+  sendStepUpdate(update: StepUpdate): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
+  }
+
+  onControl(handler: (action: string) => void): void {
+    this.controlHandler = handler;
   }
 
   private rejectAllPending(error: Error): void {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { BrowserAPI } from "../../../browser/browser.js";
 import type { RetryingTask, TaskContext, TaskResultSuccess } from "../../../framework/tasks.js";
 import type { TaskLogger } from "../../../framework/logging.js";
+import { StepRunner } from "../../../framework/step-runner.js";
 import { clickFirst, fillFirst, waitForFirst } from "../../utils/selectors.js";
 import { sleep } from "../../utils/timing.js";
 import { clickTurnstile } from "../../utils/turnstile.js";
@@ -121,14 +122,33 @@ async function run(
   logger: TaskLogger,
 ): Promise<TaskResultSuccess> {
   const { email, password } = contextSchema.parse(context);
+  let emailSelector = "";
+  let finalUrl = "";
 
-  await navigate(browser, logger);
-  const emailSelector = await findForm(browser, logger);
-  await fillCreds(browser, logger, emailSelector, email, password);
-  await turnstile(browser, logger, "pre");
-  await submit(browser, logger);
-  await turnstile(browser, logger, "post");
-  const finalUrl = await checkResult(browser, logger);
+  const runner = new StepRunner({
+    sendStepUpdate: (update) => {
+      browser.sendStepUpdate(update);
+    },
+    onControl: (handler) => {
+      browser.onControl(handler);
+    },
+    pauseOnError: true,
+  });
+
+  runner
+    .step("navigate", () => navigate(browser, logger))
+    .step("findForm", async () => {
+      emailSelector = await findForm(browser, logger);
+    })
+    .step("fillCreds", () => fillCreds(browser, logger, emailSelector, email, password))
+    .step("turnstilePre", () => turnstile(browser, logger, "pre"))
+    .step("submit", () => submit(browser, logger))
+    .step("turnstilePost", () => turnstile(browser, logger, "post"))
+    .step("checkResult", async () => {
+      finalUrl = await checkResult(browser, logger);
+    });
+
+  await runner.execute();
 
   return {
     ok: true,
