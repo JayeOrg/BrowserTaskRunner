@@ -1,0 +1,86 @@
+<!--
+  Item modal with protein and heat SELECTED.
+  Shows how the DOM changes when options are chosen.
+
+  Key differences from unselected state:
+
+  PROTEIN (Chicken Leg Fillets selected):
+  - button: aria-checked="true", data-state="checked", tabindex="0"
+  - Inner checkbox: aria-checked="true", data-state="checked"
+  - Checkmark SVG appears inside the checkbox span
+
+  HEAT (Hot selected):
+  - The flame icon div changes classes:
+    Unselected: class="sc-5948d5e2-1 sc-5948d5e2-2 grLdsw kBCdca"
+    Selected:   class="sc-5948d5e2-1 sc-5948d5e2-2 csXtBK iDDJIf"
+  - A description paragraph appears below with opacity transition:
+    <div style="height: auto; opacity: 1;">
+      <p>Highly combustible - proceed with caution</p>
+    </div>
+  - Note: heat items are NOT buttons or radio inputs — they're styled divs.
+    No aria-checked attribute changes. Selection is indicated purely by
+    CSS class changes and the description appearing.
+
+  This is important for automation:
+  - clickText with exact matching works for heat selection
+  - There's no data-state or aria-checked to verify heat selection
+  - Must rely on the description text appearing to confirm heat was selected
+-->
+
+<!-- Protein section showing Chicken Leg Fillets SELECTED -->
+<div id="First, choose your protein">
+  <h3>First, choose your protein</h3>
+  <div role="radiogroup">
+    <!-- SELECTED: Chicken Leg Fillets -->
+    <button type="button" role="radio" aria-checked="true" data-state="checked"
+            value="PICK_UP-274-1001769-first-choose-your-protein-1001643"
+            tabindex="0">
+      <span>Chicken Leg Fillets<div><p>new</p></div></span>
+      <!-- Checkmark appears when selected -->
+      <button type="button" role="checkbox" aria-checked="true" data-state="checked">
+        <span data-state="checked" style="pointer-events: none;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 24C5.373 24 0 18.627...checkmark path..."></path>
+          </svg>
+        </span>
+      </button>
+    </button>
+
+    <!-- UNSELECTED: PERi-PERi Tenders -->
+    <button type="button" role="radio" aria-checked="false" data-state="unchecked"
+            tabindex="-1">
+      <span>PERi-PERi Tenders</span>
+    </button>
+    <!-- etc. -->
+  </div>
+</div>
+
+<!-- Heat section showing Hot SELECTED -->
+<div id="Then, pick your heat">
+  <h3>Then, pick your heat</h3>
+  <div data-testid="input-list">
+    <!-- UNSELECTED: Extra Hot -->
+    <div class="sc-5948d5e2-0">
+      <div class="sc-5948d5e2-1 sc-5948d5e2-2 grLdsw kBCdca"></div>
+      <p color="#46230F">Extra Hot</p>
+    </div>
+
+    <!-- SELECTED: Hot -->
+    <div class="sc-5948d5e2-0">
+      <!-- Note: flame icon classes change when selected -->
+      <div class="sc-5948d5e2-1 sc-5948d5e2-2 csXtBK iDDJIf"></div>
+      <p color="#CE0A24">Hot</p>
+      <!-- Description appears when selected (opacity transition) -->
+      <div style="height: auto; opacity: 1;">
+        <p>Highly combustible - proceed with caution</p>
+      </div>
+    </div>
+
+    <!-- UNSELECTED: Mild -->
+    <div class="sc-5948d5e2-0">
+      <div class="sc-5948d5e2-1 sc-5948d5e2-2 grLdsw kBCdca"></div>
+      <p color="#FAA500">Mild</p>
+    </div>
+    <!-- etc. -->
+  </div>
+</div>

@@ -101,3 +101,32 @@ Pick a sensible default that matches the response shape.
 ## Why convenience methods exist
 
 Callers could use `browser.send({ type: "screenshot" })` directly — `send()` infers the return type via the `CommandMessage` discriminated union. We keep the convenience methods because the tasks layer calls them far more often than new commands are added. The one-time cost on the command author relieves every call site.
+
+## Gotchas
+
+### DOM access inside injected functions
+
+The `func` callback in `chrome.scripting.executeScript` runs in the page context, but TypeScript/ESLint type-checks it in the extension build context. Two patterns work cleanly:
+
+- **`document.querySelector` in a loop** (see `querySelectorRect.ts`) — returns `Element | null`, narrow with `if (element)`, then `.getBoundingClientRect()` is properly typed.
+- **XPath via `document.evaluate`** (see `click-text.ts`) — returns `XPathResult`, narrow with `node instanceof Element`.
+
+**Avoid** iterating `document.querySelectorAll` with `for...of` — the `NodeListOf` iterator yields `any` in this context, triggering `@typescript-eslint/no-unsafe-member-access` on every property access.
+
+### Returning structured results from injected scripts
+
+Use `isScriptFound` / `isScriptError` from `../../script-results.ts` to validate the `results[0]?.result` from `executeScript`. The `ScriptFoundSchema` expects `{ found, selector?, rect?, timedOut? }`. If you need to pass custom data back (like matched text), put it in the `selector` field — don't invent new fields, or `isScriptFound` won't validate them.
+
+Serialize `DOMRect` manually (extract `left`, `top`, `width`, `height` into a plain object) — `DOMRect` doesn't survive the Chrome serialization boundary as-is.
+
+### `undefined` is not serializable in executeScript args
+
+Chrome's `executeScript` serializes `args` values via structured clone. `undefined` is **not serializable** and throws `"Value is unserializable"` at runtime. When passing optional schema fields (e.g., `input.tag` from a `z.string().optional()`), always coalesce to `null`: `args: [input.texts, input.tag ?? null]`. Use `string | null` (not `string | undefined`) for the corresponding function parameter type.
+
+### Floating promises on executeScript
+
+`chrome.scripting.executeScript` returns a `Promise`. Even for fire-and-forget helpers, you must `await` it or ESLint flags `@typescript-eslint/no-floating-promises`. Make helper functions `async` and `await` the call.
+
+### CDP click helpers are duplicated, not shared
+
+`syntheticClickAt` and `cdpClickAt` appear in both `cdp-click.ts` and `click-text.ts`. The extension is bundled with esbuild into a single file, so the duplication is harmless and keeps each command self-contained. Don't extract a shared module unless a third command needs it.

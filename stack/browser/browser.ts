@@ -15,8 +15,12 @@ export interface BrowserAPI {
   click(selector: string): Promise<ResponseFor<"click">>;
   cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
   waitForSelector(selector: string, timeout?: number): Promise<ResponseFor<"waitForSelector">>;
-  getContent(selector?: string): Promise<ResponseFor<"getContent">>;
+  getContent(selector?: string, options?: { html?: boolean }): Promise<ResponseFor<"getContent">>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
+  clickText(
+    texts: string[],
+    options?: { tag?: string; exact?: boolean; cdp?: boolean },
+  ): Promise<ResponseFor<"clickText">>;
   ping(): Promise<ResponseFor<"ping">>;
 }
 
@@ -204,11 +208,14 @@ export class Browser implements BrowserAPI {
   waitForSelector(selector: string, timeout = 10000) {
     return this.send({ type: "waitForSelector", selector, timeout });
   }
-  getContent(selector?: string) {
-    return this.send(selector ? { type: "getContent", selector } : { type: "getContent" });
+  getContent(selector?: string, options: { html?: boolean } = {}) {
+    return this.send({ type: "getContent", ...(selector ? { selector } : {}), ...options });
   }
   querySelectorRect(selectors: string[]) {
     return this.send({ type: "querySelectorRect", selectors });
+  }
+  clickText(texts: string[], options: { tag?: string; exact?: boolean; cdp?: boolean } = {}) {
+    return this.send({ type: "clickText", texts, ...options });
   }
   ping() {
     return this.send({ type: "ping" });

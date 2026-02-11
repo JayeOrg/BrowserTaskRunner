@@ -45,6 +45,12 @@ import {
   type QuerySelectorRectCommand,
   type QuerySelectorRectResponse,
 } from "./commands/query-selector-rect.js";
+import {
+  clickTextSchema,
+  handleClickText,
+  type ClickTextCommand,
+  type ClickTextResponse,
+} from "./commands/click-text.js";
 import { pingSchema, handlePing, type PingCommand, type PingResponse } from "./commands/ping.js";
 
 export { isIncomingCommand } from "./commands/base.js";
@@ -59,6 +65,7 @@ export type CommandMessage =
   | WaitForSelectorCommand
   | GetContentCommand
   | QuerySelectorRectCommand
+  | ClickTextCommand
   | PingCommand;
 
 type ResponseMessage =
@@ -72,6 +79,7 @@ type ResponseMessage =
   | WaitForSelectorResponse
   | GetContentResponse
   | QuerySelectorRectResponse
+  | ClickTextResponse
   | PingResponse;
 
 export type { ResponseMessage };
@@ -121,6 +129,7 @@ const commandHandlers = {
   waitForSelector: createHandler(waitForSelectorSchema, handleWaitForSelector),
   getContent: createHandler(getContentSchema, handleGetContent),
   querySelectorRect: createHandler(querySelectorRectSchema, handleQuerySelectorRect),
+  clickText: createHandler(clickTextSchema, handleClickText),
   ping: createHandler(pingSchema, handlePing),
 } satisfies Record<CommandMessage["type"], CommandHandler>;
 

@@ -103,11 +103,11 @@ npm run vault -- detail set my-project email        # prompts for value
 npm run vault -- detail set my-project password     # prompts for value
 npm run vault -- logout
 
-# Add project token to .env (from project create output)
-echo "VAULT_TOKEN=<token>" >> .env
+# Add project token to .env (use per-project naming)
+# VAULT_TOKEN_MY_PROJECT=<token from project create>
 
 # Run a task
-npm run dev -- myTask
+npm run check myTask
 ```
 
 ## Security Properties

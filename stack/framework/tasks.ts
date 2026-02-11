@@ -17,6 +17,7 @@ export interface SingleAttemptTask {
   project: string;
   needs: Record<string, string>;
   mode: "once";
+  keepBrowserOpen?: boolean;
   contextSchema?: ZodType;
   run: (
     browser: BrowserAPI,

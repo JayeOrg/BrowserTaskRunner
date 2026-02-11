@@ -53,6 +53,29 @@ Keep extension commands **minimal and generic** while maintaining **developer ex
 Good extension commands: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`
 Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
+**`chrome.scripting.executeScript` args gotcha**: Chrome cannot serialize `undefined` in the `args` array — it throws `"Value is unserializable"` at runtime. When a Zod schema has optional fields (e.g. `selector: z.string().optional()`), the parsed value is `undefined` when omitted. Always coalesce to a concrete value before passing: `args: [input.selector ?? null, input.html ?? false]`.
+
+### Task Design Principle
+
+**Poll for readiness, then act once.** Don't repeatedly click/interact and check if it worked. Instead: poll until the element or condition is present, then perform the action a single time. This keeps steps predictable and logs clean.
+
+```typescript
+// Good: poll then click once
+while (Date.now() < deadline) {
+  const content = await browser.getContent("body");
+  if (content.content.includes("Target text")) break;
+  await sleep(TIMINGS.afterModalAction);
+}
+await browser.clickText(["Target text"], { tag: "button", cdp: true });
+
+// Bad: click repeatedly until it works
+while (Date.now() < deadline) {
+  const result = await browser.clickText(["Target text"], { tag: "button", cdp: true });
+  if (result.found) break;
+  await sleep(TIMINGS.afterModalAction);
+}
+```
+
 Use `/add-extension-command` to add a new extension command.
 Use `/update-browser-api` to modify an existing extension command.
 Use `/add-task` to add a new task.
@@ -68,6 +91,19 @@ Use `/add-browser-instruction` to modify browser setup instructions.
 Use `/create-project` for end-to-end project setup.
 Use `/add-task-util` to add a shared task utility.
 Use `/debug-task` to debug a failing task.
+
+### Shared Task Utilities (`stack/projects/utils/`)
+
+- **`dump.ts`** — Drop-in HTML dumper for debugging. Saves the current page HTML to `/tmp` with a timestamped filename. Usage:
+  ```ts
+  import { dumpHtml } from "../../utils/dump.js";
+  await dumpHtml(browser, logger, "after-login");
+  ```
+- **`turnstile.ts`** — Cloudflare Turnstile handling.
+- **`selectors.ts`** — Shared selector helpers.
+- **`timing.ts`** — Timing/delay helpers.
+
+After using any skill, review the conversation history for confusions, mistakes, or non-obvious learnings encountered during implementation. Update the relevant skill's `SKILL.md` with those findings so future uses benefit.
 
 ## CI
 

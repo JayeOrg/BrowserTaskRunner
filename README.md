@@ -27,16 +27,16 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
     npm run vault -- detail set monitor-botc password hunter2
     ```
 
-    The CLI prompts for the vault password interactively. Save the token from `project create` to `.env`:
+    The CLI prompts for the vault password interactively. Save the token to `.env` using the per-project naming convention:
 
-    ```bash
-    echo "VAULT_TOKEN=<token>" >> .env
+    ```env
+    VAULT_TOKEN_MONITOR_BOTC=<token from project create>
     ```
 
 3. Run a task:
 
     ```bash
-    npm run dev -- botcLogin
+    npm run check botcLogin
     ```
 
 ## Available Tasks
@@ -64,18 +64,7 @@ ENABLE_VNC=true npm run check botcLogin
 
 [Full documentation](./stack/infra/README.md)
 
-### Local Development
-
-Runs the Node.js server locally - requires manually loading the extension in Chrome.
-
-```bash
-npm run build
-npm run dev <taskName>
-```
-
-Then load `dist/extension/` as an unpacked extension in Chrome.
-
-[Full documentation](./stack/extension/README.md)
+[Extension documentation](./stack/extension/README.md)
 
 ## Adding New Tasks
 
@@ -113,8 +102,8 @@ Then load `dist/extension/` as an unpacked extension in Chrome.
     npm run vault -- project create monitor-yoursite
     npm run vault -- detail set monitor-yoursite email user@example.com
     npm run vault -- detail set monitor-yoursite password hunter2
-    # Save the token from project create to .env
-    npm run dev -- yourSite
+    # Add token to .env: VAULT_TOKEN_MONITOR_YOURSITE=<token>
+    npm run check yourSite
     ```
 
 ## Project Structure

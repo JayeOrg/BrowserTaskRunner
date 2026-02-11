@@ -93,8 +93,7 @@ TypeScript enforces every entry is a valid `TaskConfig`. If you forget this step
 ## Running
 
 ```bash
-npm run check acmeLogin          # Docker
-npm run dev -- acmeLogin          # Local (after npm run build)
+npm run check acmeLogin
 ```
 
 Context is loaded from the vault using the task's `project` and `needs` fields. See `stack/vault/README.md`.

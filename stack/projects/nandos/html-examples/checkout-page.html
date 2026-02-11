@@ -1,0 +1,244 @@
+<!--
+  Checkout page at /checkout
+  URL: https://www.nandos.com.au/checkout
+
+  Key selectors and elements:
+
+  DELIVERY DETAILS:
+  - Address section with Google Maps embed
+  - Delivery address: "15/7 Ninth Avenue, Maylands, Western Australia 6051"
+  - Delivery instructions textarea
+  - "Leave at door" checkbox
+
+  ORDER SUMMARY:
+  - Each item shows: quantity, name, protein, style/heat, kJ, price
+  - Items in this example:
+    1. PERi-Chip Wrap — Chicken Leg Fillets, Hot — $16.20 (3,730kJ)
+    2. Smoky Churrasco Burger — Chicken Leg Fillets, Garlic Bread, Hot — $17.95 (3,110kJ)
+    3. The Halloumi — Chicken Leg Fillets, Wrap, Hot — $19.80 (3,170kJ)
+
+  TOTALS:
+  - Subtotal: $53.95
+  - Delivery: $5.00
+  - Total: $58.95
+
+  TIP SECTION:
+  - Pre-set amounts: $2, $5, $10, Other
+  - Each is a button with role="radio"
+  - Custom tip input appears when "Other" is selected
+
+  PAYMENT ("Pay with" section):
+  - Each payment option is a custom <button> with styled radio circle, SVG icon, and <p> label
+  - Credit/Debit card: [data-testid="card"] SVG, <p>Credit/Debit card</p>
+  - Google Pay: [data-testid="googleLogo"] SVG, <p>Google Pay</p>
+  - Clicking Credit/Debit card expands to show:
+    - Saved card: [data-testid="saved-card"] with Visa logo and "ending in 3375"
+    - Adyen checkout form (card number/expiry/CVC in iframes, name on card as regular input)
+    - "Add a new card" button
+  - "Place Order" button at bottom: <button type="button"> with text "Place Order"
+
+  IMPORTANT NOTES:
+  - The page title is "Checkout" (verifiable via getUrl)
+  - URL contains "/checkout" (used for navigation check)
+  - reCAPTCHA v3 is loaded (invisible, shouldn't block automation)
+  - Profile dropdown menu is expanded in this capture (showing Profile, Orders, etc.)
+  - Promo code: <button> with text "Add promo code"
+-->
+<html lang="en">
+<head>
+  <title>Checkout</title>
+</head>
+<body>
+  <div id="__next">
+    <!-- Header (same as menu page) -->
+    <div data-testid="desktop-header">
+      <a href="/"><img alt="Nando's logo"></a>
+      <!-- Nav links: Menu, Catering, Restaurants, PERi Products, Careers, PERi-PERKS -->
+      <a href="/menu"><span>Order Food</span></a>
+      <div data-testid="header-profile">
+        <button title="Open profile menu">
+          <p>Jaye</p>
+          <p>215 points</p>
+        </button>
+        <!-- Profile dropdown with links to Profile, Offers, Orders, etc. -->
+      </div>
+    </div>
+
+    <main>
+      <!-- Checkout content -->
+      <div>
+        <h1>Checkout</h1>
+
+        <!-- Delivery details -->
+        <div>
+          <h2>Delivery details</h2>
+          <!-- Google Maps embed showing delivery location -->
+          <div class="gm-style"><!-- Google Maps --></div>
+          <p>15/7 Ninth Avenue, Maylands, Western Australia 6051</p>
+
+          <!-- Delivery instructions -->
+          <div>
+            <label>Delivery instructions</label>
+            <textarea placeholder="e.g. Ring the bell, leave at the door, etc."></textarea>
+          </div>
+
+          <!-- Leave at door -->
+          <button type="button" role="checkbox" aria-checked="false">
+            <span>Leave at door</span>
+          </button>
+        </div>
+
+        <!-- Order summary -->
+        <div>
+          <h2>Your order</h2>
+
+          <!-- Item 1 -->
+          <div>
+            <p>1</p>
+            <p font-weight="bold">PERi-Chip Wrap</p>
+            <p>Chicken Leg Fillets</p>
+            <p>Hot</p>
+            <p>3,730kJ</p>
+            <p>$16.20</p>
+          </div>
+
+          <!-- Item 2 -->
+          <div>
+            <p>1</p>
+            <p font-weight="bold">Smoky Churrasco Burger</p>
+            <p>Chicken Leg Fillets</p>
+            <p>Garlic Bread</p>
+            <p>Hot</p>
+            <p>3,110kJ</p>
+            <p>$17.95</p>
+          </div>
+
+          <!-- Item 3 -->
+          <div>
+            <p>1</p>
+            <p font-weight="bold">The Halloumi</p>
+            <p>Chicken Leg Fillets</p>
+            <p>Wrap</p>
+            <p>Hot</p>
+            <p>3,170kJ</p>
+            <p>$19.80</p>
+          </div>
+        </div>
+
+        <!-- Tip section -->
+        <div>
+          <h2>Leave a tip</h2>
+          <p>Tip your rider</p>
+          <div role="radiogroup">
+            <button type="button" role="radio" aria-checked="false" value="200">$2</button>
+            <button type="button" role="radio" aria-checked="false" value="500">$5</button>
+            <button type="button" role="radio" aria-checked="false" value="1000">$10</button>
+            <button type="button" role="radio" aria-checked="false" value="other">Other</button>
+          </div>
+        </div>
+
+        <!-- Offers / Promo -->
+        <div>
+          <h3>Offers</h3>
+          <button type="button"><p>Add promo code</p></button>
+        </div>
+
+        <!-- Totals -->
+        <div>
+          <div><p>Subtotal</p><p>$53.95</p></div>
+          <div><p>Delivery</p><p>$5.00</p></div>
+          <div><p>Total</p><p>$58.95</p></div>
+        </div>
+
+        <!-- Payment -->
+        <div>
+          <h2>Pay with</h2>
+
+          <!-- Credit/Debit card option -->
+          <div>
+            <button type="button">
+              <div>
+                <div>
+                  <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div><!-- radio circle -->
+                </div>
+                <div>
+                  <svg data-testid="card" aria-label="card" width="24px" height="24px">
+                    <title>Card</title>
+                    <path d="M7 15h3a1..."></path>
+                  </svg>
+                </div>
+                <p>Credit/Debit card</p>
+              </div>
+            </button>
+
+            <!-- Expanded: saved cards + Adyen form (visible after clicking Credit/Debit card) -->
+            <div>
+              <p>SAVED PAYMENT METHODS</p>
+              <div role="button" data-testid="saved-card">
+                <div>
+                  <svg data-testid="visa" aria-label="visa"><title>Visa</title></svg>
+                  <p>ending in 3375</p>
+                </div>
+                <button data-testid="initialRemove" title="Remove">Remove</button>
+              </div>
+
+              <!-- Adyen checkout form (card number/expiry/CVC are in iframes) -->
+              <div class="adyen-checkout__card-input" role="form">
+                <div class="adyen-checkout__field--cardNumber">
+                  <span data-id="encryptedCardNumber">Card number</span>
+                  <iframe title="Iframe for card number"></iframe>
+                </div>
+                <div class="adyen-checkout__field--expiryDate">
+                  <span data-id="encryptedExpiryDate">Expiry date</span>
+                  <iframe title="Iframe for expiry date"></iframe>
+                </div>
+                <div class="adyen-checkout__field--securityCode">
+                  <span data-id="encryptedSecurityCode">Security code</span>
+                  <iframe title="Iframe for security code"></iframe>
+                </div>
+                <div class="adyen-checkout__card__holderName">
+                  <input id="adyen-checkout-holderName" name="holderName"
+                         placeholder="J. Smith" autocomplete="cc-name" type="text">
+                </div>
+                <label class="adyen-checkout__checkbox">
+                  <input name="storeDetails" type="checkbox" value="false">
+                  <span>Save for my next payment</span>
+                </label>
+              </div>
+
+              <button type="button">Add a new card</button>
+            </div>
+          </div>
+
+          <!-- Google Pay option -->
+          <div>
+            <button type="button">
+              <div>
+                <div>
+                  <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div><!-- radio circle -->
+                </div>
+                <div>
+                  <svg data-testid="googleLogo" aria-label="googleLogo">
+                    <title>Google Pay</title>
+                  </svg>
+                </div>
+                <p>Google Pay</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Place Order -->
+        <div>
+          <p>Total</p>
+          <p>$58.95</p>
+          <p>10,010kJ</p>
+          <button type="button">
+            <span><span>Place Order</span></span>
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

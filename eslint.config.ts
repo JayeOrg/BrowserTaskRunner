@@ -81,6 +81,7 @@ export default [
       'init-declarations': 'off',
       'sort-keys': 'off',
       'sonarjs/no-hardcoded-passwords': 'off',
+      'sonarjs/cognitive-complexity': 'off',
       'id-length': ['error', { exceptions: ['x', 'y'] }],
     },
   },

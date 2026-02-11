@@ -15,6 +15,7 @@ export function createMockBrowser(): BrowserAPI {
     waitForSelector: vi.fn().mockResolvedValue({ type: "waitForSelector", found: false }),
     getContent: vi.fn().mockResolvedValue({ type: "getContent", content: "" }),
     querySelectorRect: vi.fn().mockResolvedValue({ type: "querySelectorRect", found: false }),
+    clickText: vi.fn().mockResolvedValue({ type: "clickText", found: false }),
     ping: vi.fn().mockResolvedValue({ type: "ping", pong: true }),
     close: vi.fn(),
   };

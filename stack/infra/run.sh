@@ -161,6 +161,18 @@ if [ "${ENABLE_VNC:-}" = "true" ]; then
     log_success "VNC server started on port 5900"
 fi
 
+# Set Chrome preferences (disable password save prompt, etc.)
+CHROME_PREFS_DIR="/tmp/chrome-profile/Default"
+mkdir -p "$CHROME_PREFS_DIR"
+cat > "$CHROME_PREFS_DIR/Preferences" <<'PREFS'
+{
+  "credentials_enable_service": false,
+  "profile": {
+    "password_manager_enabled": false
+  }
+}
+PREFS
+
 # Start Chromium
 # Note: --no-sandbox is required when running as root in Docker.
 # Docker provides container isolation, making Chrome's sandbox redundant.

@@ -26,12 +26,27 @@ This outputs a project token. Save it — you'll need it for `.env`.
 
 ## 3. Add vault details
 
+Add each secret the task declares in its `needs` field. The vault password is stored in `.env` as `VAULT_PASSWORD`.
+
+Pipe the password and value (non-interactive):
+
+```bash
+printf '<vault-password>\n<value>\n' | npm run vault -- detail set monitor-acme email
+printf '<vault-password>\n<value>\n' | npm run vault -- detail set monitor-acme password
+```
+
+Or interactively (prompts for value):
+
 ```bash
 npm run vault -- detail set monitor-acme email
 npm run vault -- detail set monitor-acme password
 ```
 
-Each command prompts for the secret value interactively.
+Verify with:
+
+```bash
+echo '<vault-password>' | npm run vault -- detail list monitor-acme
+```
 
 ## 4. Write the task file
 
@@ -62,21 +77,20 @@ export const allTasks: TaskConfig[] = [botcLoginTask, acmeLoginTask];
 
 ## 6. Set up `.env`
 
-Export the project token and add it to `.env`:
+Add the project token to `.env` using the per-project naming convention:
 
 ```bash
 npm run vault -- project export monitor-acme
 ```
 
 ```env
-VAULT_TOKEN=<token from export>
+VAULT_TOKEN_MONITOR_ACME=<token from export>
 ```
 
 ## Running
 
 ```bash
-npm run check acmeLogin          # Docker
-npm run dev -- acmeLogin          # Local (after npm run build)
+npm run check acmeLogin
 ```
 
 ## Multiple tasks per project

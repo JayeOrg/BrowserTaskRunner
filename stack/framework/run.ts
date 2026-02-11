@@ -34,13 +34,20 @@ function getTaskName(): string {
   return taskName;
 }
 
-function loadContext(task: TaskConfig): TaskContext {
-  const token = process.env.VAULT_TOKEN;
+function resolveToken(project: string): string {
+  const envKey = `VAULT_TOKEN_${project.toUpperCase().replace(/-/gu, "_")}`;
+  const token = process.env[envKey] ?? process.env.VAULT_TOKEN;
   if (!token) {
     throw new Error(
-      "VAULT_TOKEN environment variable is required. Export a project token from the vault.",
+      `No vault token found. Set ${envKey} (or VAULT_TOKEN) in .env. ` +
+        `Generate with: npm run vault -- project export ${project}`,
     );
   }
+  return token;
+}
+
+function loadContext(task: TaskConfig): TaskContext {
+  const token = resolveToken(task.project);
 
   const projectKey = parseToken(token);
   const db = openVaultReadOnly(VAULT_PATH);
@@ -142,8 +149,20 @@ async function runWithRetry(
   }
 }
 
+function shouldKeepOpen(task: TaskConfig): boolean {
+  return task.mode === "once" && task.keepBrowserOpen === true;
+}
+
+async function holdOpen(): Promise<never> {
+  logger.log("Browser kept open — container will stay alive until stopped");
+  return new Promise(() => {
+    // Never resolves — keeps the process alive for VNC inspection
+  });
+}
+
 async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
   const browser = new Browser(WS_PORT);
+  const keepOpen = shouldKeepOpen(task);
 
   try {
     await browser.start();
@@ -157,13 +176,25 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
     } else {
       await runWithRetry(task, browser, context);
     }
+
+    if (keepOpen) {
+      await holdOpen();
+    }
   } catch (error) {
     if (error instanceof StepError) {
       logFailureDetails(error.toResult());
     }
+    if (keepOpen) {
+      logger.error("Task failed but browser kept open for inspection", {
+        error: getErrorMessage(error),
+      });
+      await holdOpen();
+    }
     throw error;
   } finally {
-    browser.close();
+    if (!keepOpen) {
+      browser.close();
+    }
   }
 }
 

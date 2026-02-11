@@ -8,7 +8,7 @@ description: Debug a failing task. Use when a task throws errors, hangs, or prod
 
 1. **Read the error**: The framework logs step name, reason, URL, and details on failure
 2. **Check logs**: `logs/` directory contains run output
-3. **Run locally first**: `npm run dev -- <taskName>` skips Docker for faster iteration
+3. **Run with fast rebuild**: `npm run check <taskName> --no-build` skips Docker build for faster iteration
 
 ## Connect via VNC (Docker)
 

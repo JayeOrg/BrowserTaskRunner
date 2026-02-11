@@ -1,8 +1,9 @@
-Add nandos task
+Extension based pause/rewind/play steps
 
-- Create two branches to test PR review ability of codex and claude
+It would be good to have a test option to replay steps on an existing browser session so I don't need to keep running through login and mfa.
 
-Ideally we trial jira ticket integration too for context?
-Maybe RAG?
+Then we want to build various jobsite scraper tasks
 
-Need to reduce image build impact on task running. Either push out some features, or pre-build a base image and store it.
+Maybe include a nandos task that saves browser state so we don't need to re-log each time unless that's expired
+
+Dry run

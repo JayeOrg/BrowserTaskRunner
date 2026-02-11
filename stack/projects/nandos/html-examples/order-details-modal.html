@@ -1,0 +1,102 @@
+<!--
+  Order Details modal — appears after navigating to menu.
+  User selects Pick up / Delivery / Dine in, then clicks "Save and Continue".
+
+  Key selectors:
+  - Modal container: [data-testid="modal"]
+  - Close button: [data-testid="modal-close-button"]
+  - Delivery button: button[value="DELIVERY"]
+  - Pick up button: button[value="PICK_UP"]
+  - Dine in button: button[value="DINE_IN"]
+  - Save and Continue: button containing text "Save and Continue" (no data-testid)
+
+  Note: The "Save and Continue" button is a generic <button type="button">
+  with no value or data-testid. clickText is the only reliable way to target it.
+-->
+<div class="sc-d614dbc0-0 sc-93a5572f-0 sc-6e81e8a3-1 dixWmx bAAlJI jJtASs" data-testid="modal" tabindex="-1">
+  <div class="sc-d614dbc0-0 sc-93a5572f-0 jBmsJW dSqgfi">
+    <div class="sc-d614dbc0-0 sc-93a5572f-0 cIjxZy dSqgfi"></div>
+    <p class="sc-5610f4d8-0 jSqQYS">Order Details</p>
+    <div class="sc-d614dbc0-0 sc-93a5572f-0 jMRWOA dSqgfi">
+      <button title="Close" color="grey500" data-testid="modal-close-button" type="button" class="sc-d614dbc0-0 sc-1d7b2c95-0 gYTYMP dpYjLu">
+        <svg viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" class="sc-da33c0d3-0 hTQhjk" data-testid="cross" aria-label="cross" fill="currentColor" height="24px" width="24px">
+          <title>Cross</title>
+          <path d="M17.6569 16.2426L13.4142 12L17.6569 7.75735C18.0474 7.36682 18.0474 6.73366 17.6569 6.34313C17.2663 5.95261 16.6332 5.95261 16.2426 6.34313L12 10.5858L7.75736 6.34313C7.36684 5.95261 6.73367 5.95261 6.34315 6.34313C5.95262 6.73366 5.95262 7.36682 6.34315 7.75735L10.5858 12L6.34315 16.2426C5.95262 16.6332 5.95262 17.2663 6.34315 17.6568C6.73367 18.0474 7.36684 18.0474 7.75736 17.6568L12 13.4142L16.2426 17.6568C16.6332 18.0474 17.2663 18.0474 17.6569 17.6568C18.0474 17.2663 18.0474 16.6332 17.6569 16.2426Z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="sc-e9907c2d-0 kLdyKC"></div>
+  <div class="sc-d614dbc0-0 gMPFWG">
+    <div class="sc-d614dbc0-0 sc-93a5572f-0 ixGdPj dSqgfi">
+      <div class="sc-d614dbc0-0 iHlnkc">
+        <div class="sc-d614dbc0-0 dKcBgT">
+          <p font-weight="normal" color="greyPrimary" display="block" class="sc-49ab7945-0 bwXPbj">Order Type</p>
+          <div class="sc-d614dbc0-0 sc-93a5572f-0 sc-fdb88f63-0 ebjahx dSqgfi hFLYxk">
+            <div class="sc-d614dbc0-0 sc-78573766-0 dNhQFJ gDQGdx" offset="">
+              <button type="button" width="100%" label="Pick up" value="PICK_UP" class="sc-1cd6733e-0 hDPxEH sc-e70124e3-0 kXPzNR">
+                <span class="sc-d614dbc0-0 sc-93a5572f-0 bVqbaK dpiHfl">
+                  <span display="flex" width="100%" font-weight="bold" class="sc-49ab7945-0 iUrCYc">
+                    <div class="sc-d614dbc0-0 sc-93a5572f-0 RFUQv dSqgfi">
+                      <div class="sc-d614dbc0-0 fMrlpr">
+                        <svg viewBox="0 0 24 24"><title>Shopping Bag</title><path d="..."></path></svg>
+                      </div>
+                      <p class="sc-c275cc0b-0 eAWITf">Pick up</p>
+                    </div>
+                  </span>
+                </span>
+              </button>
+            </div>
+            <div class="sc-d614dbc0-0 sc-78573766-0 dNhQFJ gDQGdx" offset="">
+              <button type="button" width="100%" label="Delivery" value="DELIVERY" class="sc-1cd6733e-0 hDPxEH sc-e70124e3-0 kXPzNR">
+                <span class="sc-d614dbc0-0 sc-93a5572f-0 bVqbaK dpiHfl">
+                  <span display="flex" width="100%" font-weight="bold" class="sc-49ab7945-0 iUrCYc">
+                    <div class="sc-d614dbc0-0 sc-93a5572f-0 RFUQv dSqgfi">
+                      <div class="sc-d614dbc0-0 fMrlpr">
+                        <svg viewBox="0 0 24 24"><title>Delivery</title><path d="..."></path></svg>
+                      </div>
+                      <p class="sc-c275cc0b-0 eAWITf">Delivery</p>
+                    </div>
+                  </span>
+                </span>
+              </button>
+            </div>
+            <div class="sc-d614dbc0-0 sc-78573766-0 dNhQFJ gDQGdx" offset="">
+              <button type="button" width="100%" label="Dine in" value="DINE_IN" class="sc-1cd6733e-0 hDPxEH sc-e70124e3-0 kXPzNR">
+                <span class="sc-d614dbc0-0 sc-93a5572f-0 bVqbaK dpiHfl">
+                  <span display="flex" width="100%" font-weight="bold" class="sc-49ab7945-0 iUrCYc">
+                    <div class="sc-d614dbc0-0 sc-93a5572f-0 RFUQv dSqgfi">
+                      <div class="sc-d614dbc0-0 fMrlpr">
+                        <svg viewBox="0 0 24 24"><title>Cutlery</title><path d="..."></path></svg>
+                      </div>
+                      <p class="sc-c275cc0b-0 eAWITf">Dine in</p>
+                    </div>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <picture>
+        <source srcset="/static/images/decal/bottom-decal-modal.svg?webp" type="image/webp">
+        <source type="image/svg">
+        <img alt="" class="sc-8daad062-0 dVlWyN" width="100%" src="/static/images/decal/bottom-decal-modal.svg">
+      </picture>
+    </div>
+    <div class="sc-e9907c2d-0 kLdyKC"></div>
+    <div class="sc-d614dbc0-0 sc-93a5572f-0 eJRFb dpiHfl">
+      <div class="sc-d614dbc0-0 sc-93a5572f-0 dDTxqX dpiHfl">
+        <div class="sc-d614dbc0-0 sc-93a5572f-0 hdnQOx dpiHfl">
+          <div class="sc-d614dbc0-0 sc-93a5572f-0 ekgfMO dpiHfl">
+            <button type="button" width="[object Object]" class="sc-1cd6733e-0 ioDezn">
+              <span class="sc-d614dbc0-0 sc-93a5572f-0 bVqbaK dpiHfl">
+                <span display="flex" width="100%" font-weight="bold" class="sc-49ab7945-0 iUrCYc">Save and Continue</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

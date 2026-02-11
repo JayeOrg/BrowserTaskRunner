@@ -1,0 +1,120 @@
+<!--
+  Menu page with no modals open.
+  URL: https://www.nandos.com.au/menu
+
+  Key selectors:
+  - Cart button: [data-testid="cart-button"] or button[aria-label="Cart"]
+  - Order settings: [data-testid="order-settings-summary"]
+  - Category buttons: buttons with text like "Burgers, Wraps & Pitas"
+    - Desktop: shown in dropdown under "More" button
+    - Mobile: shown as flat button list
+  - Menu item images: img[alt="Product Name"] (e.g., img[alt="PERi-Chip Wrap"])
+  - Product cards: [data-item-id="..."] containers with cursor:pointer image divs
+  - Search: button[aria-label="show search field"]
+  - User profile: [data-testid="header-profile"]
+
+  Notes:
+  - "Burgers, Wraps & Pitas" is in a dropdown "More" menu on desktop,
+    but shown as a flat button on mobile breakpoints.
+  - Product images have cursor:pointer on their container div.
+  - Cart count shown as <p> inside cart button.
+  - The page text does NOT contain "Order Details" when no modal is open
+    (used to detect the delivery modal).
+
+  Truncated: full page is very large, this captures the structure.
+-->
+<html lang="en">
+<head>
+  <title>Order Nando's Online | Our Menu | Nando's Australia</title>
+</head>
+<body>
+  <div id="__next">
+    <!-- Header -->
+    <div data-testid="desktop-header">
+      <a href="/"><img src="/static/images/brand/logo.svg" alt="Nando's logo"></a>
+      <a href="/menu"><span>Menu</span></a>
+      <a href="/catering"><span>Catering</span></a>
+      <a href="/restaurants"><span>Restaurants</span></a>
+      <a href="/peri-products"><span>PERi Products</span></a>
+      <a href="/careers"><span>Careers</span></a>
+      <a href="/peri-perks"><span>PERi-PERKS</span></a>
+      <a href="/menu"><span>Order Food</span></a>
+      <div data-testid="header-profile">
+        <button title="Open profile menu">
+          <p>Jaye</p>
+          <p>215 points</p>
+        </button>
+      </div>
+    </div>
+
+    <main>
+      <!-- Hero -->
+      <div>
+        <h1>Our menu</h1>
+        <button data-testid="order-settings-summary">
+          <p>Start your order</p>
+          <p>Find a restaurant</p>
+        </button>
+      </div>
+
+      <!-- Category navigation -->
+      <div>
+        <!-- Desktop: compact with "More" dropdown -->
+        <button><p>Sure Fire Value</p></button>
+        <button><p>The Classics</p></button>
+        <button><p>Snacks</p></button>
+        <button><p>More</p>
+          <!-- Dropdown contents -->
+          <button>Chicken for one</button>
+          <button>Chicken To Share</button>
+          <button>Salads &amp; Bowls</button>
+          <button>Burgers, Wraps &amp; Pitas</button>
+          <button>Sides</button>
+          <button>Kids'</button>
+          <button>Desserts</button>
+          <button>Drinks</button>
+          <button>Nando's sauces</button>
+          <button>Do Good, Feel Good</button>
+        </button>
+
+        <!-- Mobile: flat list (all shown) -->
+        <button><p>Sure Fire Value</p></button>
+        <button><p>The Classics</p></button>
+        <button><p>Snacks</p></button>
+        <button><p>Chicken for one</p></button>
+        <button><p>Chicken To Share</p></button>
+        <button><p>Salads &amp; Bowls</p></button>
+        <button><p>Burgers, Wraps &amp; Pitas</p></button>
+        <button><p>Sides</p></button>
+        <button><p>Kids'</p></button>
+        <button><p>Desserts</p></button>
+        <button><p>Drinks</p></button>
+        <button><p>Nando's sauces</p></button>
+        <button><p>Do Good, Feel Good</p></button>
+      </div>
+
+      <!-- Cart button -->
+      <button data-testid="cart-button" aria-label="Cart">
+        <p>1</p> <!-- cart count -->
+      </button>
+
+      <!-- Search -->
+      <button aria-label="show search field">
+        <div>Can't find what you're looking for?</div>
+      </button>
+
+      <!-- Product cards (example: PERi-Chip Wrap) -->
+      <div data-item-id="PICK_UP-274-1001769">
+        <div style="cursor: pointer;">
+          <img alt="PERi-Chip Wrap" loading="lazy"
+               src="https://nandosaus.imgix.net/.../pericrackle-websitedimension-1.png">
+        </div>
+        <p>PERi-Chip Wrap</p>
+        <p>$13.50</p>
+      </div>
+
+      <!-- More product cards follow the same pattern -->
+    </main>
+  </div>
+</body>
+</html>

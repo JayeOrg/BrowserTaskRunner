@@ -32,7 +32,7 @@ npm run vault -- detail set monitor-botc password hunter2
 ## Run
 
 ```bash
-VAULT_TOKEN=<token> npm run dev -- botcLogin
+npm run check botcLogin
 ```
 
 ## Task Config

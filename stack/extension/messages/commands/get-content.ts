@@ -5,6 +5,7 @@ import { isScriptContent } from "../../script-results.js";
 
 export const getContentSchema = z.object({
   selector: z.string().optional(),
+  html: z.boolean().optional(),
 });
 
 export type GetContentCommand = z.infer<typeof getContentSchema> & { type: "getContent" };
@@ -21,14 +22,15 @@ export async function handleGetContent(
   const tabId = getTabId(tab);
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    func: (sel?: string) => {
+    func: (sel: string | null, wantHtml: boolean) => {
       if (sel) {
         const element = document.querySelector(sel);
-        return { content: element?.textContent ?? "" };
+        if (!element) return { content: "" };
+        return { content: wantHtml ? element.outerHTML : element.textContent || "" };
       }
-      return { content: document.body.innerText };
+      return { content: wantHtml ? document.documentElement.outerHTML : document.body.innerText };
     },
-    args: [input.selector],
+    args: [input.selector ?? null, input.html ?? false],
   });
   const result = results[0]?.result;
   if (isScriptContent(result)) {

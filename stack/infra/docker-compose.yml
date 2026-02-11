@@ -7,9 +7,10 @@ services:
             dockerfile: stack/infra/Dockerfile
             args:
                 - SOURCE_HASH=${SOURCE_HASH:-unknown}
+        env_file:
+            - ../../.env
         environment:
             - TASK_NAME
-            - VAULT_TOKEN
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - DOCKER=true
@@ -22,4 +23,4 @@ services:
         volumes:
             - ../../logs:/app/logs
             - ../../vault.db:/app/vault.db
-        restart: on-failure
+        restart: "no"

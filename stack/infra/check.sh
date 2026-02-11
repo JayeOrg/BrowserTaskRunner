@@ -90,10 +90,12 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Validate required environment variables in .env
-if ! grep -qE '^VAULT_TOKEN=.+' .env; then
-    echo "Error: .env must define VAULT_TOKEN with a non-empty value"
-    echo "Generate one with: npm run vault -- project export <name>"
+# Validate at least one vault token exists in .env
+if ! grep -qE '^VAULT_TOKEN(_[A-Z0-9_]+=|=).+' .env; then
+    echo "Error: .env must define at least one vault token"
+    echo "  VAULT_TOKEN_<PROJECT>=<token>  (preferred, e.g. VAULT_TOKEN_NANDOS=...)"
+    echo "  VAULT_TOKEN=<token>            (legacy fallback)"
+    echo "Generate with: npm run vault -- project export <name>"
     exit 1
 fi
 

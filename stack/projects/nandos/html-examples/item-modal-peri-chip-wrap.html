@@ -1,0 +1,200 @@
+<!--
+  Item customisation modal for PERi-Chip Wrap.
+  Appears after clicking a product image on the menu page.
+
+  Key selectors:
+  - Modal: inside [data-testid="modal"] (same container as order details modal)
+  - Protein section heading: h3 "First, choose your protein" (also used as div id)
+  - Heat section heading: h3 "Then, pick your heat"
+  - Extras section heading: h3 "Lastly, make it yours"
+  - Side section heading: h3 "Pick a side"
+  - Drink section heading: h3 "Pick a drink"
+
+  Protein options (radio buttons):
+  - Chicken Leg Fillets (has "new" badge)
+  - PERi-PERi Tenders
+  - Superfood Veggie Patty
+  - Great Pretender Protein (+$1.00)
+  Each is a <button role="radio" aria-checked="true/false">
+
+  Heat options (clickable divs, NOT radio buttons):
+  - Extra Hot (color="#46230F")
+  - Hot (color="#CE0A24")
+  - Mild (color="#FAA500")
+  - Lemon & Herb (color="#96C31E")
+  - BBQ (color="#5A642D")
+  - Plain-ish
+  Heat items are styled <p> elements inside nested divs, with a painted SVG basting brush.
+  They are NOT buttons — they're div containers with click handlers.
+  Use clickText with exact matching to avoid "Hot" matching "Extra Hot".
+
+  Extras (checkboxes, optional):
+  - Crispy Bacon (+$2.95)
+  - Cheddar Cheese (+$1.95)
+  - Grilled Pineapple (+$1.95)
+  - Fresh Avocado (+$2.95)
+  - Grilled Halloumi Cheese (+$3.95)
+  - Extra PERi-Crackle (+$1.95)
+  Each is a <button role="checkbox" aria-checked="true/false">
+
+  Side options (radio buttons in horizontal carousel):
+  - Chips, PERi-PERi Chips, Sweet Potato Chips, PERi-PERi Sweet Potato Chips,
+    Spicy Rice, Coleslaw, Corn on the Cob, Garden Salad, Garlic Bread,
+    Roasted Broccoli with PERi-crackle (+$8.95)
+
+  Drink options (radio buttons, vertical list):
+  - Mount Franklin Still (+$3.95)
+  - Mount Franklin Sparkling (+$3.95)
+  - (more options truncated)
+
+  Add to cart button:
+  - Text varies: "ADD ITEM ONLY" or "Add item only" or "ADD TO ORDER"
+  - Generic <button type="button"> (no data-testid)
+  - Detect modal closed by checking body text no longer contains "choose your protein"
+
+  Notes:
+  - The protein section uses div id="First, choose your protein"
+  - Heat section uses div id="Then, pick your heat"
+  - Heat items are NOT standard form controls — use clickText exact match
+-->
+<div class="sc-d614dbc0-0 gMPFWG">
+  <div class="sc-d614dbc0-0 sc-93a5572f-0 dSxzTG dSqgfi">
+    <!-- Product image and info -->
+    <div>
+      <div class="sc-a3a0fb76-0 kDKMqp">
+        <img alt="Peri Perks logo" src="/static/images/brand/peri-perks-logo-mini.svg" width="30">
+        <p>Earn 14 points</p>
+      </div>
+      <img alt="PERi-Chip Wrap" width="576" height="350"
+           src="https://nandosaus.imgix.net/.../pericrackle-websitedimension-1.png">
+    </div>
+    <div>
+      <h2><span>PERi-Chip Wrap</span></h2>
+      <p>$13.50</p>
+      <p>3,730kJ</p>
+      <p>Our PERi Chip Wrap comes packed with juicy, Flame-Grilled PERi-PERi Leg Fillets...</p>
+    </div>
+  </div>
+
+  <!-- Protein selection -->
+  <div id="First, choose your protein">
+    <h3>First, choose your protein</h3>
+    <p>Required</p>
+    <div role="radiogroup">
+      <button type="button" role="radio" aria-checked="false"
+              value="PICK_UP-274-1001769-first-choose-your-protein-1001643">
+        <span>Chicken Leg Fillets<div><p>new</p></div></span>
+      </button>
+      <button type="button" role="radio" aria-checked="false"
+              value="PICK_UP-274-1001769-first-choose-your-protein-1001125">
+        <span>PERi-PERi Tenders</span>
+      </button>
+      <button type="button" role="radio" aria-checked="false"
+              value="PICK_UP-274-1001769-first-choose-your-protein-1001065">
+        <span>Superfood Veggie Patty</span>
+      </button>
+      <button type="button" role="radio" aria-checked="false"
+              value="PICK_UP-274-1001769-first-choose-your-protein-1001060">
+        <span>Great Pretender Protein</span>
+        <span>+ $1.00</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Heat selection -->
+  <div id="Then, pick your heat">
+    <h3>Then, pick your heat</h3>
+    <p>Required</p>
+    <div data-testid="input-list">
+      <!-- Each heat is a clickable div, NOT a button -->
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div> <!-- flame icon -->
+        <p color="#46230F" font-family="brand">Extra Hot</p>
+      </div>
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div>
+        <p color="#CE0A24" font-family="brand">Hot</p>
+      </div>
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div>
+        <p color="#FAA500" font-family="brand">Mild</p>
+      </div>
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div>
+        <p color="#96C31E" font-family="brand">Lemon &amp; Herb</p>
+      </div>
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div>
+        <p color="#5A642D" font-family="brand">BBQ</p>
+      </div>
+      <div class="sc-5948d5e2-0">
+        <div class="sc-5948d5e2-1 sc-5948d5e2-2"></div>
+        <p font-family="brand">Plain-ish</p>
+      </div>
+    </div>
+    <!-- SVG basting brush graphic with heat labels -->
+    <svg xmlns="http://www.w3.org/2000/svg" width="266.9" height="342.2">
+      <!-- Contains text labels: "Extra Hot", "Hot", "Mild", "Lemon & Herb", "BBQ" -->
+    </svg>
+  </div>
+
+  <!-- Extras (optional) -->
+  <div id="Lastly, make it yours">
+    <h3>Lastly, make it yours</h3>
+    <button type="button" role="checkbox" aria-checked="false"
+            value="PICK_UP-274-1001769-lastly-make-it-yours-1001088">
+      <span>Crispy Bacon</span><span>+ $2.95</span>
+    </button>
+    <button type="button" role="checkbox" aria-checked="false">
+      <span>Cheddar Cheese</span><span>+ $1.95</span>
+    </button>
+    <button type="button" role="checkbox" aria-checked="false">
+      <span>Grilled Pineapple</span><span>+ $1.95</span>
+    </button>
+    <button type="button" role="checkbox" aria-checked="false">
+      <span>Fresh Avocado</span><span>+ $2.95</span>
+    </button>
+    <button type="button" role="checkbox" aria-checked="false">
+      <span>Grilled Halloumi Cheese</span><span>+ $3.95</span>
+    </button>
+    <button type="button" role="checkbox" aria-checked="false">
+      <span>Extra PERi-Crackle</span><span>+ $1.95</span>
+    </button>
+  </div>
+
+  <!-- Remove ingredients -->
+  <button type="button"><span>Remove ingredients</span></button>
+
+  <!-- Make it a meal -->
+  <h3>Make it a meal</h3>
+  <p>Add a regular side and a drink from $7.95</p>
+
+  <!-- Side selection (horizontal carousel) -->
+  <div id="PICK_UP-274-1001769-pick-a-side">
+    <h3>Pick a side</h3>
+    <div role="radiogroup" aria-orientation="horizontal">
+      <button role="radio" value="Chips"><span>Chips</span></button>
+      <button role="radio" value="PERi-PERi Chips"><span>PERi-PERi Chips</span></button>
+      <button role="radio" value="Sweet Potato Chips"><span>Sweet Potato Chips</span></button>
+      <button role="radio" value="Spicy Rice"><span>Spicy Rice</span></button>
+      <button role="radio" value="Coleslaw"><span>Coleslaw</span></button>
+      <button role="radio" value="Corn on the Cob"><span>Corn on the Cob</span></button>
+      <button role="radio" value="Garden Salad"><span>Garden Salad</span></button>
+      <button role="radio" value="Garlic Bread"><span>Garlic Bread</span></button>
+      <!-- Roasted Broccoli with PERi-crackle (+$8.95) -->
+    </div>
+  </div>
+
+  <!-- Drink selection (vertical list) -->
+  <div id="PICK_UP-274-1001769-pick-a-drink">
+    <h3>Pick a drink</h3>
+    <div role="radiogroup" aria-orientation="vertical">
+      <button role="radio"><span>Mount Franklin Still</span><span>+ $3.95</span></button>
+      <button role="radio"><span>Mount Franklin Sparkling</span><span>+ $3.95</span></button>
+      <!-- More drink options truncated -->
+    </div>
+  </div>
+
+  <!-- Add to cart button (at bottom of modal) -->
+  <!-- <button type="button">ADD ITEM ONLY $13.50</button> -->
+</div>

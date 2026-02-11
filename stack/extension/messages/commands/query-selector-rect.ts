@@ -31,6 +31,7 @@ export async function handleQuerySelectorRect(
       for (const sel of sels) {
         const element = document.querySelector(sel);
         if (element) {
+          element.scrollIntoView({ block: "center", behavior: "instant" });
           const domRect = element.getBoundingClientRect();
           return {
             found: true,

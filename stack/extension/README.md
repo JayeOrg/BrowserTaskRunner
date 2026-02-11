@@ -26,10 +26,10 @@ Bypasses Cloudflare by using a Chrome extension that communicates via WebSocket 
 ## Running
 
 ```bash
-npm run dev botcLogin
+npm run check botcLogin
 ```
 
-This builds and runs the server with the given task. The extension must already be loaded in Chrome (see below).
+This runs the task in Docker. The extension connects automatically inside the container.
 
 ## First-Time Chrome Setup
 
@@ -38,7 +38,7 @@ This builds and runs the server with the given task. The extension must already 
 3. Click "Load unpacked" and select the `dist/extension/` folder
 4. Open a new tab (extension needs an active tab)
 
-The server will detect the connection and start automating. After this one-time setup, you only need `npm run dev <task>`.
+The server will detect the connection and start automating. In Docker (`npm run check <task>`), this happens automatically.
 
 ## Code Layout
 
