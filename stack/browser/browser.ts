@@ -1,8 +1,19 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { setTimeout as delay } from "node:timers/promises";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
-import type { StepUpdate } from "../framework/step-runner.js";
+import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
+
+type FrameOption = { frameId?: number };
+
+type ClickTextOptions = { tag?: string; exact?: boolean; cdp?: boolean; timeout?: number };
+
+type CdpClickSelectorResult = { found: true; selector: string } | { found: false };
+
+type WaitForTextResult = { found: true; text: string } | { found: false };
+
+type WaitForUrlResult = { found: true; url: string } | { found: false };
 
 export interface BrowserOptions {
   commandTimeoutMs?: number;
@@ -12,28 +23,45 @@ export interface BrowserOptions {
 export interface BrowserAPI {
   navigate(url: string): Promise<ResponseFor<"navigate">>;
   getUrl(): Promise<ResponseFor<"getUrl">>;
-  fill(selector: string, value: string): Promise<ResponseFor<"fill">>;
-  click(selector: string): Promise<ResponseFor<"click">>;
+  fill(selector: string, value: string, options?: FrameOption): Promise<ResponseFor<"fill">>;
+  click(selector: string, options?: FrameOption): Promise<ResponseFor<"click">>;
   cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
-  waitForSelector(selector: string, timeout?: number): Promise<ResponseFor<"waitForSelector">>;
-  getContent(selector?: string, options?: { html?: boolean }): Promise<ResponseFor<"getContent">>;
+  waitForSelector(
+    selector: string,
+    timeout?: number,
+    options?: FrameOption,
+  ): Promise<ResponseFor<"waitForSelector">>;
+  getContent(
+    selector?: string,
+    options?: { html?: boolean } & FrameOption,
+  ): Promise<ResponseFor<"getContent">>;
+  getText(selector?: string): Promise<string>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
-  clickText(
-    texts: string[],
-    options?: { tag?: string; exact?: boolean; cdp?: boolean },
-  ): Promise<ResponseFor<"clickText">>;
+  clickText(texts: string[], options?: ClickTextOptions): Promise<ResponseFor<"clickText">>;
+  cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult>;
+  waitForText(texts: string[], timeout?: number): Promise<WaitForTextResult>;
+  waitForUrl(pattern: string, timeout?: number): Promise<WaitForUrlResult>;
   ping(): Promise<ResponseFor<"ping">>;
+  selectOption(
+    selector: string,
+    values: string[],
+    options?: FrameOption,
+  ): Promise<ResponseFor<"select">>;
+  type(selector: string, text: string): Promise<ResponseFor<"keyboard">>;
+  press(key: string): Promise<ResponseFor<"keyboard">>;
+  keyDown(key: string): Promise<ResponseFor<"keyboard">>;
+  keyUp(key: string): Promise<ResponseFor<"keyboard">>;
+  check(selector: string, options?: FrameOption): Promise<ResponseFor<"check">>;
+  uncheck(selector: string, options?: FrameOption): Promise<ResponseFor<"check">>;
+  scrollIntoView(selector: string, options?: FrameOption): Promise<ResponseFor<"scroll">>;
+  scrollTo(x: number, y: number): Promise<ResponseFor<"scroll">>;
+  scrollBy(x: number, y: number): Promise<ResponseFor<"scroll">>;
+  getFrameId(selector: string): Promise<number>;
   sendStepUpdate(update: StepUpdate): void;
   onControl(handler: (action: string) => void): void;
+  stepRunnerDeps(): StepRunnerDeps;
 }
 
-/*
- * Intentionally loose: checks structure, not known type values. The narrowing to
- * ResponseMessage is technically unsound (any {type: string} passes), but harmless —
- * handleResponse drops messages with unrecognized IDs. Validating against a set of
- * known types would duplicate info already in the ResponseMessage union and require
- * manual updates when adding commands.
- */
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
@@ -91,6 +119,8 @@ export class Browser implements BrowserAPI {
   private waitForConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        this.server?.close();
+        this.server = null;
         const seconds = (this.connectionTimeoutMs / 1000).toString();
         reject(new Error(`Extension did not connect within ${seconds} seconds`));
       }, this.connectionTimeoutMs);
@@ -104,8 +134,14 @@ export class Browser implements BrowserAPI {
 
       this.server?.on("error", onServerError);
 
-      this.server?.on("connection", (ws: WebSocket) => {
-        this.ws = ws;
+      this.server?.on("connection", (incoming: WebSocket) => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.logger.log("Rejecting duplicate connection — extension already connected");
+          incoming.close(1008, "Already connected");
+          return;
+        }
+        this.ws = incoming;
+        const ws = incoming;
         ws.on("close", () => {
           this.ws = null;
           this.rejectAllPending(new Error("Extension disconnected"));
@@ -119,7 +155,6 @@ export class Browser implements BrowserAPI {
             return;
           }
 
-          // Step control messages (fire-and-forget from extension overlay)
           if (isStepControlMessage(parsed)) {
             if (this.controlHandler) {
               this.controlHandler(parsed.action);
@@ -146,7 +181,10 @@ export class Browser implements BrowserAPI {
   }
 
   private handleResponse(message: ResponseMessage): void {
-    if (message.id === undefined) return;
+    if (message.id === undefined) {
+      this.logger.log("Unroutable response (no id)", { type: message.type });
+      return;
+    }
 
     const pending = this.pendingCommands.get(message.id);
     if (!pending) return;
@@ -177,12 +215,16 @@ export class Browser implements BrowserAPI {
       const timeoutId = setTimeout(() => {
         if (this.pendingCommands.has(id)) {
           this.pendingCommands.delete(id);
+          this.logger.log("Command timeout", {
+            type,
+            pending: this.pendingCommands.size.toString(),
+            wsState: this.ws?.readyState.toString() ?? "null",
+          });
           reject(new Error(`Command timeout: ${type}${detail}`));
         }
       }, this.commandTimeoutMs);
 
-      // ResponseFor<T> is always a subtype of ResponseMessage, so this is safe
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- ResponseFor<T> ⊆ ResponseMessage
       const typedResolve = resolve as (value: ResponseMessage) => void;
       this.pendingCommands.set(id, {
         resolve: typedResolve,
@@ -208,36 +250,127 @@ export class Browser implements BrowserAPI {
     return this.ws;
   }
 
-  // Browser commands
   navigate(url: string) {
     return this.send({ type: "navigate", url });
   }
   getUrl() {
     return this.send({ type: "getUrl" });
   }
-  fill(selector: string, value: string) {
-    return this.send({ type: "fill", selector, value });
+  fill(selector: string, value: string, options?: FrameOption) {
+    return this.send({ type: "fill", selector, value, ...options });
   }
-  click(selector: string) {
-    return this.send({ type: "click", selector });
+  click(selector: string, options?: FrameOption) {
+    return this.send({ type: "click", selector, ...options });
   }
   cdpClick(x: number, y: number) {
     return this.send({ type: "cdpClick", x, y });
   }
-  waitForSelector(selector: string, timeout = 10000) {
-    return this.send({ type: "waitForSelector", selector, timeout });
+  waitForSelector(selector: string, timeout = 10000, options?: FrameOption) {
+    return this.send({ type: "waitForSelector", selector, timeout, ...options });
   }
-  getContent(selector?: string, options: { html?: boolean } = {}) {
+  getContent(selector?: string, options: { html?: boolean } & FrameOption = {}) {
     return this.send({ type: "getContent", ...(selector ? { selector } : {}), ...options });
+  }
+  async getText(selector?: string): Promise<string> {
+    const result = await this.getContent(selector);
+    return result.content;
   }
   querySelectorRect(selectors: string[]) {
     return this.send({ type: "querySelectorRect", selectors });
   }
-  clickText(texts: string[], options: { tag?: string; exact?: boolean; cdp?: boolean } = {}) {
-    return this.send({ type: "clickText", texts, ...options });
+  async clickText(
+    texts: string[],
+    options: ClickTextOptions = {},
+  ): Promise<ResponseFor<"clickText">> {
+    const { timeout, ...sendOptions } = options;
+    if (!timeout) {
+      return this.send({ type: "clickText", texts, ...sendOptions });
+    }
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const result = await this.send({ type: "clickText", texts, ...sendOptions });
+      if (result.found) return result;
+      await delay(500);
+    }
+    return this.send({ type: "clickText", texts, ...sendOptions });
+  }
+  async cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult> {
+    const rect = await this.querySelectorRect(selectors);
+    if (!rect.found) return { found: false };
+    if (rect.rect.width <= 0 || rect.rect.height <= 0) return { found: false };
+    const cx = rect.rect.left + rect.rect.width / 2;
+    const cy = rect.rect.top + rect.rect.height / 2;
+    await this.cdpClick(cx, cy);
+    return { found: true, selector: rect.selector };
+  }
+  async waitForText(texts: string[], timeout = 10000): Promise<WaitForTextResult> {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const body = await this.getText();
+      const match = texts.find((candidate) => body.includes(candidate));
+      if (match) return { found: true, text: match };
+      await delay(500);
+    }
+    return { found: false };
+  }
+  async waitForUrl(pattern: string, timeout = 10000): Promise<WaitForUrlResult> {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const { url } = await this.getUrl();
+      if (url.includes(pattern)) return { found: true, url };
+      await delay(500);
+    }
+    return { found: false };
   }
   ping() {
     return this.send({ type: "ping" });
+  }
+  selectOption(selector: string, values: string[], options?: FrameOption) {
+    return this.send({ type: "select", selector, values, ...options });
+  }
+  type(selector: string, text: string) {
+    return this.send({
+      type: "keyboard",
+      action: "type" as const,
+      text,
+      selector,
+    });
+  }
+  press(key: string) {
+    return this.send({ type: "keyboard", action: "press" as const, key });
+  }
+  keyDown(key: string) {
+    return this.send({ type: "keyboard", action: "down" as const, key });
+  }
+  keyUp(key: string) {
+    return this.send({ type: "keyboard", action: "up" as const, key });
+  }
+  check(selector: string, options?: FrameOption) {
+    return this.send({ type: "check", selector, checked: true, ...options });
+  }
+  uncheck(selector: string, options?: FrameOption) {
+    return this.send({ type: "check", selector, checked: false, ...options });
+  }
+  scrollIntoView(selector: string, options?: FrameOption) {
+    return this.send({
+      type: "scroll",
+      mode: "intoView" as const,
+      selector,
+      ...options,
+    });
+  }
+  scrollTo(x: number, y: number) {
+    return this.send({ type: "scroll", mode: "to" as const, x, y });
+  }
+  scrollBy(x: number, y: number) {
+    return this.send({ type: "scroll", mode: "by" as const, x, y });
+  }
+  async getFrameId(selector: string): Promise<number> {
+    const result = await this.send({ type: "getFrameId", selector });
+    if (!result.found) {
+      throw new Error(result.error ?? `Frame not found for selector: ${selector}`);
+    }
+    return result.frameId;
   }
 
   sendStepUpdate(update: StepUpdate): void {
@@ -247,6 +380,17 @@ export class Browser implements BrowserAPI {
 
   onControl(handler: (action: string) => void): void {
     this.controlHandler = handler;
+  }
+
+  stepRunnerDeps(): StepRunnerDeps {
+    return {
+      sendStepUpdate: (update) => {
+        this.sendStepUpdate(update);
+      },
+      onControl: (handler) => {
+        this.onControl(handler);
+      },
+    };
   }
 
   private rejectAllPending(error: Error): void {

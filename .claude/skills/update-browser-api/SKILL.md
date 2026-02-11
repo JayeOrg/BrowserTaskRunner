@@ -52,7 +52,7 @@ click(selector: string, force?: boolean) {
 
 If you only changed the response shape, the `ResponseFor<"click">` type updates automatically.
 
-### 4. Update the mock in `tests/unit/projects/utils/testing.ts`
+### 4. Update the mock in `tests/fixtures/mock-browser.ts`
 
 Match the new response shape:
 

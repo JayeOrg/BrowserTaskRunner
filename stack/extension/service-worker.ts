@@ -1,11 +1,9 @@
 import { connect, sendControlToServer, getCachedStepUpdate } from "./connection.js";
 
-// Start connection when extension loads
-connect();
+void connect();
 
-// Also try to connect when service worker wakes up
-chrome.runtime.onStartup.addListener(connect);
-chrome.runtime.onInstalled.addListener(connect);
+chrome.runtime.onStartup.addListener(() => void connect());
+chrome.runtime.onInstalled.addListener(() => void connect());
 
 function isControlMessage(value: unknown): value is { type: "stepControl"; action: string } {
   return (
@@ -24,7 +22,6 @@ function isGetStepState(value: unknown): value is { type: "getStepState" } {
   );
 }
 
-// Listen for messages from the overlay content script
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
   if (isControlMessage(message)) {

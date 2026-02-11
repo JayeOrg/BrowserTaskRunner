@@ -2,13 +2,18 @@ import { DatabaseSync } from "node:sqlite";
 import { randomBytes } from "node:crypto";
 import {
   SALT_LENGTH,
-  IV_LENGTH,
   PASSWORD_CHECK_MAGIC,
   deriveKey,
   aesEncrypt,
   aesDecrypt,
+  packBlob,
+  unpackBlob,
+  decryptFrom,
+  PROJECT_KEY_COLS,
+  MASTER_DEK_COLS,
 } from "./crypto.js";
 import { requireBlob, requireString } from "./rows.js";
+import { withSavepoint } from "./db.js";
 import { SCHEMA } from "./schema.js";
 
 function openVault(path: string): DatabaseSync {
@@ -19,7 +24,11 @@ function openVault(path: string): DatabaseSync {
 }
 
 function openVaultReadOnly(path: string): DatabaseSync {
-  return new DatabaseSync(path);
+  try {
+    return new DatabaseSync(path, { readOnly: true });
+  } catch {
+    throw new Error("Vault not found. Run 'npm run vault -- init' first.");
+  }
 }
 
 function initVault(db: DatabaseSync, password: string): void {
@@ -31,8 +40,8 @@ function initVault(db: DatabaseSync, password: string): void {
   const salt = randomBytes(SALT_LENGTH);
   const masterKey = deriveKey(password, salt);
 
-  const check = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
-  const checkBlob = Buffer.concat([check.iv, check.authTag, check.ciphertext]);
+  const encrypted = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
+  const checkBlob = packBlob(encrypted);
 
   db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("salt", salt);
   db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("password_check", checkBlob);
@@ -41,11 +50,7 @@ function initVault(db: DatabaseSync, password: string): void {
 function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
   const row = db.prepare("SELECT value FROM config WHERE key = ?").get("password_check");
   if (!row) throw new Error("Vault corrupted — missing password check");
-  const checkBlob = requireBlob(row, "value");
-
-  const iv = checkBlob.subarray(0, IV_LENGTH);
-  const authTag = checkBlob.subarray(IV_LENGTH, IV_LENGTH + 16);
-  const ciphertext = checkBlob.subarray(IV_LENGTH + 16);
+  const { iv, authTag, ciphertext } = unpackBlob(requireBlob(row, "value"));
 
   let decrypted: Buffer;
   try {
@@ -59,7 +64,7 @@ function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
   }
 }
 
-function getMasterKey(db: DatabaseSync, password: string): Buffer {
+function deriveMasterKey(db: DatabaseSync, password: string): Buffer {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
   if (!saltRow) throw new Error("Vault not initialized. Run 'vault init' first.");
   const salt = requireBlob(saltRow, "value");
@@ -71,8 +76,6 @@ function getMasterKey(db: DatabaseSync, password: string): Buffer {
 
 function changePassword(db: DatabaseSync, oldPassword: string, newPassword: string): void {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
-  // Defense-in-depth: unreachable via CLI because authentication (which checks salt) precedes
-  // Password change. Duplicates the guard in getMasterKey for direct callers.
   if (!saltRow) throw new Error("Vault not initialized. Run 'vault init' first.");
   const oldSalt = requireBlob(saltRow, "value");
   const oldMasterKey = deriveKey(oldPassword, oldSalt);
@@ -80,48 +83,35 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
 
   const newSalt = randomBytes(SALT_LENGTH);
   const newMasterKey = deriveKey(newPassword, newSalt);
-  const newCheck = aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
-  const newCheckBlob = Buffer.concat([newCheck.iv, newCheck.authTag, newCheck.ciphertext]);
+  const newCheckBlob = packBlob(
+    aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8")),
+  );
 
-  db.exec("SAVEPOINT change_password");
-  try {
-    // Update salt and password check
+  withSavepoint(db, "change_password", () => {
     db.prepare("UPDATE config SET value = ? WHERE key = ?").run(newSalt, "salt");
     db.prepare("UPDATE config SET value = ? WHERE key = ?").run(newCheckBlob, "password_check");
 
-    // Re-wrap all project keys
     const projects = db
-      .prepare("SELECT name, key_iv, key_auth_tag, encrypted_key FROM projects")
+      .prepare("SELECT name, key_iv, key_auth_tag, key_ciphertext FROM projects")
       .all();
     for (const project of projects) {
-      const projectKey = aesDecrypt(
-        oldMasterKey,
-        requireBlob(project, "key_iv"),
-        requireBlob(project, "key_auth_tag"),
-        requireBlob(project, "encrypted_key"),
-      );
+      const projectKey = decryptFrom(oldMasterKey, project, PROJECT_KEY_COLS);
       const wrapped = aesEncrypt(newMasterKey, projectKey);
       db.prepare(
-        "UPDATE projects SET key_iv = ?, key_auth_tag = ?, encrypted_key = ? WHERE name = ?",
+        "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
       ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, requireString(project, "name"));
     }
 
-    // Re-wrap all master-wrapped DEKs
     const details = db
       .prepare(
-        "SELECT key, project, master_dek_iv, master_dek_auth_tag, master_wrapped_dek FROM details",
+        "SELECT key, project, master_dek_iv, master_dek_auth_tag, master_dek_ciphertext FROM details",
       )
       .all();
     for (const detail of details) {
-      const dek = aesDecrypt(
-        oldMasterKey,
-        requireBlob(detail, "master_dek_iv"),
-        requireBlob(detail, "master_dek_auth_tag"),
-        requireBlob(detail, "master_wrapped_dek"),
-      );
+      const dek = decryptFrom(oldMasterKey, detail, MASTER_DEK_COLS);
       const rewrapped = aesEncrypt(newMasterKey, dek);
       db.prepare(
-        "UPDATE details SET master_dek_iv = ?, master_dek_auth_tag = ?, master_wrapped_dek = ? WHERE project = ? AND key = ?",
+        "UPDATE details SET master_dek_iv = ?, master_dek_auth_tag = ?, master_dek_ciphertext = ? WHERE project = ? AND key = ?",
       ).run(
         rewrapped.iv,
         rewrapped.authTag,
@@ -131,15 +121,8 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
       );
     }
 
-    // Invalidate all sessions (they hold the old master key)
     db.prepare("DELETE FROM sessions").run();
-
-    db.exec("RELEASE change_password");
-  } catch (error) {
-    db.exec("ROLLBACK TO change_password");
-    db.exec("RELEASE change_password");
-    throw error;
-  }
+  });
 }
 
-export { openVault, openVaultReadOnly, initVault, getMasterKey, changePassword };
+export { openVault, openVaultReadOnly, initVault, deriveMasterKey, changePassword };

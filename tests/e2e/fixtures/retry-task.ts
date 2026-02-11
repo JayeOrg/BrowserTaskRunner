@@ -25,7 +25,7 @@ async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResul
   }
 
   await browser.ping();
-  return { ok: true, step: "verify" };
+  return { step: "verify" };
 }
 
 const retryTask: RetryingTask = {

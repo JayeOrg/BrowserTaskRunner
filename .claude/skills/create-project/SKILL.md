@@ -11,7 +11,7 @@ A project is a goal that may span multiple tasks (e.g., "monitor-acme"). To set 
 ```
 stack/projects/acme/
   tasks/
-    acme-login.ts    <- task file (see /add-task)
+    acmeLogin.ts     <- task file, named after the task (see /add-task)
   README.md          <- optional, describe the project goal
 ```
 
@@ -26,16 +26,16 @@ This outputs a project token. Save it — you'll need it for `.env`.
 
 ## 3. Add vault details
 
-Add each secret the task declares in its `needs` field. The vault password is stored in `.env` as `VAULT_PASSWORD`.
-
-Pipe the password and value (non-interactive):
+After writing the task file (step 4), use `project setup` to interactively add all missing details declared in the task's `needs` field. This requires a build first so the loader can discover needs:
 
 ```bash
-printf '<vault-password>\n<value>\n' | npm run vault -- detail set monitor-acme email
-printf '<vault-password>\n<value>\n' | npm run vault -- detail set monitor-acme password
+npm run build
+npm run vault -- project setup monitor-acme
 ```
 
-Or interactively (prompts for value):
+This will show which details are present/missing and prompt for each missing value.
+
+Alternatively, add details individually:
 
 ```bash
 npm run vault -- detail set monitor-acme email
@@ -50,11 +50,12 @@ echo '<vault-password>' | npm run vault -- detail list monitor-acme
 
 ## 4. Write the task file
 
-See `/add-task` for the full pattern. The key fields that tie a task to its project:
+See `/add-task` for the full pattern. Name the file `{taskName}.ts` (e.g., `acmeLogin.ts`) and export `const task`:
 
 ```typescript
-export const acmeLoginTask: RetryingTask = {
-  name: "acmeLogin",
+// File: stack/projects/acme/tasks/acmeLogin.ts
+export const task: RetryingTask = {
+  name: "acmeLogin",              // must match filename
   url: "https://acme.example.com/login",
   project: "monitor-acme",        // must match vault project name
   needs: { email: "email", password: "password" },  // local key -> vault detail key
@@ -65,17 +66,9 @@ export const acmeLoginTask: RetryingTask = {
 };
 ```
 
-## 5. Register the task
+No registration step needed — the loader discovers tasks by filename convention.
 
-In `stack/framework/registry.ts`:
-
-```typescript
-import { acmeLoginTask } from "../projects/acme/tasks/acme-login.js";
-
-export const allTasks: TaskConfig[] = [botcLoginTask, acmeLoginTask];
-```
-
-## 6. Set up `.env`
+## 5. Set up `.env`
 
 Add the project token to `.env` using the per-project naming convention:
 
@@ -104,4 +97,4 @@ stack/projects/acme/
     acme-status.ts     <- SingleAttemptTask, checks status page
 ```
 
-Both declare `project: "monitor-acme"` and share the same `VAULT_TOKEN`. Register each task separately in the registry.
+Both declare `project: "monitor-acme"` and share the same `VAULT_TOKEN`. The loader discovers tasks by filename — no registration needed.

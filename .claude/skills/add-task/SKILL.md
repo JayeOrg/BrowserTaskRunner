@@ -4,15 +4,17 @@ description: Add a new task to an existing project. Use when creating a new site
 
 # Adding a Task
 
-To add a new task (e.g., `acmeLogin`), touch 2 files:
+To add a new task (e.g., `acmeLogin`), create one file:
 
 ## 1. Create the task file in `stack/projects/`
 
-Copy `stack/projects/botc.ts` as a starting point. A task file contains:
+**File naming convention**: the filename must match the task name. A task named `acmeLogin` lives at `stack/projects/acme/tasks/acmeLogin.ts`.
+
+Copy `stack/projects/botc/tasks/botcLogin.ts` as a starting point. A task file contains:
 
 - Constants: `TASK`, `TIMINGS`, `SELECTORS`
 - Step functions at file scope (not nested in `run`)
-- A `run` function that orchestrates the steps
+- A `run` function that orchestrates steps via `StepRunner`
 - An exported task config with a type annotation
 
 ### Task modes
@@ -21,26 +23,46 @@ Tasks declare their retry semantics via a discriminated union:
 
 ```typescript
 // Single attempt — runs once, succeeds or throws
-export const acmeCheckTask: SingleAttemptTask = {
+// File: stack/projects/acme/tasks/acmeCheck.ts
+export const task: SingleAttemptTask = {
   name: "acmeCheck",
   url: "https://example.com",
+  project: "acme",
+  needs: ["email", "password"],
   mode: "once",
+  contextSchema,
   run,
 };
 
 // Retrying — runner retries on failure at the given interval
-export const acmeLoginTask: RetryingTask = {
+// File: stack/projects/acme/tasks/acmeLogin.ts
+export const task: RetryingTask = {
   name: "acmeLogin",
   url: "https://example.com",
   project: "monitor-acme",
-  needs: { email: "email", password: "password" },
+  needs: ["email", "password"],
   mode: "retry",
   intervalMs: 300_000,
+  contextSchema,
   run,
 };
 ```
 
 The runner owns the retry loop. Tasks implement a single attempt — throw `StepError` (via `logger.fail()`) on failure, return `TaskResultSuccess` on success.
+
+### `needs` — vault detail mapping
+
+Array shorthand when the local key and vault detail name are the same:
+
+```typescript
+needs: ["email", "password"],
+```
+
+Object form when they differ:
+
+```typescript
+needs: { loginEmail: "email", loginPassword: "password" },
+```
 
 ### Context validation (optional)
 
@@ -66,7 +88,7 @@ const { email, password } = contextSchema.parse(context);
 Define steps as file-scope functions, not nested inside `run`. Pass `browser` and `logger` explicitly:
 
 ```typescript
-async function navigate(browser: Browser, logger: TaskLogger): Promise<void> {
+async function navigate(browser: BrowserAPI, logger: TaskLogger): Promise<void> {
   await browser.navigate(TASK.url);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
@@ -76,19 +98,57 @@ async function navigate(browser: Browser, logger: TaskLogger): Promise<void> {
 
 Use `logger.fail()` for step failures — it throws a `StepError` which the framework catches and logs.
 
-## 2. Register in `stack/framework/registry.ts`
+### StepRunner
 
-Add the import and array entry:
+All tasks use `StepRunner` to register named steps (enables the debug overlay):
 
 ```typescript
-import type { TaskConfig } from "./tasks.js";
-import { botcLoginTask } from "../projects/botc/botc.js";
-import { acmeLoginTask } from "../projects/acme/acme.js";
+async function run(
+  browser: BrowserAPI,
+  context: TaskContext,
+  logger: TaskLogger,
+): Promise<TaskResultSuccess> {
+  const { email, password } = contextSchema.parse(context);
+  let finalUrl = "";
 
-export const allTasks: TaskConfig[] = [botcLoginTask, acmeLoginTask];
+  const runner = new StepRunner(browser.stepRunnerDeps());
+
+  runner
+    .step("navigate", () => navigate(browser, logger))
+    .step("fillLogin", () => fillLogin(browser, logger, email, password))
+    .step("submit", () => submit(browser, logger))
+    .step("verify", async () => {
+      finalUrl = await verify(browser, logger);
+    });
+
+  await runner.execute();
+
+  return { ok: true, step: "verify", finalUrl };
+}
 ```
 
-TypeScript enforces every entry is a valid `TaskConfig`. If you forget this step, the task won't be available at runtime — `getTask()` will throw with the available task names listed.
+Steps that return values used later: capture into a closure variable, assign inside the step fn.
+
+### Polling with `pollUntil`
+
+Use `pollUntil` from `../../utils/poll.js` for wait-until-ready patterns:
+
+```typescript
+import { pollUntil } from "../../utils/poll.js";
+
+const result = await pollUntil(
+  () => browser.getContent("body"),
+  (c) => c.content.includes("Target text"),
+  { timeoutMs: 15_000, intervalMs: 2000 },
+);
+if (!result.ok) {
+  logger.fail(step, "TARGET_NOT_FOUND", { details: "..." });
+}
+```
+
+## 2. That's it — no registration needed
+
+The loader discovers tasks by filename convention. Name the file `{taskName}.ts`, export `const task`, and it's available immediately.
 
 ## Running
 

@@ -62,4 +62,34 @@ async function getSecretValue(): Promise<string> {
   return readStdinLine("No value provided on stdin");
 }
 
-export { promptHidden, readStdinLine, getPassword, getSecretValue };
+function promptConfirm(message: string): Promise<boolean> {
+  if (!process.stdin.isTTY) return Promise.resolve(true);
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  return new Promise((done) => {
+    rl.question(`${message} [y/N] `, (answer) => {
+      rl.close();
+      done(answer.trim().toLowerCase() === "y");
+    });
+  });
+}
+
+async function getNewPassword(): Promise<string> {
+  if (process.stdin.isTTY) {
+    const password = await promptHidden("New vault password");
+    const confirm = await promptHidden("Confirm password");
+    if (password !== confirm) {
+      console.error("Passwords do not match");
+      process.exit(1);
+    }
+    return password;
+  }
+  const password = await readStdinLine("No password provided on stdin");
+  const confirm = await readStdinLine("No confirmation password provided on stdin");
+  if (password !== confirm) {
+    console.error("Passwords do not match");
+    process.exit(1);
+  }
+  return password;
+}
+
+export { promptHidden, readStdinLine, getPassword, getNewPassword, getSecretValue, promptConfirm };

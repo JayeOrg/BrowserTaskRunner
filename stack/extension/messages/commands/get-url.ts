@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab } from "../../tabs.js";
+import { getActiveTabId } from "../../tabs.js";
 
 export const getUrlSchema = z.object({});
 
@@ -13,6 +13,7 @@ export interface GetUrlResponse extends BaseResponse {
 }
 
 export async function handleGetUrl(): Promise<GetUrlResponse> {
-  const tab = await getActiveTab();
+  const tabId = await getActiveTabId();
+  const tab = await chrome.tabs.get(tabId);
   return { type: "getUrl", url: tab.url ?? "", title: tab.title ?? "" };
 }

@@ -1,4 +1,4 @@
-import type { PrefixLogger } from "./logging.js";
+import type { PrefixLogger, StepLogger, TaskLogger } from "./logging.js";
 
 export interface StepUpdate {
   current: number;
@@ -12,7 +12,7 @@ type ControlAction = "pause" | "play" | "skipBack" | "skipForward";
 
 interface StepDefinition {
   name: string;
-  fn: () => Promise<void>;
+  fn: (log: StepLogger) => Promise<void>;
 }
 
 interface Gate {
@@ -21,7 +21,6 @@ interface Gate {
 }
 
 function createGate(): Gate {
-  // eslint-disable-next-line no-empty-function
   let resolver = (): void => {};
   const promise = new Promise<void>((resolve) => {
     resolver = resolve;
@@ -48,11 +47,13 @@ export class StepRunner {
   private readonly sendUpdate: (update: StepUpdate) => void;
   private readonly log: PrefixLogger | undefined;
   private readonly pauseOnError: boolean;
+  private readonly taskLogger: TaskLogger | undefined;
 
-  constructor(deps: StepRunnerDeps) {
+  constructor(deps: StepRunnerDeps, taskLogger?: TaskLogger) {
     this.sendUpdate = deps.sendStepUpdate;
     this.log = deps.logger;
-    this.pauseOnError = (deps.pauseOnError ?? false) && process.env.STEP_DEBUG === "1";
+    this.taskLogger = taskLogger;
+    this.pauseOnError = (deps.pauseOnError ?? true) && process.env.STEP_DEBUG === "1";
     deps.onControl((raw) => {
       if (isControlAction(raw)) {
         this.handleControl(raw);
@@ -60,7 +61,7 @@ export class StepRunner {
     });
   }
 
-  step(name: string, fn: () => Promise<void>): this {
+  step(name: string, fn: (log: StepLogger) => Promise<void>): this {
     this.steps.push({ name, fn });
     return this;
   }
@@ -88,7 +89,7 @@ export class StepRunner {
 
       let stepFailed = false;
       try {
-        await step.fn();
+        await step.fn(this.scopeStep(step.name));
       } catch (error) {
         if (!this.pauseOnError) throw error;
 
@@ -96,13 +97,11 @@ export class StepRunner {
         this.log?.error("Step failed", { step: step.name, error: msg });
         this.emitErrorUpdate(msg);
 
-        // Pause and wait — user can rewind/play via overlay after inspecting via VNC
         this.paused = true;
         await this.gate.promise;
         stepFailed = true;
       }
 
-      // Only advance if step succeeded and we haven't been rewound
       if (!stepFailed && this.pointer === idx) {
         this.pointer++;
       }
@@ -143,6 +142,23 @@ export class StepRunner {
     }
   }
 
+  private scopeStep(name: string): StepLogger {
+    if (this.taskLogger) {
+      return this.taskLogger.scoped(name);
+    }
+    const noop = (): void => {
+      /* No-op when no task logger */
+    };
+    return {
+      log: noop,
+      success: noop,
+      warn: noop,
+      fail: (reason: string): never => {
+        throw new Error(reason);
+      },
+    };
+  }
+
   private currentStepName(): string {
     const step = this.steps[this.pointer];
     if (!step) return "done";
@@ -151,7 +167,7 @@ export class StepRunner {
 
   private emitUpdate(state: StepUpdate["state"]): void {
     this.sendUpdate({
-      current: this.pointer + 1,
+      current: Math.min(this.pointer + 1, this.steps.length),
       total: this.steps.length,
       name: this.currentStepName(),
       state,

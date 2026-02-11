@@ -52,6 +52,36 @@ import {
   type ClickTextResponse,
 } from "./commands/click-text.js";
 import { pingSchema, handlePing, type PingCommand, type PingResponse } from "./commands/ping.js";
+import {
+  selectSchema,
+  handleSelect,
+  type SelectCommand,
+  type SelectResponse,
+} from "./commands/select.js";
+import {
+  keyboardSchema,
+  handleKeyboard,
+  type KeyboardCommand,
+  type KeyboardResponse,
+} from "./commands/keyboard.js";
+import {
+  checkSchema,
+  handleCheck,
+  type CheckCommand,
+  type CheckResponse,
+} from "./commands/check.js";
+import {
+  scrollSchema,
+  handleScroll,
+  type ScrollCommand,
+  type ScrollResponse,
+} from "./commands/scroll.js";
+import {
+  getFrameIdSchema,
+  handleGetFrameId,
+  type GetFrameIdCommand,
+  type GetFrameIdResponse,
+} from "./commands/get-frame-id.js";
 
 export { isIncomingCommand } from "./commands/base.js";
 export type { IncomingCommand } from "./commands/base.js";
@@ -66,7 +96,12 @@ export type CommandMessage =
   | GetContentCommand
   | QuerySelectorRectCommand
   | ClickTextCommand
-  | PingCommand;
+  | PingCommand
+  | SelectCommand
+  | KeyboardCommand
+  | CheckCommand
+  | ScrollCommand
+  | GetFrameIdCommand;
 
 type ResponseMessage =
   | ReadyResponse
@@ -80,7 +115,12 @@ type ResponseMessage =
   | GetContentResponse
   | QuerySelectorRectResponse
   | ClickTextResponse
-  | PingResponse;
+  | PingResponse
+  | SelectResponse
+  | KeyboardResponse
+  | CheckResponse
+  | ScrollResponse
+  | GetFrameIdResponse;
 
 export type { ResponseMessage };
 
@@ -114,12 +154,6 @@ function hasKey<T extends Record<string, unknown>>(
   return Object.hasOwn(obj, key);
 }
 
-/*
- * The `satisfies` constraint ensures every CommandMessage variant has a handler — adding
- * a new command to the union without a handler here is a compile error. Each handler
- * validates its input via zod schema (createHandler), so IncomingCommand can stay loose
- * as a wire format without sacrificing runtime safety.
- */
 const commandHandlers = {
   navigate: createHandler(navigateSchema, handleNavigate),
   getUrl: createHandler(getUrlSchema, handleGetUrl),
@@ -131,6 +165,11 @@ const commandHandlers = {
   querySelectorRect: createHandler(querySelectorRectSchema, handleQuerySelectorRect),
   clickText: createHandler(clickTextSchema, handleClickText),
   ping: createHandler(pingSchema, handlePing),
+  select: createHandler(selectSchema, handleSelect),
+  keyboard: createHandler(keyboardSchema, handleKeyboard),
+  check: createHandler(checkSchema, handleCheck),
+  scroll: createHandler(scrollSchema, handleScroll),
+  getFrameId: createHandler(getFrameIdSchema, handleGetFrameId),
 } satisfies Record<CommandMessage["type"], CommandHandler>;
 
 export async function handleCommand(message: IncomingCommand): Promise<ResponseMessage> {

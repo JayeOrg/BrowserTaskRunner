@@ -29,9 +29,11 @@ export default defineConfig({
         // v8 coverage can't instrument code in spawned processes.
         "stack/vault/cli/**",
         // Static task list, no logic to test.
-        "stack/framework/registry.ts",
+        "stack/framework/loader.ts",
         // Trivial setTimeout wrapper. Testing adds noise, not confidence.
         "stack/projects/utils/timing.ts",
+        // Debug-only HTML dumper. Trivial I/O wrapper, no logic to test.
+        "stack/projects/utils/dump.ts",
         // Display-only: logs connection instructions, checks process.env.
         "stack/browser/instructions.ts",
       ],

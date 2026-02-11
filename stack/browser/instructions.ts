@@ -1,15 +1,18 @@
 import path from "node:path";
 import type { PrefixLogger } from "../framework/logging.js";
 
+function isAutomatedEnvironment(): boolean {
+  return Boolean(process.env["DOCKER"] || process.env["CI"] || process.env["VITEST"]);
+}
+
 export function logConnectionInstructions(logger: PrefixLogger, port: number): void {
   logger.log("WebSocket server listening", { port });
 
-  // Skip manual instructions in automated environments
-  if (process.env["DOCKER"] || process.env["CI"] || process.env["VITEST"]) {
+  if (isAutomatedEnvironment()) {
     return;
   }
 
-  const extensionPath = path.resolve(import.meta.dirname, "../../dist/extension/client");
+  const extensionPath = path.resolve(import.meta.dirname, "../../dist/extension");
   logger.log("Waiting for Chrome extension to connect...");
   logger.log("=".repeat(50));
   logger.log("CONNECT THE EXTENSION:");

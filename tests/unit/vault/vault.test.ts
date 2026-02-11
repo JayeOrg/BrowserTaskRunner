@@ -4,13 +4,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { DatabaseSync } from "node:sqlite";
 import { exportToken, parseToken, aesEncrypt } from "../../../stack/vault/crypto.js";
-import { openVault, initVault, getMasterKey, changePassword } from "../../../stack/vault/core.js";
+import {
+  openVault,
+  initVault,
+  deriveMasterKey,
+  changePassword,
+} from "../../../stack/vault/core.js";
 import {
   createProject,
   getProjectKey,
   listProjects,
   removeProject,
   rotateProject,
+  renameProject,
 } from "../../../stack/vault/ops/projects.js";
 import {
   setDetail,
@@ -39,7 +45,7 @@ beforeAll(() => {
   vaultPath = join(tempDir, "vault.db");
   db = openVault(vaultPath);
   initVault(db, PASSWORD);
-  masterKey = getMasterKey(db, PASSWORD);
+  masterKey = deriveMasterKey(db, PASSWORD);
 });
 
 afterAll(() => {
@@ -64,22 +70,22 @@ describe("initVault", () => {
   });
 });
 
-describe("getMasterKey", () => {
+describe("deriveMasterKey", () => {
   it("returns a key with correct password", () => {
-    const key = getMasterKey(db, PASSWORD);
+    const key = deriveMasterKey(db, PASSWORD);
     expect(key).toBeInstanceOf(Buffer);
     expect(key.length).toBe(32);
   });
 
   it("throws with wrong password", () => {
-    expect(() => getMasterKey(db, "wrong-password")).toThrow("wrong password");
+    expect(() => deriveMasterKey(db, "wrong-password")).toThrow("wrong password");
   });
 
   it("throws when vault is not initialized", () => {
     const freshPath = join(tempDir, "fresh.db");
     const freshDb = openVault(freshPath);
     try {
-      expect(() => getMasterKey(freshDb, PASSWORD)).toThrow("not initialized");
+      expect(() => deriveMasterKey(freshDb, PASSWORD)).toThrow("not initialized");
     } finally {
       freshDb.close();
     }
@@ -116,6 +122,43 @@ describe("projects", () => {
     expect(() => {
       removeProject(db, "nope");
     }).toThrow('Project not found: "nope"');
+  });
+});
+
+describe("renameProject", () => {
+  it("renames a project and moves its details", () => {
+    createProject(db, masterKey, "old-name");
+    setDetail(db, masterKey, "old-name", "secret", "val");
+
+    renameProject(db, "old-name", "new-name");
+
+    expect(listProjects(db)).toEqual(["new-name"]);
+    expect(getDetail(db, masterKey, "new-name", "secret")).toBe("val");
+    expect(listDetails(db, "old-name")).toEqual([]);
+  });
+
+  it("preserves project token after rename", () => {
+    const projectKey = createProject(db, masterKey, "old-name");
+    setDetail(db, masterKey, "old-name", "secret", "val");
+
+    renameProject(db, "old-name", "new-name");
+
+    const context = loadProjectDetails(db, projectKey, "new-name", { val: "secret" });
+    expect(context).toEqual({ val: "val" });
+  });
+
+  it("throws when renaming a nonexistent project", () => {
+    expect(() => {
+      renameProject(db, "nope", "new");
+    }).toThrow('Project not found: "nope"');
+  });
+
+  it("throws when target name already exists", () => {
+    createProject(db, masterKey, "a");
+    createProject(db, masterKey, "b");
+    expect(() => {
+      renameProject(db, "a", "b");
+    }).toThrow('Project already exists: "b"');
   });
 });
 
@@ -311,10 +354,10 @@ describe("changePassword", () => {
     changePassword(db, PASSWORD, "new-password");
 
     // Old password fails
-    expect(() => getMasterKey(db, PASSWORD)).toThrow("wrong password");
+    expect(() => deriveMasterKey(db, PASSWORD)).toThrow("wrong password");
 
     // New password works
-    const newMasterKey = getMasterKey(db, "new-password");
+    const newMasterKey = deriveMasterKey(db, "new-password");
     expect(getDetail(db, newMasterKey, "proj", "secret")).toBe("my-value");
   });
 
@@ -370,7 +413,7 @@ describe("sessions", () => {
   });
 
   it("throws on invalid token", () => {
-    expect(() => getMasterKeyFromSession(db, "dG9vc2hvcnQ=")).toThrow("Invalid admin token");
+    expect(() => getMasterKeyFromSession(db, "dG9vc2hvcnQ=")).toThrow("Invalid session token");
   });
 
   it("throws on tampered token", () => {
@@ -500,7 +543,7 @@ describe("changePassword rollback", () => {
     }).toThrow();
 
     // Original password should still work (rollback preserved state)
-    const key = getMasterKey(db, PASSWORD);
+    const key = deriveMasterKey(db, PASSWORD);
     expect(key).toBeInstanceOf(Buffer);
   });
 });
@@ -508,7 +551,7 @@ describe("changePassword rollback", () => {
 describe("vault corruption defenses", () => {
   it("throws 'Vault corrupted' when password_check row is missing", () => {
     db.prepare("DELETE FROM config WHERE key = 'password_check'").run();
-    expect(() => getMasterKey(db, PASSWORD)).toThrow("Vault corrupted");
+    expect(() => deriveMasterKey(db, PASSWORD)).toThrow("Vault corrupted");
   });
 
   it("throws when password_check decrypts to wrong magic string", () => {
@@ -516,7 +559,7 @@ describe("vault corruption defenses", () => {
     const wrongBlob = Buffer.concat([wrongMagic.iv, wrongMagic.authTag, wrongMagic.ciphertext]);
     db.prepare("UPDATE config SET value = ? WHERE key = ?").run(wrongBlob, "password_check");
 
-    expect(() => getMasterKey(db, PASSWORD)).toThrow("wrong password or corrupted vault");
+    expect(() => deriveMasterKey(db, PASSWORD)).toThrow("wrong password or corrupted vault");
   });
 
   it("getProjectKey throws 'wrong master password' with wrong key", () => {
@@ -530,7 +573,9 @@ describe("vault corruption defenses", () => {
     setDetail(db, masterKey, "corrupt-val", "secret", "my-value");
 
     // Corrupt just the value ciphertext — DEK columns remain valid
-    db.prepare("UPDATE details SET ciphertext = zeroblob(1) WHERE project = 'corrupt-val'").run();
+    db.prepare(
+      "UPDATE details SET value_ciphertext = zeroblob(1) WHERE project = 'corrupt-val'",
+    ).run();
 
     expect(() => loadProjectDetails(db, projectKey, "corrupt-val", { val: "secret" })).toThrow(
       "corrupted data",
@@ -540,6 +585,6 @@ describe("vault corruption defenses", () => {
   it("deleteSession throws with invalid token length", () => {
     expect(() => {
       deleteSession(db, "dG9vc2hvcnQ=");
-    }).toThrow("Invalid admin token");
+    }).toThrow("Invalid session token");
   });
 });

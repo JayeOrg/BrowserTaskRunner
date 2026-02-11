@@ -4,16 +4,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Browser } from "../browser/browser.js";
 import {
-  findTask,
   validateContext,
+  normalizeNeeds,
   type TaskConfig,
   type TaskContext,
   type TaskResultSuccess,
   type RetryingTask,
   type SingleAttemptTask,
 } from "./tasks.js";
-import { allTasks } from "./registry.js";
-import { StepError, getErrorMessage, type TaskResultFailure } from "./errors.js";
+import { loadTask, listTaskNames } from "./loader.js";
+import { StepError, getErrorMessage } from "./errors.js";
 import { createPrefixLogger, createTaskLogger } from "./logging.js";
 import { parseToken } from "../vault/crypto.js";
 import { openVaultReadOnly } from "../vault/core.js";
@@ -26,7 +26,7 @@ const logger = createPrefixLogger("Framework");
 function getTaskName(): string {
   const taskName = process.argv[2];
   if (!taskName) {
-    const available = allTasks.map((task) => task.name).join(", ");
+    const available = listTaskNames().join(", ");
     throw new Error(
       `Missing task name. Usage: node run.js <taskName>\nAvailable tasks: ${available}`,
     );
@@ -53,7 +53,7 @@ function loadContext(task: TaskConfig): TaskContext {
   const db = openVaultReadOnly(VAULT_PATH);
 
   try {
-    const context = loadProjectDetails(db, projectKey, task.project, task.needs);
+    const context = loadProjectDetails(db, projectKey, task.project, normalizeNeeds(task.needs));
     const keys = Object.keys(context);
     logger.log("Loaded context from vault", {
       project: task.project,
@@ -65,17 +65,22 @@ function loadContext(task: TaskConfig): TaskContext {
   }
 }
 
-function logFailureDetails(result: TaskResultFailure): void {
+function logStepError(error: StepError): void {
   logger.warn("Failure", {
-    reason: result.reason,
-    step: result.step,
-    ...(result.finalUrl ? { url: result.finalUrl } : {}),
-    ...(result.details ? { details: result.details } : {}),
-    ...(result.context ? { context: result.context } : {}),
+    reason: error.reason,
+    step: error.step,
+    ...(error.meta.finalUrl ? { url: error.meta.finalUrl } : {}),
+    ...(error.meta.details ? { details: error.meta.details } : {}),
+    ...(error.meta.context ? { context: error.meta.context } : {}),
   });
 }
 
-function writeAlert(taskName: string, result: TaskResultSuccess): void {
+function handleSuccess(taskName: string, result: TaskResultSuccess): void {
+  logger.success("TASK SUCCESSFUL!", {
+    step: result.step,
+    ...(result.finalUrl ? { url: result.finalUrl } : {}),
+  });
+
   const timestamp = new Date().toISOString();
   mkdirSync("logs", { recursive: true });
   const alertFile = `logs/alert-${taskName}.txt`;
@@ -96,11 +101,7 @@ async function runSingleAttempt(
 ): Promise<void> {
   const taskLogger = createTaskLogger(task.name);
   const result = await task.run(browser, context, taskLogger);
-  logger.success("TASK SUCCESSFUL!", {
-    step: result.step,
-    ...(result.finalUrl ? { url: result.finalUrl } : {}),
-  });
-  writeAlert(task.name, result);
+  handleSuccess(task.name, result);
 }
 
 function parseIntervalMs(raw: string | undefined, fallback: number): number {
@@ -118,27 +119,23 @@ async function runWithRetry(
   context: TaskContext,
 ): Promise<void> {
   const intervalMs = parseIntervalMs(context.SITE_CHECK_INTERVAL_MS, task.intervalMs);
-  const taskLogger = createTaskLogger(task.name);
   let attempt = 0;
 
   while (true) {
     attempt++;
     logger.log(`Attempt ${attempt.toString()}`, { task: task.name });
+    const taskLogger = createTaskLogger(task.name);
 
     try {
       const result = await task.run(browser, context, taskLogger);
-      logger.success("TASK SUCCESSFUL!", {
-        step: result.step,
-        ...(result.finalUrl ? { url: result.finalUrl } : {}),
-      });
-      writeAlert(task.name, result);
+      handleSuccess(task.name, result);
       return;
     } catch (error) {
       if (error instanceof StepError) {
-        logFailureDetails(error.toResult());
+        logStepError(error);
         logger.warn("Not successful yet");
       } else {
-        logger.warn(`Unexpected: ${getErrorMessage(error)}`);
+        throw error;
       }
     }
 
@@ -153,10 +150,10 @@ function shouldKeepOpen(task: TaskConfig): boolean {
   return task.mode === "once" && task.keepBrowserOpen === true;
 }
 
-async function holdOpen(): Promise<never> {
+async function blockForever(): Promise<never> {
   logger.log("Browser kept open — container will stay alive until stopped");
   return new Promise(() => {
-    // Never resolves — keeps the process alive for VNC inspection
+    /* Intentionally never resolves */
   });
 }
 
@@ -178,17 +175,17 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
     }
 
     if (keepOpen) {
-      await holdOpen();
+      await blockForever();
     }
   } catch (error) {
     if (error instanceof StepError) {
-      logFailureDetails(error.toResult());
+      logStepError(error);
     }
     if (keepOpen) {
       logger.error("Task failed but browser kept open for inspection", {
         error: getErrorMessage(error),
       });
-      await holdOpen();
+      await blockForever();
     }
     throw error;
   } finally {
@@ -200,7 +197,7 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
 
 async function main(): Promise<void> {
   const taskName = getTaskName();
-  const task = findTask(taskName, allTasks);
+  const task = await loadTask(taskName);
   const context = loadContext(task);
   validateContext(task, context);
 

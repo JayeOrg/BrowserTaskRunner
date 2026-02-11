@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId, waitForTabLoad } from "../../tabs.js";
+import { getActiveTabId, waitForTabLoad } from "../../tabs.js";
 
 export const navigateSchema = z.object({
   url: z.string(),
@@ -17,8 +17,7 @@ export interface NavigateResponse extends BaseResponse {
 export async function handleNavigate(
   input: z.infer<typeof navigateSchema>,
 ): Promise<NavigateResponse> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const tabId = await getActiveTabId();
   await chrome.tabs.update(tabId, { url: input.url });
   const loadResult = await waitForTabLoad(tabId);
   const updatedTab = await chrome.tabs.get(tabId);

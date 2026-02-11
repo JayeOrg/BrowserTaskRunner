@@ -1,4 +1,3 @@
-import { openVault } from "../../core.js";
 import { exportToken } from "../../crypto.js";
 import {
   createProject,
@@ -6,10 +5,32 @@ import {
   listProjects,
   removeProject,
   rotateProject,
+  renameProject,
 } from "../../ops/projects.js";
+import { listDetails, setDetail } from "../../ops/details.js";
+import { getProjectNeeds } from "../../../framework/loader.js";
 import { requireArg } from "../args.js";
-import { getAdminMasterKey } from "../auth.js";
-import { VAULT_PATH } from "../env.js";
+import { resolveAdminAuth, requireAdmin } from "../auth.js";
+import { setEnvVar, withVault } from "../env.js";
+import { promptConfirm, getSecretValue } from "../prompt.js";
+
+function tokenEnvKey(project: string): string {
+  return `VAULT_TOKEN_${project.toUpperCase().replace(/-/gu, "_")}`;
+}
+
+function parseProjectArgs(subArgs: string[], usage: string): { name: string; writeEnv: boolean } {
+  const writeEnv = subArgs.includes("--write-env");
+  const positional = subArgs.filter((arg) => arg !== "--write-env");
+  const name = positional[0];
+  requireArg(name, usage);
+  return { name, writeEnv };
+}
+
+function writeTokenToEnv(name: string, token: string): void {
+  const envKey = tokenEnvKey(name);
+  setEnvVar(envKey, token);
+  console.log(`Token written to .env as ${envKey}`);
+}
 
 async function handleProject(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -17,76 +38,114 @@ async function handleProject(args: string[]): Promise<void> {
 
   switch (subcommand) {
     case "create": {
-      const name = subArgs[0];
-      requireArg(name, "project create <name>");
-      const db = openVault(VAULT_PATH);
-      try {
-        const masterKey = await getAdminMasterKey(db);
+      const { name, writeEnv } = parseProjectArgs(subArgs, "project create <name> [--write-env]");
+      await withVault(async (db) => {
+        const masterKey = await resolveAdminAuth(db);
         const projectKey = createProject(db, masterKey, name);
         const token = exportToken(projectKey);
         console.log(`Project "${name}" created`);
-        console.log(`Token: ${token}`);
-      } finally {
-        db.close();
-      }
+        if (writeEnv) writeTokenToEnv(name, token);
+        else console.log(`Token: ${token}`);
+      });
       break;
     }
     case "export": {
-      const name = subArgs[0];
-      requireArg(name, "project export <name>");
-      const db = openVault(VAULT_PATH);
-      try {
-        const masterKey = await getAdminMasterKey(db);
+      const { name, writeEnv } = parseProjectArgs(subArgs, "project export <name> [--write-env]");
+      await withVault(async (db) => {
+        const masterKey = await resolveAdminAuth(db);
         const projectKey = getProjectKey(db, masterKey, name);
-        console.log(exportToken(projectKey));
-      } finally {
-        db.close();
-      }
+        const token = exportToken(projectKey);
+        if (writeEnv) writeTokenToEnv(name, token);
+        else console.log(token);
+      });
       break;
     }
     case "list": {
-      const db = openVault(VAULT_PATH);
-      try {
-        await getAdminMasterKey(db);
+      await withVault(async (db) => {
+        await requireAdmin(db);
         const projects = listProjects(db);
         if (projects.length === 0) {
           console.log("No projects in vault");
           return;
         }
+        console.log("Projects:");
         for (const project of projects) {
           console.log(`  ${project}`);
         }
-      } finally {
-        db.close();
-      }
+      });
       break;
     }
     case "remove": {
       const name = subArgs[0];
       requireArg(name, "project remove <name>");
-      const db = openVault(VAULT_PATH);
-      try {
-        await getAdminMasterKey(db);
+      const confirmed = await promptConfirm(`Remove project "${name}" and all its details?`);
+      if (!confirmed) {
+        console.log("Aborted");
+        return;
+      }
+      await withVault(async (db) => {
+        await requireAdmin(db);
         removeProject(db, name);
         console.log(`Removed project "${name}"`);
-      } finally {
-        db.close();
+      });
+      break;
+    }
+    case "rename": {
+      const oldName = subArgs[0];
+      const newName = subArgs[1];
+      requireArg(oldName, "project rename <old-name> <new-name>");
+      requireArg(newName, "project rename <old-name> <new-name>");
+      await withVault(async (db) => {
+        await requireAdmin(db);
+        renameProject(db, oldName, newName);
+        console.log(`Renamed project "${oldName}" to "${newName}"`);
+      });
+      break;
+    }
+    case "setup": {
+      const name = subArgs[0];
+      requireArg(name, "project setup <name>");
+      const needs = await getProjectNeeds(name);
+      if (needs.length === 0) {
+        console.log(`No tasks found for project "${name}" (is the project built?)`);
+        return;
       }
+      await withVault(async (db) => {
+        const masterKey = await resolveAdminAuth(db);
+        const existing = new Set(listDetails(db, name).map((detail) => detail.key));
+        const missing = needs.filter((key) => !existing.has(key));
+
+        console.log(`Project "${name}" needs: ${needs.join(", ")}`);
+        for (const key of needs) {
+          console.log(`  ${key} ${existing.has(key) ? "\u2713" : "\u2717"}`);
+        }
+
+        if (missing.length === 0) {
+          console.log("All details present");
+          return;
+        }
+
+        console.log(`\nMissing ${String(missing.length)} detail(s):`);
+        for (const key of missing) {
+          console.log(`\nEnter value for "${key}":`);
+          const value = await getSecretValue();
+          setDetail(db, masterKey, name, key, value);
+          console.log(`  Set "${key}"`);
+        }
+        console.log("\nSetup complete");
+      });
       break;
     }
     case "rotate": {
-      const name = subArgs[0];
-      requireArg(name, "project rotate <name>");
-      const db = openVault(VAULT_PATH);
-      try {
-        const masterKey = await getAdminMasterKey(db);
+      const { name, writeEnv } = parseProjectArgs(subArgs, "project rotate <name> [--write-env]");
+      await withVault(async (db) => {
+        const masterKey = await resolveAdminAuth(db);
         const newKey = rotateProject(db, masterKey, name);
         const token = exportToken(newKey);
         console.log(`Rotated key for project "${name}"`);
-        console.log(`New token: ${token}`);
-      } finally {
-        db.close();
-      }
+        if (writeEnv) writeTokenToEnv(name, token);
+        else console.log(`Token: ${token}`);
+      });
       break;
     }
     default:

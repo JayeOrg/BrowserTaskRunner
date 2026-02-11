@@ -134,3 +134,35 @@ We're implementing a **Chrome Extension approach** that:
 5. **Maintenance burden** - DOM manipulation code as strings is harder to refactor, search, and maintain than typed functions
 
 **Conclusion**: Keep the typed primitive approach. Extension provides generic commands (`click`, `fill`, `waitForSelector`, `cdpClick`, `querySelectorRect`), behavior provides the parameters. This is the right level of abstraction.
+
+### 10. Host-side polling for waitForSelector
+
+**Approach**: Replace the in-page polling loop (`chrome.scripting.executeScript` with a `while` loop and 100ms sleeps) with host-side polling from `browser.ts`. The server would loop, sending individual "does this selector exist?" checks via WebSocket. Each check would be a fresh `executeScript` call.
+
+**Motivation**: If the page navigates while the in-page script is running, Chrome kills the injected script context. `executeScript` returns `undefined`, producing a generic error. The host-side approach survives navigation because each poll is independent.
+
+**Why we rejected it**:
+
+1. **Latency doubles at minimum** — each poll round-trips through WebSocket (JSON serialize → send → extension receives → executeScript → response → JSON serialize → send back), conservatively 20-50ms per hop. Safe intervals would be 200ms+ vs the current 100ms in-page poll. For elements that appear quickly after page load, this matters.
+
+2. **WebSocket traffic scales with timeout** — a 10-second wait at 200ms intervals = 50 WebSocket messages vs the current 1 out, 1 back. Localhost so bandwidth is fine, but 50x more message handling, logging, and JSON parsing.
+
+3. **Navigation during waitForSelector is a task design bug** — the pattern is "navigate → wait for load → waitForSelector". If a redirect happens during the wait, the task's assumptions about what page it's on are already broken. The right fix is in the task (handle the redirect), not in the primitive.
+
+4. **The current error is actionable** — "Script execution failed for selector: X" tells you the wait was interrupted. Tasks handle this by checking `.found` and retrying at the task level.
+
+5. **Simpler fix available if needed** — register a `beforeunload` listener in the injected script and return `{ found: false, navigated: true }` before teardown. One line, no architecture change.
+
+### 11. Connection status chip in debug overlay
+
+**Approach**: Add a small indicator to the debug overlay showing WebSocket connection state ("WS: connected to localhost:8765" or "WS: disconnected").
+
+**Why we rejected it**:
+
+1. **Cross-context messaging required** — the overlay runs as a content script, WebSocket state lives in the service worker. Needs: (a) service worker pushing connection state changes via `chrome.tabs.sendMessage`, (b) overlay listening and rendering, (c) overlay polling on load for initial state. That's a new message type, a new cached value, a new handler — all for a status indicator.
+
+2. **Connection failures are loud, not subtle** — if the WS isn't connected, `Browser.start()` throws "Extension did not connect within 60 seconds" and the task never starts. You never end up staring at the overlay wondering about connection state.
+
+3. **Docker single-tab environment** — no scenario where you're in the container wondering which WS endpoint you're connected to. One server, one port.
+
+4. **Service worker console is the right tool** — `chrome://extensions` → inspect service worker already logs `[HH:MM:SS SiteCheck] Connected to server` and `Disconnected from server` with timestamps.

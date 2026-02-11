@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { aesDecrypt } from "../crypto.js";
-import { requireBlob } from "../rows.js";
+import { decryptFrom, PROJECT_DEK_COLS, VALUE_COLS } from "../crypto.js";
 
 function loadProjectDetails(
   db: DatabaseSync,
@@ -11,8 +10,8 @@ function loadProjectDetails(
   const context: Record<string, string> = {};
 
   const stmt = db.prepare(`
-    SELECT project_dek_iv, project_dek_auth_tag, project_wrapped_dek,
-           value_iv, value_auth_tag, ciphertext
+    SELECT project_dek_iv, project_dek_auth_tag, project_dek_ciphertext,
+           value_iv, value_auth_tag, value_ciphertext
     FROM details
     WHERE project = ? AND key = ?
   `);
@@ -25,24 +24,14 @@ function loadProjectDetails(
 
     let dek: Buffer;
     try {
-      dek = aesDecrypt(
-        projectKey,
-        requireBlob(row, "project_dek_iv"),
-        requireBlob(row, "project_dek_auth_tag"),
-        requireBlob(row, "project_wrapped_dek"),
-      );
+      dek = decryptFrom(projectKey, row, PROJECT_DEK_COLS);
     } catch {
       throw new Error(`Failed to decrypt detail "${detailKey}" — invalid project token`);
     }
 
     let value: Buffer;
     try {
-      value = aesDecrypt(
-        dek,
-        requireBlob(row, "value_iv"),
-        requireBlob(row, "value_auth_tag"),
-        requireBlob(row, "ciphertext"),
-      );
+      value = decryptFrom(dek, row, VALUE_COLS);
     } catch {
       throw new Error(`Failed to decrypt value for detail "${detailKey}" — corrupted data`);
     }

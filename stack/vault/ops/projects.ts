@@ -1,14 +1,21 @@
 import { randomBytes } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { KEY_LENGTH, aesEncrypt, aesDecrypt } from "../crypto.js";
-import { requireBlob, requireString } from "../rows.js";
+import {
+  KEY_LENGTH,
+  aesEncrypt,
+  decryptFrom,
+  PROJECT_KEY_COLS,
+  PROJECT_DEK_COLS,
+} from "../crypto.js";
+import { requireString } from "../rows.js";
+import { withSavepoint } from "../db.js";
 
 function createProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
   const projectKey = randomBytes(KEY_LENGTH);
   const wrapped = aesEncrypt(masterKey, projectKey);
 
   db.prepare(
-    "INSERT INTO projects (name, key_iv, key_auth_tag, encrypted_key) VALUES (?, ?, ?, ?)",
+    "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) VALUES (?, ?, ?, ?)",
   ).run(name, wrapped.iv, wrapped.authTag, wrapped.ciphertext);
 
   return projectKey;
@@ -16,16 +23,12 @@ function createProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
 
 function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
   const row = db
-    .prepare("SELECT key_iv, key_auth_tag, encrypted_key FROM projects WHERE name = ?")
+    .prepare("SELECT key_iv, key_auth_tag, key_ciphertext FROM projects WHERE name = ?")
     .get(name);
   if (!row) throw new Error(`Project not found: "${name}"`);
 
-  const iv = requireBlob(row, "key_iv");
-  const authTag = requireBlob(row, "key_auth_tag");
-  const encryptedKey = requireBlob(row, "encrypted_key");
-
   try {
-    return aesDecrypt(masterKey, iv, authTag, encryptedKey);
+    return decryptFrom(masterKey, row, PROJECT_KEY_COLS);
   } catch {
     throw new Error(`Failed to decrypt project key for "${name}" — wrong master password`);
   }
@@ -47,41 +50,48 @@ function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
   const oldProjectKey = getProjectKey(db, masterKey, name);
   const newProjectKey = randomBytes(KEY_LENGTH);
 
-  db.exec("SAVEPOINT rotate_project");
-  try {
+  withSavepoint(db, "rotate_project", () => {
     const wrapped = aesEncrypt(masterKey, newProjectKey);
     db.prepare(
-      "UPDATE projects SET key_iv = ?, key_auth_tag = ?, encrypted_key = ? WHERE name = ?",
+      "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
     ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, name);
 
     const detailRows = db
       .prepare(
-        "SELECT key, project_dek_iv, project_dek_auth_tag, project_wrapped_dek FROM details WHERE project = ?",
+        "SELECT key, project_dek_iv, project_dek_auth_tag, project_dek_ciphertext FROM details WHERE project = ?",
       )
       .all(name);
 
     for (const detailRow of detailRows) {
       const detailKey = requireString(detailRow, "key");
-      const dekIv = requireBlob(detailRow, "project_dek_iv");
-      const dekAuthTag = requireBlob(detailRow, "project_dek_auth_tag");
-      const wrappedDek = requireBlob(detailRow, "project_wrapped_dek");
-
-      const dek = aesDecrypt(oldProjectKey, dekIv, dekAuthTag, wrappedDek);
+      const dek = decryptFrom(oldProjectKey, detailRow, PROJECT_DEK_COLS);
       const rewrapped = aesEncrypt(newProjectKey, dek);
 
       db.prepare(
-        "UPDATE details SET project_dek_iv = ?, project_dek_auth_tag = ?, project_wrapped_dek = ? WHERE project = ? AND key = ?",
+        "UPDATE details SET project_dek_iv = ?, project_dek_auth_tag = ?, project_dek_ciphertext = ? WHERE project = ? AND key = ?",
       ).run(rewrapped.iv, rewrapped.authTag, rewrapped.ciphertext, name, detailKey);
     }
-
-    db.exec("RELEASE rotate_project");
-  } catch (error) {
-    db.exec("ROLLBACK TO rotate_project");
-    db.exec("RELEASE rotate_project");
-    throw error;
-  }
+  });
 
   return newProjectKey;
 }
 
-export { createProject, getProjectKey, listProjects, removeProject, rotateProject };
+function renameProject(db: DatabaseSync, oldName: string, newName: string): void {
+  const exists = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(oldName);
+  if (!exists) throw new Error(`Project not found: "${oldName}"`);
+
+  const conflict = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(newName);
+  if (conflict) throw new Error(`Project already exists: "${newName}"`);
+
+  withSavepoint(db, "rename_project", () => {
+    db.prepare(
+      "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) SELECT ?, key_iv, key_auth_tag, key_ciphertext FROM projects WHERE name = ?",
+    ).run(newName, oldName);
+
+    db.prepare("UPDATE details SET project = ? WHERE project = ?").run(newName, oldName);
+
+    db.prepare("DELETE FROM projects WHERE name = ?").run(oldName);
+  });
+}
+
+export { createProject, getProjectKey, listProjects, removeProject, rotateProject, renameProject };

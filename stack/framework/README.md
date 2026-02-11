@@ -5,7 +5,7 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 ## How It Works
 
 1. Reads the task name from `process.argv[2]`
-2. Looks up the task in the registry
+2. Discovers and loads the task by filename convention
 3. Loads context from vault using `VAULT_TOKEN` and the task's `needs` mapping
 4. Validates context against the task's optional Zod schema
 5. Starts a `Browser` WebSocket connection
@@ -16,7 +16,7 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 
 - `run.ts` - Entry point and orchestration (retry loop, single-attempt runner)
 - `tasks.ts` - Task type definitions (`SingleAttemptTask`, `RetryingTask`, `TaskConfig`)
-- `registry.ts` - Manual task registry
+- `loader.ts` - Convention-based task discovery (filename = task name)
 - `logging.ts` - `TaskLogger` (scoped, step-based) and `PrefixLogger` (simple prefix)
 - `errors.ts` - `StepError` class and `TaskResultFailure` type
 
@@ -29,6 +29,6 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 
 See `agents/tasks/adding-tasks.md` for the full guide. In short:
 
-1. Create a project directory in `stack/projects/<name>/`
-2. Export a `TaskConfig` object with `project` and `needs` fields
-3. Register it in `stack/framework/registry.ts`
+1. Create a project directory in `stack/projects/<name>/tasks/`
+2. Name the file `<taskName>.ts` (must match the `name` field in the task config)
+3. Export `const task: TaskConfig` — the loader discovers it by filename

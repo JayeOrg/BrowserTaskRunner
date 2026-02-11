@@ -24,8 +24,4 @@ services:
         volumes:
             - ../../logs:/app/logs
             - ../../vault.db:/app/vault.db
-            - chrome-profile:/tmp/chrome-profile
         restart: "no"
-
-volumes:
-    chrome-profile:

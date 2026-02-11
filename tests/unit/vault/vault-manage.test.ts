@@ -25,6 +25,7 @@ function run(
     vaultPathOverride?: string;
     adminToken?: string;
     secretValue?: string;
+    extraLines?: string[];
   },
 ): { stdout: string; stderr: string; exitCode: number } {
   const pw = options?.password ?? PASSWORD;
@@ -47,8 +48,10 @@ function run(
   if (options?.secretValue !== undefined) {
     lines.push(options.secretValue);
   }
+  if (options?.extraLines) {
+    lines.push(...options.extraLines);
+  }
   const input = lines.length > 0 ? lines.map((line) => `${line}\n`).join("") : "";
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- test helper running node
   const result = spawnSync("node", [CLI_PATH, ...args], {
     encoding: "utf8",
     env,
@@ -72,7 +75,6 @@ beforeAll(() => {
   templateVaultPath = join(templateDir, "vault.db");
   const templateEnvPath = join(templateDir, ".env");
 
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- test setup
   spawnSync("node", [CLI_PATH, "init"], {
     encoding: "utf8",
     env: {
@@ -82,10 +84,9 @@ beforeAll(() => {
       DOTENV_CONFIG_PATH: templateEnvPath,
       NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
     },
-    input: `${PASSWORD}\n`,
+    input: `${PASSWORD}\n${PASSWORD}\n`,
   });
 
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- test setup
   spawnSync("node", [CLI_PATH, "login", "--duration", "120"], {
     encoding: "utf8",
     env: {
@@ -133,7 +134,7 @@ const TOKEN = () => ({ adminToken: templateToken, password: "" });
 describe("vault CLI", () => {
   it("initializes a new vault", () => {
     const freshPath = join(tempDir, "fresh.db");
-    const result = run(["init"], { vaultPathOverride: freshPath });
+    const result = run(["init"], { vaultPathOverride: freshPath, extraLines: [PASSWORD] });
     expect(result.stdout).toContain("initialized");
   });
 
@@ -144,21 +145,23 @@ describe("vault CLI", () => {
     expect(result.stdout.trim()).toBe("hello@test.com");
   });
 
-  it("lists details", () => {
+  it("lists details with header", () => {
     run(["project", "create", "proj"], TOKEN());
     run(["detail", "set", "proj", "a-key"], { ...TOKEN(), secretValue: "val1" });
     run(["detail", "set", "proj", "b-key"], { ...TOKEN(), secretValue: "val2" });
     const result = run(["detail", "list"], TOKEN());
+    expect(result.stdout).toContain("Details:");
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).toContain("b-key");
   });
 
-  it("lists details filtered by project", () => {
+  it("lists details filtered by project omits project name", () => {
     run(["project", "create", "proj-a"], TOKEN());
     run(["project", "create", "proj-b"], TOKEN());
     run(["detail", "set", "proj-a", "a-key"], { ...TOKEN(), secretValue: "val1" });
     run(["detail", "set", "proj-b", "b-key"], { ...TOKEN(), secretValue: "val2" });
     const result = run(["detail", "list", "proj-a"], TOKEN());
+    expect(result.stdout).toContain('Details in "proj-a":');
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).not.toContain("b-key");
   });
@@ -179,16 +182,34 @@ describe("vault CLI", () => {
     expect(result.stdout.trim()).toBe("new@test.com");
   });
 
+  it("init rejects mismatched confirmation in pipe mode", () => {
+    const freshPath = join(tempDir, "mismatch.db");
+    const result = run(["init"], {
+      vaultPathOverride: freshPath,
+      extraLines: ["wrong-confirm"],
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Passwords do not match");
+  });
+
   it("creates a project and shows token", () => {
     const result = run(["project", "create", "test-proj"], TOKEN());
     expect(result.stdout).toContain("test-proj");
     expect(result.stdout).toContain("Token:");
   });
 
-  it("lists projects", () => {
+  it("project create --write-env writes token to .env", () => {
+    run(["project", "create", "write-test", "--write-env"], TOKEN());
+    const content = readFileSync(envPath, "utf8");
+    expect(content).toContain("VAULT_TOKEN_WRITE_TEST=");
+  });
+
+  it("lists projects with header", () => {
     run(["project", "create", "alpha"], TOKEN());
     run(["project", "create", "beta"], TOKEN());
     const result = run(["project", "list"], TOKEN());
+    expect(result.stdout).toContain("Projects:");
     expect(result.stdout).toContain("alpha");
     expect(result.stdout).toContain("beta");
   });
@@ -226,7 +247,7 @@ describe("vault CLI", () => {
 describe("vault login/logout", () => {
   it("login creates a session and writes token to .env", () => {
     const result = run(["login"]);
-    expect(result.stdout).toContain("Admin session active for 30 minutes");
+    expect(result.stdout).toContain("Session active for 30 minutes");
     expect(result.stdout).toContain("Token written to .env");
 
     const token = readAdminToken();
@@ -238,11 +259,10 @@ describe("vault login/logout", () => {
     expect(result.stdout).toContain("60 minutes");
   });
 
-  it("admin commands work with session token", () => {
+  it("session token works for admin commands", () => {
     run(["login"]);
     const token = readAdminToken();
 
-    // Use admin token instead of password for subsequent commands
     run(["project", "create", "session-proj"], { adminToken: token, password: "" });
     run(["detail", "set", "session-proj", "email"], {
       adminToken: token,
@@ -277,20 +297,20 @@ describe("vault login/logout", () => {
 
   it("logout with no active session prints message", () => {
     const result = run(["logout"], { password: "" });
-    expect(result.stdout).toContain("No active admin session");
+    expect(result.stdout).toContain("No active session");
   });
 
   it("status shows active session with time remaining", () => {
     run(["login"]);
     const token = readAdminToken();
     const result = run(["status"], { adminToken: token, password: "" });
-    expect(result.stdout).toContain("Admin session active");
+    expect(result.stdout).toContain("Session active");
     expect(result.stdout).toContain("min remaining");
   });
 
   it("status shows no session when not logged in", () => {
     const result = run(["status"], { password: "" });
-    expect(result.stdout).toContain("No active admin session");
+    expect(result.stdout).toContain("No active session");
   });
 });
 
@@ -318,8 +338,12 @@ describe("change-password", () => {
     run(["project", "create", "proj"], TOKEN());
     run(["detail", "set", "proj", "k"], { ...TOKEN(), secretValue: "secret-val" });
 
-    // Change password: stdin line 1 = old password, line 2 = new password
-    run(["change-password"], { password: PASSWORD, secretValue: "new-password-123" });
+    // Change password: stdin = old, new, confirm
+    run(["change-password"], {
+      password: PASSWORD,
+      secretValue: "new-password-123",
+      extraLines: ["new-password-123"],
+    });
 
     // Old password fails
     const fail = run(["detail", "get", "proj", "k"], {
@@ -333,11 +357,26 @@ describe("change-password", () => {
     expect(ok.stdout.trim()).toBe("secret-val");
   });
 
-  it("invalidates admin sessions", () => {
+  it("rejects mismatched confirmation in pipe mode", () => {
+    const result = run(["change-password"], {
+      password: PASSWORD,
+      secretValue: "new-pw",
+      extraLines: ["wrong-confirm"],
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Passwords do not match");
+  });
+
+  it("invalidates sessions", () => {
     run(["login"]);
     const token = readAdminToken();
 
-    run(["change-password"], { password: PASSWORD, secretValue: "new-pw" });
+    run(["change-password"], {
+      password: PASSWORD,
+      secretValue: "new-pw",
+      extraLines: ["new-pw"],
+    });
 
     const result = run(["project", "create", "after-change"], {
       adminToken: token,
@@ -373,6 +412,43 @@ describe("project remove", () => {
   });
 });
 
+describe("project rename", () => {
+  it("renames a project and preserves its details", () => {
+    run(["project", "create", "old-name"], TOKEN());
+    run(["detail", "set", "old-name", "email"], { ...TOKEN(), secretValue: "user@test.com" });
+
+    const result = run(["project", "rename", "old-name", "new-name"], TOKEN());
+    expect(result.stdout).toContain('Renamed project "old-name" to "new-name"');
+
+    const list = run(["project", "list"], TOKEN());
+    expect(list.stdout).toContain("new-name");
+    expect(list.stdout).not.toContain("old-name");
+
+    const detail = run(["detail", "get", "new-name", "email"], TOKEN());
+    expect(detail.stdout.trim()).toBe("user@test.com");
+  });
+
+  it("fails for nonexistent project", () => {
+    const result = run(["project", "rename", "nope", "new-name"], {
+      ...TOKEN(),
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("nope");
+  });
+
+  it("fails when target name already exists", () => {
+    run(["project", "create", "proj-a"], TOKEN());
+    run(["project", "create", "proj-b"], TOKEN());
+    const result = run(["project", "rename", "proj-a", "proj-b"], {
+      ...TOKEN(),
+      expectFailure: true,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("already exists");
+  });
+});
+
 describe("project rotate", () => {
   it("rotates the project key and outputs a new token", () => {
     const createResult = run(["project", "create", "rotating"], TOKEN());
@@ -383,7 +459,7 @@ describe("project rotate", () => {
 
     const rotateResult = run(["project", "rotate", "rotating"], TOKEN());
     expect(rotateResult.stdout).toContain("Rotated key");
-    const newToken = /New token: (?<token>.+)/u.exec(rotateResult.stdout)?.groups?.token;
+    const newToken = /Token: (?<token>.+)/u.exec(rotateResult.stdout)?.groups?.token;
     expect(newToken).toBeTruthy();
     expect(newToken).not.toBe(oldToken);
   });

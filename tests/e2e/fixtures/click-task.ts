@@ -26,7 +26,7 @@ async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResul
     throw new StepError(TASK_NAME, "verify", "NOT_ON_SUCCESS_PAGE", { finalUrl });
   }
 
-  return { ok: true, step: "verify", finalUrl };
+  return { step: "verify", finalUrl };
 }
 
 export const clickTask: SingleAttemptTask = {

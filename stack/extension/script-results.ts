@@ -20,6 +20,7 @@ const ScriptFoundSchema = z.object({
 
 const ScriptContentSchema = z.object({
   content: z.string(),
+  found: z.boolean().optional(),
 });
 
 export type ScriptErrorResult = z.infer<typeof ScriptErrorSchema>;
@@ -28,6 +29,19 @@ export type ScriptContentResult = z.infer<typeof ScriptContentSchema>;
 
 export function isScriptError(value: unknown): value is ScriptErrorResult {
   return ScriptErrorSchema.safeParse(value).success;
+}
+
+export function extractResult(
+  results: { result?: unknown }[],
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  const result = results[0]?.result;
+  if (isScriptError(result)) {
+    return { ok: false, error: result.error };
+  }
+  if (result === undefined) {
+    return { ok: false, error: "Script did not execute" };
+  }
+  return { ok: true, value: result };
 }
 
 export function isScriptFound(value: unknown): value is ScriptFoundResult {

@@ -1,10 +1,5 @@
-/**
- * Cloudflare Turnstile detection and clicking utilities.
- * All knowledge of Turnstile structure lives here in the tasks layer.
- */
 import type { BrowserAPI } from "../../browser/browser.js";
 
-// Turnstile container selectors - tasks own this knowledge
 const TURNSTILE_SELECTORS = [
   ".turnstile",
   ".cf-turnstile",

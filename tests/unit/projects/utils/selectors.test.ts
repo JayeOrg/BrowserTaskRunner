@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { waitForFirst, clickFirst, fillFirst } from "../../../../stack/projects/utils/selectors.js";
-import { createMockBrowser } from "./testing.js";
+import { createMockBrowser } from "../../../fixtures/mock-browser.js";
 
 describe("waitForFirst", () => {
   it("returns first matching selector", async () => {
@@ -111,6 +111,22 @@ describe("fillFirst", () => {
     expect(result.found).toBe(false);
     if (!result.found) {
       expect(result.error).toContain("#input");
+    }
+  });
+
+  it("handles non-Error thrown values from fill", async () => {
+    const browser = createMockBrowser();
+    vi.mocked(browser.waitForSelector).mockResolvedValue({
+      type: "waitForSelector",
+      found: true,
+      selector: "#input",
+    });
+    vi.mocked(browser.fill).mockRejectedValue("string rejection");
+
+    const result = await fillFirst(browser, ["#input"], "val", 5000);
+    expect(result.found).toBe(false);
+    if (!result.found) {
+      expect(result.error).toContain("string rejection");
     }
   });
 });

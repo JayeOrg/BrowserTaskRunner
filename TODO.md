@@ -1,3 +1,3 @@
-Re-review for DX across updated stack.
-
-Then we want to build various jobsite scraper tasks
+Add some job site scrapers
+Add some resume site fillers
+Maybe some autofill for cover letters based on keyword search?

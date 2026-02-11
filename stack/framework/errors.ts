@@ -1,12 +1,3 @@
-export interface TaskResultFailure {
-  ok: false;
-  step: string;
-  reason: string;
-  finalUrl?: string;
-  details?: string;
-  context?: Record<string, unknown>;
-}
-
 export type StepErrorMeta = Record<string, unknown> & {
   finalUrl?: string;
   details?: string;
@@ -25,26 +16,6 @@ export class StepError extends Error {
     super(`${task}.${step}: ${reason}`);
     this.name = "StepError";
     this.meta = meta;
-  }
-
-  toResult(): TaskResultFailure {
-    const { finalUrl, details, context } = this.meta;
-    const result: TaskResultFailure = {
-      ok: false,
-      step: this.step,
-      reason: this.reason,
-      context: { task: this.task, ...(context ?? {}) },
-    };
-
-    if (finalUrl !== undefined) {
-      result.finalUrl = finalUrl;
-    }
-
-    if (details !== undefined) {
-      result.details = details;
-    }
-
-    return result;
   }
 }
 

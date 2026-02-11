@@ -1,13 +1,15 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { botcLoginTask } from "../../../stack/projects/botc/tasks/botc.js";
+import { task as botcLoginTask } from "../../../stack/projects/botc/tasks/botcLogin.js";
 import {
   setupTaskTest,
   createDefaultResponder,
+  noopLogger,
   type TaskTestSetup,
 } from "../../fixtures/test-helpers.js";
-import { createTaskLogger } from "../../../stack/framework/logging.js";
 
-const noopLogger = createTaskLogger("test", () => undefined);
+vi.mock("../../../stack/projects/utils/timing.js", () => ({
+  sleep: () => Promise.resolve(),
+}));
 
 let setup: TaskTestSetup | null = null;
 
@@ -23,7 +25,7 @@ describe("e2e: botcLoginTask", () => {
     expect(botcLoginTask.name).toBe("botcLogin");
     expect(botcLoginTask.mode).toBe("retry");
     expect(botcLoginTask.project).toBe("monitor-botc");
-    expect(botcLoginTask.needs).toEqual({ email: "email", password: "password" });
+    expect(botcLoginTask.needs).toEqual(["email", "password"]);
   });
 
   it("validates context schema requires email and password", () => {
@@ -40,12 +42,8 @@ describe("e2e: botcLoginTask", () => {
     expect(missingPassword?.success).toBe(false);
   });
 
-  it("navigates and fills login form on happy path", async () => {
-    // Mock sleep to avoid real delays
-    vi.mock("../../../stack/projects/utils/timing.js", () => ({
-      sleep: () => Promise.resolve(),
-    }));
-
+  // CheckAlreadyLoggedIn polls getText for 5s before proceeding with login
+  it("navigates and fills login form on happy path", { timeout: 10_000 }, async () => {
     const { responder, state } = createDefaultResponder({
       waitForSelector: (cmd) => ({
         type: "waitForSelector",
@@ -73,17 +71,10 @@ describe("e2e: botcLoginTask", () => {
       noopLogger,
     );
 
-    expect(result.ok).toBe(true);
     expect(result.finalUrl).toContain("dashboard");
-
-    vi.restoreAllMocks();
   });
 
-  it("fails when email input is not found", async () => {
-    vi.mock("../../../stack/projects/utils/timing.js", () => ({
-      sleep: () => Promise.resolve(),
-    }));
-
+  it("fails when email input is not found", { timeout: 10_000 }, async () => {
     const { responder, state } = createDefaultResponder({
       waitForSelector: () => ({ type: "waitForSelector", found: false }),
       querySelectorRect: () => ({ type: "querySelectorRect", found: false }),
@@ -94,15 +85,10 @@ describe("e2e: botcLoginTask", () => {
     await expect(
       botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, noopLogger),
     ).rejects.toThrow("EMAIL_INPUT_NOT_FOUND");
-
-    vi.restoreAllMocks();
   });
 
-  it("fails when still on login page after submit", async () => {
-    vi.mock("../../../stack/projects/utils/timing.js", () => ({
-      sleep: () => Promise.resolve(),
-    }));
-
+  // CheckAlreadyLoggedIn (5s) + checkResult (15s) polling against real Date.now()
+  it("fails when still on login page after submit", { timeout: 25_000 }, async () => {
     const { responder, state } = createDefaultResponder({
       waitForSelector: (cmd) => ({
         type: "waitForSelector",
@@ -124,7 +110,5 @@ describe("e2e: botcLoginTask", () => {
     await expect(
       botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, noopLogger),
     ).rejects.toThrow("STILL_ON_LOGIN_PAGE");
-
-    vi.restoreAllMocks();
   });
 });

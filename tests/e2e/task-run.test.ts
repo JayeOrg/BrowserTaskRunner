@@ -1,15 +1,13 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { StepError } from "../../stack/framework/errors.js";
-import { createTaskLogger } from "../../stack/framework/logging.js";
 import { clickTask } from "./fixtures/click-task.js";
 import { retryTask, resetAttempts } from "./fixtures/retry-task.js";
 import {
   setupTaskTest,
   createDefaultResponder,
+  noopLogger,
   type TaskTestSetup,
 } from "../fixtures/test-helpers.js";
-
-const noopLogger = createTaskLogger("test", () => undefined);
 
 let setup: TaskTestSetup | null = null;
 
@@ -29,7 +27,6 @@ describe("e2e: click-task against local test site", () => {
 
     const result = await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);
 
-    expect(result.ok).toBe(true);
     expect(result.finalUrl).toContain("/success");
     expect(state.commands).toEqual(["navigate", "waitForSelector", "click", "getUrl"]);
   });
@@ -126,8 +123,7 @@ describe("e2e: retry-task behavior", () => {
     );
 
     // Third call: should succeed (attempt 3 > failUntil 2)
-    const result = await retryTask.run(setup.browser, { failUntil: "2" }, noopLogger);
-    expect(result.ok).toBe(true);
+    await retryTask.run(setup.browser, { failUntil: "2" }, noopLogger);
   });
 
   it("is a RetryingTask with mode 'retry'", () => {

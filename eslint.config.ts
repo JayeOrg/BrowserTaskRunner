@@ -66,6 +66,7 @@ export default [
       'max-statements': 'off',
       'func-style': 'off',
       'one-var': 'off',
+      'no-empty-function': 'off',
       'no-inline-comments': 'off',
       'no-magic-numbers': 'off',
       'prefer-destructuring': 'off',
@@ -82,13 +83,14 @@ export default [
       'sort-keys': 'off',
       'sonarjs/no-hardcoded-passwords': 'off',
       'sonarjs/cognitive-complexity': 'off',
+      'sonarjs/pseudo-random': 'off',
       'id-length': ['error', { exceptions: ['x', 'y'] }],
     },
   },
 
   // Tests – relaxed rules
   {
-    files: ['**/*.{spec,test}.ts', '**/__tests__/**/*'],
+    files: ['**/*.{spec,test}.ts', '**/__tests__/**/*', 'tests/fixtures/**/*.ts', 'tests/setup/**/*.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -100,7 +102,7 @@ export default [
       'no-magic-numbers': 'off',
       'sonarjs/no-duplicate-string': 'off',
       'sonarjs/no-hardcoded-passwords': 'off',
-      'no-empty-function': 'off',
+      'sonarjs/no-os-command-from-path': 'off',
     },
   },
 

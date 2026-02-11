@@ -1,18 +1,30 @@
 import { log } from "./logging.js";
 
-export async function getActiveTab(): Promise<chrome.tabs.Tab> {
+let tabIdPromise: Promise<number> | null = null;
+let lockedTabId: number | null = null;
+
+async function resolveTabId(): Promise<number> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) {
     throw new Error("No active tab");
   }
-  return tab;
-}
-
-export function getTabId(tab: chrome.tabs.Tab): number {
   if (tab.id === undefined) {
     throw new Error("Tab has no ID (possibly a devtools or extension tab)");
   }
+  lockedTabId = tab.id;
+  log("Locked to tab", { tabId: tab.id });
   return tab.id;
+}
+
+export function getActiveTabId(): Promise<number> {
+  if (!tabIdPromise) {
+    tabIdPromise = resolveTabId();
+  }
+  return tabIdPromise;
+}
+
+export function getLockedTabId(): number | null {
+  return lockedTabId;
 }
 
 export interface TabLoadResult {
@@ -20,7 +32,6 @@ export interface TabLoadResult {
   timedOut: boolean;
 }
 
-// Delay after tab reports "complete" to let post-load JavaScript settle
 const POST_LOAD_SETTLE_MS = 500;
 
 export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoadResult> {

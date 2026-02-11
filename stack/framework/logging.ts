@@ -1,14 +1,11 @@
 import { StepError, type StepErrorMeta } from "./errors.js";
 
-// Injectable output function type
 export type LogOutput = (message: string) => void;
 
-// Default output: console.log
 const defaultOutput: LogOutput = (message) => {
   console.log(message);
 };
 
-// ANSI color codes
 const colors = {
   reset: "\x1b[0m",
   dim: "\x1b[2m",
@@ -18,7 +15,6 @@ const colors = {
   cyan: "\x1b[36m",
 };
 
-// Log level indicators and colors
 type LogLevel = "info" | "success" | "warn" | "error";
 
 const levelStyles: Record<LogLevel, { icon: string; color: string }> = {
@@ -38,23 +34,20 @@ function formatDuration(ms: number): string {
   return `${minutes.toString()}:${remainingSeconds.toFixed(0).padStart(2, "0")}`;
 }
 
-// Terminal width for right-justified elapsed time
 function getTermWidth(): number {
   return process.stdout.columns || 120;
 }
 
-// eslint-disable-next-line no-control-regex, require-unicode-regexp, sonarjs/no-control-regex
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+// eslint-disable-next-line no-control-regex, sonarjs/no-control-regex
+export const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
 
 function rightJustify(content: string, suffix: string): string {
-  // Strip ANSI codes for length calculation
   const visibleLength = content.replace(ANSI_PATTERN, "").length;
   const suffixLength = suffix.length;
   const padding = Math.max(1, getTermWidth() - visibleLength - suffixLength);
   return `${content}${" ".repeat(padding)}${colors.dim}${suffix}${colors.reset}`;
 }
 
-// Internal step tracker state
 interface StepState {
   stepNum: number;
   lastStep: string;
@@ -65,17 +58,14 @@ function createStepState(): StepState {
   return { stepNum: 0, lastStep: "", lastTime: Date.now() };
 }
 
-// Format data for display: simple arrow notation for readability
 function formatData(data?: Record<string, unknown>): string {
   if (!data || Object.keys(data).length === 0) {
     return "";
   }
   const values = Object.values(data);
-  // Single value: just show the value with arrow
   if (values.length === 1) {
     return ` → ${String(values[0])}`;
   }
-  // Multiple values: key=value pairs
   const pairs = Object.entries(data).map(([key, val]) => `${key}=${String(val)}`);
   return ` → ${pairs.join(", ")}`;
 }
@@ -104,15 +94,23 @@ function formatLogLine(
   output(rightJustify(content, duration));
 }
 
-// Task-scoped logger interface (no task param needed per call)
+// Step-scoped logger — step name is pre-filled by StepRunner
+export interface StepLogger {
+  log: (msg: string, data?: Record<string, unknown>) => void;
+  success: (msg: string, data?: Record<string, unknown>) => void;
+  warn: (msg: string, data?: Record<string, unknown>) => void;
+  fail: (reason: string, meta?: StepErrorMeta) => never;
+}
+
+// Task-level logger — step name required per call (used by framework internals)
 export interface TaskLogger {
   log: (step: string, msg: string, data?: Record<string, unknown>) => void;
   success: (step: string, msg: string, data?: Record<string, unknown>) => void;
   warn: (step: string, msg: string, data?: Record<string, unknown>) => void;
   fail: (step: string, reason: string, meta?: StepErrorMeta) => never;
+  scoped: (step: string) => StepLogger;
 }
 
-// Creates a logger scoped to a specific task - no manual reset needed
 export function createTaskLogger(task: string, output: LogOutput = defaultOutput): TaskLogger {
   const state = createStepState();
 
@@ -127,11 +125,30 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
     throw new StepError(task, step, reason, meta);
   };
 
+  const scoped = (step: string): StepLogger => {
+    const info = logAt("info");
+    const success = logAt("success");
+    const warning = logAt("warn");
+    return {
+      log: (msg, data) => {
+        info(step, msg, data);
+      },
+      success: (msg, data) => {
+        success(step, msg, data);
+      },
+      warn: (msg, data) => {
+        warning(step, msg, data);
+      },
+      fail: (reason, meta) => fail(step, reason, meta),
+    };
+  };
+
   return {
     log: logAt("info"),
     success: logAt("success"),
     warn: logAt("warn"),
     fail,
+    scoped,
   };
 }
 

@@ -90,13 +90,38 @@ screenshot() {
 
 The return type is automatically `Promise<ScreenshotResponse>` via the `ResponseFor` type.
 
-## 4. Add to mock browser in `tests/unit/projects/utils/testing.ts`
+## 4. Add to mock browser in `tests/fixtures/mock-browser.ts`
 
 ```typescript
 screenshot: vi.fn().mockResolvedValue({ type: "screenshot", data: "" }),
 ```
 
 Pick a sensible default that matches the response shape.
+
+## 5. Add to default responder in `tests/fixtures/test-helpers.ts`
+
+Add a case to the `createDefaultResponder` switch:
+
+```typescript
+case "screenshot":
+  return { type: "screenshot", data: "" };
+```
+
+## 6. Add integration tests in `tests/integration/browser/browser.test.ts`
+
+Add at least one round-trip test:
+
+```typescript
+it("screenshot() sends command and receives response", async () => {
+  setup = await setupBrowser();
+  const p = setup.browser.screenshot();
+  const cmd = await setup.ext.receiveCommand();
+  expect(cmd.type).toBe("screenshot");
+  setup.ext.sendResponse({ id: cmd.id, type: "screenshot", data: "base64..." });
+  const result = await p;
+  expect(result.data).toBe("base64...");
+});
+```
 
 ## Why convenience methods exist
 
@@ -127,6 +152,26 @@ Chrome's `executeScript` serializes `args` values via structured clone. `undefin
 
 `chrome.scripting.executeScript` returns a `Promise`. Even for fire-and-forget helpers, you must `await` it or ESLint flags `@typescript-eslint/no-floating-promises`. Make helper functions `async` and `await` the call.
 
-### CDP click helpers are duplicated, not shared
+### CDP click helpers are shared via `clicks.ts`
 
-`syntheticClickAt` and `cdpClickAt` appear in both `cdp-click.ts` and `click-text.ts`. The extension is bundled with esbuild into a single file, so the duplication is harmless and keeps each command self-contained. Don't extract a shared module unless a third command needs it.
+`domClickAt` and `cdpClickAt` live in `stack/extension/clicks.ts` and are imported by `cdp-click.ts` and `click-text.ts`.
+
+### iframe support via `getScriptTarget`
+
+Commands that use `chrome.scripting.executeScript` should support iframe targeting. Import `getScriptTarget` from `../../script-target.js` and add `frameId: z.number().optional()` to the schema:
+
+```typescript
+import { getScriptTarget } from "../../script-target.js";
+
+export const myCommandSchema = z.object({
+  selector: z.string(),
+  frameId: z.number().optional(),
+});
+
+export async function handleMyCommand(input) {
+  const target = await getScriptTarget(input.frameId);
+  const results = await chrome.scripting.executeScript({ target, ... });
+}
+```
+
+On the browser side, add `options?: { frameId?: number }` to the method signature and spread it into the `send()` call.

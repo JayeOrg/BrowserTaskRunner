@@ -1,28 +1,30 @@
-import { openVault, initVault, getMasterKey, changePassword } from "../../core.js";
+import { initVault, deriveMasterKey, changePassword } from "../../core.js";
 import {
   createSession,
   getSessionExpiry,
   deleteSession,
   DEFAULT_SESSION_MINUTES,
 } from "../../ops/sessions.js";
-import { VAULT_PATH, setEnvVar, removeEnvVar } from "../env.js";
-import { getPassword, promptHidden, readStdinLine } from "../prompt.js";
+import { VAULT_PATH, setEnvVar, removeEnvVar, withVault } from "../env.js";
+import { getPassword, getNewPassword } from "../prompt.js";
 
 async function handleInit(): Promise<void> {
-  const password = await getPassword();
-  const db = openVault(VAULT_PATH);
-  try {
+  const password = await getNewPassword();
+  await withVault((db) => {
     initVault(db, password);
     console.log("Vault initialized at", VAULT_PATH);
-  } finally {
-    db.close();
-  }
+  });
 }
 
 function parseDuration(args: string[]): number {
   const idx = args.indexOf("--duration");
   if (idx === -1) return DEFAULT_SESSION_MINUTES;
-  const val = Number(args[idx + 1]);
+  const raw = args[idx + 1];
+  if (raw === undefined) {
+    console.error("--duration requires a value (minutes)");
+    process.exit(1);
+  }
+  const val = Number(raw);
   if (!Number.isFinite(val) || val <= 0) {
     console.error("--duration must be a positive number of minutes");
     process.exit(1);
@@ -33,79 +35,63 @@ function parseDuration(args: string[]): number {
 async function handleLogin(args: string[]): Promise<void> {
   const duration = parseDuration(args);
   const password = await getPassword();
-  const db = openVault(VAULT_PATH);
-  try {
-    const masterKey = getMasterKey(db, password);
+  await withVault((db) => {
+    const masterKey = deriveMasterKey(db, password);
     const token = createSession(db, masterKey, duration);
     setEnvVar("VAULT_ADMIN", token);
-    console.log(`Admin session active for ${duration.toString()} minutes.`);
+    console.log(`Session active for ${duration.toString()} minutes`);
     console.log("Token written to .env");
-  } finally {
-    db.close();
-  }
+  });
 }
 
-function handleLogout(): void {
+async function handleLogout(): Promise<void> {
   const token = process.env.VAULT_ADMIN;
   if (!token) {
-    console.log("No active admin session");
+    console.log("No active session");
     return;
   }
-  const db = openVault(VAULT_PATH);
-  try {
-    deleteSession(db, token);
-  } catch {
-    // Session may already be expired/deleted — still clean up .env
-  } finally {
-    db.close();
-  }
+  await withVault((db) => {
+    try {
+      deleteSession(db, token);
+    } catch {
+      // Session may already be expired/deleted — still clean up .env
+    }
+  });
   removeEnvVar("VAULT_ADMIN");
-  console.log("Admin session ended");
+  console.log("Session ended");
 }
 
-function handleStatus(): void {
+async function handleStatus(): Promise<void> {
   const token = process.env.VAULT_ADMIN;
   if (!token) {
-    console.log("No active admin session");
+    console.log("No active session");
     return;
   }
-  const db = openVault(VAULT_PATH);
-  try {
+  await withVault((db) => {
     const expiresAt = getSessionExpiry(db, token);
     if (expiresAt === null || Date.now() > expiresAt) {
-      console.log("Admin session expired");
+      try {
+        deleteSession(db, token);
+      } catch {
+        // Already gone — fine
+      }
+      removeEnvVar("VAULT_ADMIN");
+      console.log("Session expired — cleared from .env");
       return;
     }
     const remaining = Math.round((expiresAt - Date.now()) / 1000 / 60);
-    console.log(`Admin session active — ${remaining.toString()}min remaining (${VAULT_PATH})`);
-  } finally {
-    db.close();
-  }
+    console.log(`Session active — ${remaining.toString()}min remaining (${VAULT_PATH})`);
+  });
 }
 
 async function handleChangePassword(): Promise<void> {
-  const db = openVault(VAULT_PATH);
-  try {
-    let oldPassword: string;
-    let newPassword: string;
-    if (process.stdin.isTTY) {
-      oldPassword = await promptHidden("Current password");
-      newPassword = await promptHidden("New password");
-      const confirm = await promptHidden("Confirm new password");
-      if (newPassword !== confirm) {
-        console.error("Passwords do not match");
-        process.exit(1);
-      }
-    } else {
-      oldPassword = await readStdinLine("No current password provided on stdin");
-      newPassword = await readStdinLine("No new password provided on stdin");
-    }
+  const oldPassword = await getPassword();
+  const newPassword = await getNewPassword();
+  await withVault((db) => {
     changePassword(db, oldPassword, newPassword);
     removeEnvVar("VAULT_ADMIN");
-    console.log("Password changed. All admin sessions invalidated.");
-  } finally {
-    db.close();
-  }
+    console.log("Password changed. All sessions invalidated.");
+  });
 }
 
 export { handleInit, handleLogin, handleLogout, handleStatus, handleChangePassword };

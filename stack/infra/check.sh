@@ -102,6 +102,7 @@ if [ ! -f .env ]; then
 fi
 
 # Validate at least one vault token exists in .env
+# Match VAULT_TOKEN=... (legacy) or VAULT_TOKEN_PROJECT=... (preferred)
 if ! grep -qE '^VAULT_TOKEN(_[A-Z0-9_]+=|=).+' .env; then
     echo "Error: .env must define at least one vault token"
     echo "  VAULT_TOKEN_<PROJECT>=<token>  (preferred, e.g. VAULT_TOKEN_NANDOS=...)"
@@ -113,7 +114,8 @@ fi
 # Compute hash from git index (fast - reads blob hashes, not file contents).
 # Falls back to timestamp when git isn't available (CI artifacts, tarballs).
 SOURCE_HASH=$(git ls-files -s stack/ package.json package-lock.json 2>/dev/null | shasum -a 256 | cut -c1-12)
-if [ -z "$SOURCE_HASH" ] || [ "$SOURCE_HASH" = "$(echo '' | shasum -a 256 | cut -c1-12)" ]; then
+EMPTY_HASH="01ba4719c80b" # shasum of empty input
+if [ -z "$SOURCE_HASH" ] || [ "$SOURCE_HASH" = "$EMPTY_HASH" ]; then
     SOURCE_HASH=$(date +%s)
 fi
 
@@ -151,6 +153,7 @@ fi
 
 COMPOSE_CMD+=(--env-file .env up)
 
+# --build by default; skip if --no-build, or if --rebuild already built above
 if [ -z "$NO_BUILD" ] && [ -z "$REBUILD" ]; then
     COMPOSE_CMD+=(--build)
 fi

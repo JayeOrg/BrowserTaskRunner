@@ -29,32 +29,21 @@ elapsed_since_last_log() {
     local now=$(date +%s)
     local elapsed=$((now - PREVIOUS_LOG_TIME))
     PREVIOUS_LOG_TIME=$now
-    echo "${elapsed}.0s"
+    echo "${elapsed}s"
 }
 
-log() {
+_log() {
+    local icon=$1 color=$2 msg=$3
     local duration=$(elapsed_since_last_log)
-    local text="[Infra] $1"
+    local text="[Infra] $msg"
     local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
     if [ $padding -lt 1 ]; then padding=1; fi
-    printf "\033[36m→\033[0m %s%*s\033[2m%s\033[0m\n" "$text" "$padding" "" "$duration"
+    printf "${color}${icon}\033[0m %s%*s\033[2m%s\033[0m\n" "$text" "$padding" "" "$duration"
 }
 
-log_success() {
-    local duration=$(elapsed_since_last_log)
-    local text="[Infra] $1"
-    local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
-    if [ $padding -lt 1 ]; then padding=1; fi
-    printf "\033[32m✓\033[0m %s%*s\033[2m%s\033[0m\n" "$text" "$padding" "" "$duration"
-}
-
-log_error() {
-    local duration=$(elapsed_since_last_log)
-    local text="[Infra] $1"
-    local padding=$((TERM_WIDTH - ${#text} - ${#duration} - 2))
-    if [ $padding -lt 1 ]; then padding=1; fi
-    printf "\033[31m✗\033[0m %s%*s\033[2m%s\033[0m\n" "$text" "$padding" "" "$duration"
-}
+log()         { _log "→" "\033[36m" "$1"; }
+log_success() { _log "✓" "\033[32m" "$1"; }
+log_error()   { _log "✗" "\033[31m" "$1"; }
 
 # =============================================================================
 # Readiness checks
@@ -89,7 +78,7 @@ resetChromeProfile() {
     fi
 }
 
-cleanupStaleProcessesAndFiles() {
+cleanup() {
     pkill -f Xvfb || true
     pkill -f chromium || true
     rm -f /tmp/.X${DISPLAY_NUM}-lock
@@ -129,7 +118,7 @@ on_exit() {
         done
     fi
 
-    cleanupStaleProcessesAndFiles
+    cleanup
 }
 
 # Set trap to clean up on exit
@@ -144,7 +133,7 @@ if [ -z "${TASK_NAME:-}" ]; then
     exit 1
 fi
 
-cleanupStaleProcessesAndFiles
+cleanup
 
 log "Configuration: display=:${DISPLAY_NUM}, ws_port=${WS_PORT}, screen=${SCREEN_SIZE}"
 log "Logs will be written to $LOG_DIR"
@@ -180,6 +169,9 @@ if [ ! -f "$CHROME_PREFS_DIR/Preferences" ]; then
 }
 PREFS
 fi
+
+# Write WS port so the extension can read it at connect time
+echo "${WS_PORT}" > /app/dist/extension/ws-port
 
 # Start Chromium
 # Note: --no-sandbox is required when running as root in Docker.

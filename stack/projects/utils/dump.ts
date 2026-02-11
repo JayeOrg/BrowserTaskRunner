@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import type { BrowserAPI } from "../../browser/browser.js";
 import type { TaskLogger } from "../../framework/logging.js";
 
@@ -20,7 +20,7 @@ export async function dumpHtml(
   const { content } = await browser.getContent(undefined, { html: true });
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
   const path = `/tmp/sitecheck-dump-${label}-${timestamp}.html`;
-  writeFileSync(path, content, "utf-8");
+  await writeFile(path, content, "utf-8");
   logger.log("dumpHtml", `Wrote ${String(content.length)} chars to ${path}`);
   return path;
 }

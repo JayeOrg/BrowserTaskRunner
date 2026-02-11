@@ -62,6 +62,12 @@ ENABLE_VNC=true npm run check botcLogin
 # Connect VNC viewer to localhost:5900
 ```
 
+To iterate quickly using a local build (mounts `./dist` into the container instead of rebuilding the image):
+
+```bash
+npm run check botcLogin --host-dist
+```
+
 [Full documentation](./stack/infra/README.md)
 
 [Extension documentation](./stack/extension/README.md)
@@ -71,17 +77,17 @@ ENABLE_VNC=true npm run check botcLogin
 1. Create a project directory in `stack/projects/yoursite/`:
 
     ```typescript
-    // stack/projects/yoursite/yoursite.ts
-    import type { RetryingTask } from "../../framework/tasks.js";
+    // stack/projects/yoursite/tasks/yoursite.ts
+    import type { RetryingTask } from "../../../framework/tasks.js";
 
     export const yourSiteTask: RetryingTask = {
         name: "yourSite",
         url: "https://yoursite.com/login",
         project: "monitor-yoursite",
-        needs: { email: "email", password: "password" },
+        needs: ["email", "password"],
         mode: "retry",
         intervalMs: 300_000,
-        run: async (browser, context) => {
+        run: async (browser, context, logger) => {
             await browser.navigate("https://yoursite.com/login");
             // Your login logic here
             return { ok: true, step: "done" };
@@ -92,7 +98,7 @@ ENABLE_VNC=true npm run check botcLogin
 2. Register it in `stack/framework/registry.ts`:
 
     ```typescript
-    import { yourSiteTask } from "../projects/yoursite/yoursite.js";
+    import { yourSiteTask } from "../projects/yoursite/tasks/yoursite.js";
 
     export const allTasks: TaskConfig[] = [botcLoginTask, yourSiteTask];
     ```
@@ -111,20 +117,25 @@ ENABLE_VNC=true npm run check botcLogin
 ```
 stack/
 ├── framework/       # Orchestration, types, logging, errors
-│   ├── main.ts      # Entry point
-│   ├── tasks.ts     # TaskConfig types + registry lookup
+│   ├── run.ts       # Entry point
+│   ├── tasks.ts     # TaskConfig types
+│   ├── registry.ts  # Task registry
 │   ├── logging.ts   # Logging infrastructure
 │   └── errors.ts    # Result types + StepError
 ├── projects/        # Project-specific task implementations
 │   ├── botc/        # BotC login project
-│   └── utils/       # Shared task utilities (selectors, timing)
+│   └── utils/       # Shared task utilities (selectors, timing, polling)
 ├── vault/           # Local secrets service (SQLite + AES-256-GCM)
 ├── browser/         # WebSocket server — typed browser API
-│   └── main.ts
+│   └── browser.ts
 ├── extension/       # Chrome extension (manifest, messages)
-│   └── main.ts
+│   └── service-worker.ts
 └── infra/           # Docker and deployment
     ├── Dockerfile
     ├── docker-compose.yml
     └── run.sh
 ```
+
+## Alerts
+
+Task results are written to `logs/alert-<taskName>.txt`. On success, the terminal bell is triggered as an audible notification.

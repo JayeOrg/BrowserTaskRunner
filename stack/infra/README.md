@@ -23,11 +23,12 @@ npm run check botcLogin
 
 ## Configuration
 
-Secrets are stored in the vault (see `stack/vault/README.md`). The `.env` file needs the project token:
+Secrets are stored in the vault (see `stack/vault/README.md`). The `.env` file needs project tokens:
 
 ```bash
-# Required — export from vault
-VAULT_TOKEN=<base64 project token>
+# Required — one per project (export from vault)
+VAULT_TOKEN_BOTC=<token>
+VAULT_TOKEN_NANDOS=<token>
 
 # Optional
 # SITE_CHECK_INTERVAL_MS=300000  # 5 minutes (default)
@@ -40,7 +41,7 @@ VAULT_TOKEN=<base64 project token>
 # READINESS_TIMEOUT=30           # Seconds to wait for Xvfb
 ```
 
-The vault database (`vault.db`) is mounted read-only into the container. At runtime, the framework uses `VAULT_TOKEN` to decrypt the project's secrets from the vault.
+The vault database (`vault.db`) is mounted read-only into the container. At runtime, the framework uses the project's `VAULT_TOKEN_<PROJECT>` to decrypt its secrets from the vault.
 
 Each task declares which project and detail keys it needs (see `stack/projects/`).
 
@@ -76,7 +77,7 @@ The `--host-dist` flag runs `npm run build` on the host, then mounts `./dist` re
 2. Chrome launches with the extension pre-loaded
 3. Node.js WebSocket server starts
 4. Extension connects and receives commands
-5. Task runs login attempts until successful
+5. Task executes and reports result
 
 ## Architecture
 

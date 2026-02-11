@@ -1,11 +1,12 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId } from "../../tabs.js";
+import { getScriptTarget } from "../../script-target.js";
 import { isScriptFound } from "../../script-results.js";
 
 export const waitForSelectorSchema = z.object({
   selector: z.string(),
   timeout: z.number().optional(),
+  frameId: z.number().optional(),
 });
 
 export type WaitForSelectorCommand = z.infer<typeof waitForSelectorSchema> & {
@@ -23,10 +24,9 @@ export async function handleWaitForSelector(
   input: z.infer<typeof waitForSelectorSchema>,
 ): Promise<WaitForSelectorResponse> {
   const timeout = input.timeout ?? DEFAULT_TIMEOUT_MS;
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const target = await getScriptTarget(input.frameId);
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: async (sel: string, timeoutMs: number) => {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
@@ -56,6 +56,6 @@ export async function handleWaitForSelector(
   return {
     type: "waitForSelector",
     found: false,
-    error: "Script execution failed",
+    error: `Script execution failed for selector: ${input.selector}`,
   };
 }

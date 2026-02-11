@@ -24,41 +24,19 @@ describe("StepError", () => {
     expect(err.meta).toEqual({});
   });
 
-  describe("toResult", () => {
-    it("returns base failure result", () => {
-      const err = new StepError("myTask", "login", "timeout");
-      expect(err.toResult()).toEqual({
-        ok: false,
-        step: "login",
-        reason: "timeout",
-        context: { task: "myTask" },
-      });
-    });
+  it("stores finalUrl in meta", () => {
+    const err = new StepError("t", "s", "r", { finalUrl: "https://example.com" });
+    expect(err.meta.finalUrl).toBe("https://example.com");
+  });
 
-    it("includes finalUrl when present", () => {
-      const err = new StepError("t", "s", "r", { finalUrl: "https://example.com" });
-      const result = err.toResult();
-      expect(result.finalUrl).toBe("https://example.com");
-    });
+  it("stores details in meta", () => {
+    const err = new StepError("t", "s", "r", { details: "extra info" });
+    expect(err.meta.details).toBe("extra info");
+  });
 
-    it("includes details when present", () => {
-      const err = new StepError("t", "s", "r", { details: "extra info" });
-      const result = err.toResult();
-      expect(result.details).toBe("extra info");
-    });
-
-    it("omits finalUrl and details when not in meta", () => {
-      const err = new StepError("t", "s", "r");
-      const result = err.toResult();
-      expect(result).not.toHaveProperty("finalUrl");
-      expect(result).not.toHaveProperty("details");
-    });
-
-    it("merges meta.context with task name", () => {
-      const err = new StepError("t", "s", "r", { context: { extra: "data" } });
-      const result = err.toResult();
-      expect(result.context).toEqual({ task: "t", extra: "data" });
-    });
+  it("stores context in meta", () => {
+    const err = new StepError("t", "s", "r", { context: { extra: "data" } });
+    expect(err.meta.context).toEqual({ extra: "data" });
   });
 });
 

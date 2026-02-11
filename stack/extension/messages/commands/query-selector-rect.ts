@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId } from "../../tabs.js";
+import { getActiveTabId } from "../../tabs.js";
 import { isScriptFound } from "../../script-results.js";
 
 export const querySelectorRectSchema = z.object({
@@ -23,8 +23,7 @@ export type QuerySelectorRectResponse = BaseResponse & { type: "querySelectorRec
 export async function handleQuerySelectorRect(
   input: z.infer<typeof querySelectorRectSchema>,
 ): Promise<QuerySelectorRectResponse> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const tabId = await getActiveTabId();
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     func: (sels: string[]) => {
@@ -58,9 +57,12 @@ export async function handleQuerySelectorRect(
       rect: result.rect,
     };
   }
+  const scriptFailed = !isScriptFound(result);
   return {
     type: "querySelectorRect",
     found: false,
-    ...(isScriptFound(result) ? {} : { error: "Script execution failed" }),
+    ...(scriptFailed
+      ? { error: `Script execution failed for selectors: ${input.selectors.join(", ")}` }
+      : {}),
   };
 }

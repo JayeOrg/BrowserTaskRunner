@@ -14,8 +14,8 @@ function usage(): never {
 
 Commands:
   init                                    Initialize vault
-  login [--duration <minutes>]            Start admin session (default 30 min)
-  logout                                  End admin session
+  login [--duration <minutes>]            Start session (default 30 min)
+  logout                                  End session
   status                                  Show current session status
 
   detail set <project> <key>              Add or update a detail (prompts for value)
@@ -23,11 +23,13 @@ Commands:
   detail list [<project>]                 List details
   detail remove <project> <key>           Remove a detail
 
-  project create <name>                   Create project and output token
-  project export <name>                   Export project token
+  project create <name> [--write-env]      Create project and output token
+  project export <name> [--write-env]      Export project token
   project list                            List projects
   project remove <name>                   Remove a project (cascades details)
-  project rotate <name>                   Rotate project key
+  project rename <old-name> <new-name>    Rename a project
+  project rotate <name> [--write-env]      Rotate project key
+  project setup <name>                    Check and add missing details
 
   change-password                          Change vault password`);
   process.exit(0);
@@ -50,10 +52,10 @@ async function main(): Promise<void> {
       await handleLogin(commandArgs);
       break;
     case "logout":
-      handleLogout();
+      await handleLogout();
       break;
     case "status":
-      handleStatus();
+      await handleStatus();
       break;
     case "change-password":
       await handleChangePassword();

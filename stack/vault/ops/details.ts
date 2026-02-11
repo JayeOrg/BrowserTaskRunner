@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { KEY_LENGTH, aesEncrypt, aesDecrypt } from "../crypto.js";
-import { requireBlob, requireString } from "../rows.js";
+import { KEY_LENGTH, aesEncrypt, decryptFrom, MASTER_DEK_COLS, VALUE_COLS } from "../crypto.js";
+import { requireString } from "../rows.js";
 import { getProjectKey } from "./projects.js";
 
 function setDetail(
@@ -21,20 +21,20 @@ function setDetail(
     `
     INSERT INTO details (
       key, project,
-      value_iv, value_auth_tag, ciphertext,
-      master_dek_iv, master_dek_auth_tag, master_wrapped_dek,
-      project_dek_iv, project_dek_auth_tag, project_wrapped_dek
+      value_iv, value_auth_tag, value_ciphertext,
+      master_dek_iv, master_dek_auth_tag, master_dek_ciphertext,
+      project_dek_iv, project_dek_auth_tag, project_dek_ciphertext
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (project, key) DO UPDATE SET
       value_iv = excluded.value_iv,
       value_auth_tag = excluded.value_auth_tag,
-      ciphertext = excluded.ciphertext,
+      value_ciphertext = excluded.value_ciphertext,
       master_dek_iv = excluded.master_dek_iv,
       master_dek_auth_tag = excluded.master_dek_auth_tag,
-      master_wrapped_dek = excluded.master_wrapped_dek,
+      master_dek_ciphertext = excluded.master_dek_ciphertext,
       project_dek_iv = excluded.project_dek_iv,
       project_dek_auth_tag = excluded.project_dek_auth_tag,
-      project_wrapped_dek = excluded.project_wrapped_dek
+      project_dek_ciphertext = excluded.project_dek_ciphertext
   `,
   ).run(
     key,
@@ -54,22 +54,16 @@ function setDetail(
 function getDetail(db: DatabaseSync, masterKey: Buffer, project: string, key: string): string {
   const row = db
     .prepare(
-      `SELECT value_iv, value_auth_tag, ciphertext,
-              master_dek_iv, master_dek_auth_tag, master_wrapped_dek
+      `SELECT value_iv, value_auth_tag, value_ciphertext,
+              master_dek_iv, master_dek_auth_tag, master_dek_ciphertext
        FROM details WHERE project = ? AND key = ?`,
     )
     .get(project, key);
   if (!row) throw new Error(`Detail not found: "${project}/${key}"`);
 
-  const dekIv = requireBlob(row, "master_dek_iv");
-  const dekAuthTag = requireBlob(row, "master_dek_auth_tag");
-  const wrappedDek = requireBlob(row, "master_wrapped_dek");
-  const dek = aesDecrypt(masterKey, dekIv, dekAuthTag, wrappedDek);
-
-  const valueIv = requireBlob(row, "value_iv");
-  const valueAuthTag = requireBlob(row, "value_auth_tag");
-  const ciphertext = requireBlob(row, "ciphertext");
-  return aesDecrypt(dek, valueIv, valueAuthTag, ciphertext).toString("utf8");
+  // Unwrap DEK via master key, then decrypt value
+  const dek = decryptFrom(masterKey, row, MASTER_DEK_COLS);
+  return decryptFrom(dek, row, VALUE_COLS).toString("utf8");
 }
 
 function listDetails(db: DatabaseSync, project?: string): Array<{ key: string; project: string }> {

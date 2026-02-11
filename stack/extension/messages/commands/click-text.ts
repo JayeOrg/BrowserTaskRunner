@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId, sleep } from "../../tabs.js";
+import { getActiveTabId } from "../../tabs.js";
 import { isScriptFound } from "../../script-results.js";
+import { domClickAt, cdpClickAt } from "../../clicks.js";
 
 export const clickTextSchema = z.object({
   texts: z.array(z.string()),
@@ -21,79 +22,28 @@ export type ClickTextResponse = BaseResponse & { type: "clickText" } & (
     | { found: false }
   );
 
-async function syntheticClickAt(tabId: number, posX: number, posY: number): Promise<void> {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: (cx: number, cy: number) => {
-      const targetEl = document.elementFromPoint(cx, cy);
-      if (targetEl) {
-        const eventInit = {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          clientX: cx,
-          clientY: cy,
-          button: 0,
-          buttons: 1,
-        };
-        targetEl.dispatchEvent(new MouseEvent("mousedown", eventInit));
-        targetEl.dispatchEvent(new MouseEvent("mouseup", eventInit));
-        targetEl.dispatchEvent(new MouseEvent("click", eventInit));
-      }
-    },
-    args: [posX, posY],
-  });
-}
-
-async function cdpClickAt(tabId: number, posX: number, posY: number): Promise<void> {
-  const debuggee = { tabId };
-  try {
-    await chrome.debugger.attach(debuggee, "1.3");
-  } catch {
-    await syntheticClickAt(tabId, posX, posY);
-    return;
-  }
-  try {
-    await chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: posX,
-      y: posY,
-      button: "left",
-      clickCount: 1,
-    });
-    await sleep(50);
-    await chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: posX,
-      y: posY,
-      button: "left",
-      clickCount: 1,
-    });
-  } catch {
-    await syntheticClickAt(tabId, posX, posY);
-  } finally {
-    await chrome.debugger.detach(debuggee).catch(() => undefined);
-  }
-}
-
 export async function handleClickText(
   input: z.infer<typeof clickTextSchema>,
 ): Promise<ClickTextResponse> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const tabId = await getActiveTabId();
 
-  // Find element by text content using XPath (supports case-insensitive matching)
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     func: (texts: string[], tag: string | null, useExact: boolean) => {
       const tagName = tag ?? "*";
       const translate =
         "translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')";
+
+      function xpathString(str: string): string {
+        if (!str.includes("'")) return `'${str}'`;
+        if (!str.includes('"')) return `"${str}"`;
+        const parts = str.split("'");
+        return `concat('${parts.join("',\"'\",'")}')`;
+      }
+
       for (const text of texts) {
-        const lower = text.toLowerCase();
-        const condition = useExact
-          ? `${translate} = '${lower}'`
-          : `contains(${translate}, '${lower}')`;
+        const lower = xpathString(text.toLowerCase());
+        const condition = useExact ? `${translate} = ${lower}` : `contains(${translate}, ${lower})`;
         const xpath = `//${tagName}[${condition}]`;
         const match = document.evaluate(
           xpath,
@@ -134,7 +84,7 @@ export async function handleClickText(
   if (input.cdp) {
     await cdpClickAt(tabId, clickX, clickY);
   } else {
-    await syntheticClickAt(tabId, clickX, clickY);
+    await domClickAt(tabId, clickX, clickY);
   }
 
   return {

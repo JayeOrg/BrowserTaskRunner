@@ -1,8 +1,3 @@
-/**
- * Selector utilities for behavior layer.
- * These provide "try multiple selectors" patterns without adding
- * site-specific knowledge to the extension.
- */
 import type { BrowserAPI } from "../../browser/browser.js";
 
 export type SelectorResult = { found: true; selector: string } | { found: false; error?: string };
@@ -30,7 +25,6 @@ export async function waitForFirst(
       }),
     );
   } catch {
-    // All selectors timed out
     return { found: false };
   }
 }

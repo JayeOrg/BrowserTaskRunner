@@ -1,10 +1,11 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId } from "../../tabs.js";
-import { isScriptError } from "../../script-results.js";
+import { getScriptTarget } from "../../script-target.js";
+import { extractResult } from "../../script-results.js";
 
 export const clickSchema = z.object({
   selector: z.string(),
+  frameId: z.number().optional(),
 });
 
 export type ClickCommand = z.infer<typeof clickSchema> & { type: "click" };
@@ -14,10 +15,9 @@ export interface ClickResponse extends BaseResponse {
 }
 
 export async function handleClick(input: z.infer<typeof clickSchema>): Promise<ClickResponse> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const target = await getScriptTarget(input.frameId);
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (sel: string) => {
       const element = document.querySelector(sel);
       if (!element) {
@@ -48,12 +48,9 @@ export async function handleClick(input: z.infer<typeof clickSchema>): Promise<C
     },
     args: [input.selector],
   });
-  const result = results[0]?.result;
-  if (isScriptError(result)) {
-    return { type: "click", error: result.error };
-  }
-  if (result === undefined) {
-    return { type: "click", error: "Script did not execute" };
+  const extracted = extractResult(results);
+  if (!extracted.ok) {
+    return { type: "click", error: extracted.error };
   }
   return { type: "click" };
 }

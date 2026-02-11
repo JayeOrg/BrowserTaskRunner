@@ -40,6 +40,8 @@ WORKDIR /app
 # Copy production node_modules and built output from builder
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+# Extension dir must be writable so run.sh can create ws-port at runtime
+RUN chmod a+w /app/dist/extension
 COPY --from=builder /app/package.json ./package.json
 COPY stack/infra/run.sh ./stack/infra/run.sh
 

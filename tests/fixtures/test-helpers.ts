@@ -6,6 +6,9 @@ import {
   type ReceivedCommand,
 } from "./fake-extension.js";
 import { nextPort } from "./port.js";
+import { createTaskLogger } from "../../stack/framework/logging.js";
+
+export const noopLogger = createTaskLogger("test", () => undefined);
 
 // --- Test site ---
 
@@ -94,6 +97,20 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
         return { type: "click", success: true };
       case "getUrl":
         return { type: "getUrl", url: state.currentUrl, title: "Page" };
+      case "getContent":
+        return { type: "getContent", content: "" };
+      case "fill":
+        return { type: "fill" };
+      case "select":
+        return { type: "select", selected: [] };
+      case "keyboard":
+        return { type: "keyboard" };
+      case "check":
+        return { type: "check" };
+      case "scroll":
+        return { type: "scroll" };
+      case "getFrameId":
+        return { type: "getFrameId", found: true, frameId: 0 };
       default:
         return { type: cmd.type, error: `Unexpected: ${cmd.type}` };
     }

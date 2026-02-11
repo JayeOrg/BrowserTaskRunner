@@ -1,11 +1,12 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTab, getTabId } from "../../tabs.js";
-import { isScriptError } from "../../script-results.js";
+import { getScriptTarget } from "../../script-target.js";
+import { extractResult } from "../../script-results.js";
 
 export const fillSchema = z.object({
   selector: z.string(),
   value: z.string(),
+  frameId: z.number().optional(),
 });
 
 export type FillCommand = z.infer<typeof fillSchema> & { type: "fill" };
@@ -15,10 +16,9 @@ export interface FillResponse extends BaseResponse {
 }
 
 export async function handleFill(input: z.infer<typeof fillSchema>): Promise<FillResponse> {
-  const tab = await getActiveTab();
-  const tabId = getTabId(tab);
+  const target = await getScriptTarget(input.frameId);
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (sel: string, val: string) => {
       const element = document.querySelector(sel);
       if (!element) {
@@ -35,12 +35,9 @@ export async function handleFill(input: z.infer<typeof fillSchema>): Promise<Fil
     },
     args: [input.selector, input.value],
   });
-  const result = results[0]?.result;
-  if (isScriptError(result)) {
-    return { type: "fill", error: result.error };
-  }
-  if (result === undefined) {
-    return { type: "fill", error: "Script did not execute" };
+  const extracted = extractResult(results);
+  if (!extracted.ok) {
+    return { type: "fill", error: extracted.error };
   }
   return { type: "fill" };
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { detectTurnstile, clickTurnstile } from "../../../../stack/projects/utils/turnstile.js";
-import { createMockBrowser } from "./testing.js";
+import { createMockBrowser } from "../../../fixtures/mock-browser.js";
 
 function mockTurnstileFound(browser: ReturnType<typeof createMockBrowser>) {
   vi.mocked(browser.querySelectorRect).mockResolvedValue({

@@ -1,7 +1,9 @@
 import { log } from "./logging.js";
 import { handleCommand, isIncomingCommand } from "./messages/index.js";
+import { isStepUpdateMessage } from "./step-state.js";
+import { getLockedTabId } from "./tabs.js";
 
-const WS_URL = "ws://localhost:8765";
+const DEFAULT_WS_PORT = 8765;
 const MAX_RECONNECT_DELAY_MS = 30000;
 const BASE_RECONNECT_DELAY_MS = 1000;
 
@@ -9,6 +11,25 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 let cachedStepUpdate: unknown = null;
+let portPromise: Promise<number> | null = null;
+
+function getWsPort(): Promise<number> {
+  if (!portPromise) {
+    portPromise = (async () => {
+      try {
+        const configUrl = chrome.runtime.getURL("ws-port");
+        const response = await fetch(configUrl);
+        const text = await response.text();
+        const port = parseInt(text.trim(), 10);
+        if (Number.isFinite(port)) return port;
+      } catch {
+        // File absent in local dev — use default
+      }
+      return DEFAULT_WS_PORT;
+    })();
+  }
+  return portPromise;
+}
 
 function getReconnectDelay(): number {
   const delay = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY_MS);
@@ -24,17 +45,19 @@ function scheduleReconnect(): void {
   log("Reconnecting", { delayMs: delay, attempt: reconnectAttempts });
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
-    connect();
+    void connect();
   }, delay);
 }
 
-export function connect(): void {
-  if (ws && ws.readyState === WebSocket.OPEN) {
+export async function connect(): Promise<void> {
+  const port = await getWsPort();
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
-  log("Connecting", { url: WS_URL });
-  ws = new WebSocket(WS_URL);
+  const wsUrl = `ws://localhost:${String(port)}`;
+  log("Connecting", { url: wsUrl });
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     log("Connected to server");
@@ -54,14 +77,12 @@ export function connect(): void {
       }
       const parsed: unknown = JSON.parse(event.data);
 
-      // Step updates from Node.js — forward to content script overlay
       if (isStepUpdateMessage(parsed)) {
         cachedStepUpdate = parsed;
         void forwardStepUpdateToContentScript(parsed);
         return;
       }
 
-      // Extract message ID before validation for error correlation
       if (
         typeof parsed === "object" &&
         parsed !== null &&
@@ -94,14 +115,14 @@ export function connect(): void {
   };
 }
 
-function isStepUpdateMessage(value: unknown): value is { type: "stepUpdate" } {
-  return (
-    typeof value === "object" && value !== null && "type" in value && value.type === "stepUpdate"
-  );
-}
-
 async function forwardStepUpdateToContentScript(update: unknown): Promise<void> {
   try {
+    const tabId = getLockedTabId();
+    if (tabId !== null) {
+      await chrome.tabs.sendMessage(tabId, update);
+      return;
+    }
+    // Tab not locked yet (step update arrived before first command) — fall back
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
     if (tab && tab.id !== undefined) {
