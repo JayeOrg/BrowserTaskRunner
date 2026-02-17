@@ -57,8 +57,11 @@ export const controlsContainerStyle = {
   gap: "6px",
 };
 
+export const BUTTON_BG = "rgba(255,255,255,0.1)";
+export const BUTTON_HOVER_BG = "rgba(255,255,255,0.2)";
+
 export const buttonStyle = {
-  background: "rgba(255,255,255,0.1)",
+  background: BUTTON_BG,
   border: "1px solid rgba(255,255,255,0.15)",
   color: "#e0e0e0",
   borderRadius: "6px",
@@ -68,9 +71,6 @@ export const buttonStyle = {
   lineHeight: "1",
   transition: "background 0.15s",
 };
-
-export const BUTTON_BG = "rgba(255,255,255,0.1)";
-export const BUTTON_HOVER_BG = "rgba(255,255,255,0.2)";
 
 export const errorLabelStyle = {
   display: "none",

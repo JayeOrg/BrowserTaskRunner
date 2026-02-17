@@ -4,7 +4,7 @@ import {
   KEY_LENGTH,
   aesEncrypt,
   decryptFrom,
-  exportToken,
+  exportProjectToken,
   PROJECT_KEY_COLS,
   PROJECT_DEK_COLS,
 } from "../crypto.js";
@@ -22,7 +22,7 @@ function createProject(db: DatabaseSync, masterKey: Buffer, name: string): strin
     "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) VALUES (?, ?, ?, ?)",
   ).run(name, wrapped.iv, wrapped.authTag, wrapped.ciphertext);
 
-  return exportToken(projectKey);
+  return exportProjectToken(projectKey);
 }
 
 function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
@@ -79,7 +79,7 @@ function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): strin
     }
   });
 
-  return exportToken(newProjectKey);
+  return exportProjectToken(newProjectKey);
 }
 
 function renameProject(db: DatabaseSync, oldName: string, newName: string): void {
@@ -89,7 +89,7 @@ function renameProject(db: DatabaseSync, oldName: string, newName: string): void
   const conflict = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(newName);
   if (conflict) throw new Error(`Project already exists: "${newName}"`);
 
-  /** INSERT new name + DELETE old name rather than UPDATE because the project name is used as part of the encryption key derivation, so the DEK must be re-encrypted under the new name. */
+  // INSERT+DELETE instead of UPDATE because name is the PK referenced by details.project FK
   withSavepoint(db, "rename_project", () => {
     db.prepare(
       "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) SELECT ?, key_iv, key_auth_tag, key_ciphertext FROM projects WHERE name = ?",

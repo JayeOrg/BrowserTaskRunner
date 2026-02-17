@@ -44,7 +44,7 @@ describe("e2e: click-task against local test site", () => {
   it("fails when click does not navigate away", async () => {
     const { responder, state } = createDefaultResponder({
       click: () => ({ type: "click", success: true }),
-      getUrl: (_cmd, st) => ({ type: "getUrl", url: st.currentUrl, title: "Test Page" }),
+      getUrl: (_cmd, current) => ({ type: "getUrl", url: current.currentUrl, title: "Test Page" }),
     });
     setup = await setupTaskTest(responder, undefined, state);
 
@@ -78,9 +78,9 @@ describe("e2e: click-task against local test site", () => {
   it("StepError includes finalUrl metadata on verify failure", async () => {
     const { responder, state } = createDefaultResponder({
       click: () => ({ type: "click", success: true }),
-      getUrl: (_cmd, st) => ({
+      getUrl: (_cmd, current) => ({
         type: "getUrl",
-        url: `${st.currentUrl}/wrong-page`,
+        url: `${current.currentUrl}/wrong-page`,
         title: "Wrong",
       }),
     });
@@ -125,7 +125,7 @@ describe("e2e: retry-task behavior", () => {
     expect(retryTask.intervalMs).toBe(10);
   });
 
-  it("StepError from retry-task includes details metadata", async () => {
+  it("StepError from retry-task includes summary metadata", async () => {
     const { responder } = createDefaultResponder();
     setup = await setupTaskTest(responder);
 
@@ -135,7 +135,7 @@ describe("e2e: retry-task behavior", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
       const stepError = error instanceof StepError ? error : null;
-      expect(stepError?.meta.details).toContain("Attempt 1 of 1");
+      expect(stepError?.meta.summary).toContain("Attempt 1 of 1");
     }
   });
 });

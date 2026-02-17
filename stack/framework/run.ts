@@ -7,7 +7,7 @@ import {
   validateContext,
   normalizeNeeds,
   type TaskConfig,
-  type TaskContext,
+  type VaultSecrets,
   type TaskResultSuccess,
   type RetryingTask,
   type SingleAttemptTask,
@@ -15,7 +15,7 @@ import {
 import { loadTask, listTaskNames } from "./loader.js";
 import { StepError, getErrorMessage } from "./errors.js";
 import { createPrefixLogger, createTaskLogger } from "./logging.js";
-import { parseToken } from "../vault/crypto.js";
+import { parseProjectToken } from "../vault/crypto.js";
 import { openVaultReadOnly } from "../vault/core.js";
 import { loadProjectDetails } from "../vault/ops/runtime.js";
 
@@ -49,10 +49,10 @@ function resolveToken(project: string): string {
   return token;
 }
 
-function loadContext(task: TaskConfig): TaskContext {
+function loadContext(task: TaskConfig): VaultSecrets {
   const token = resolveToken(task.project);
 
-  const projectKey = parseToken(token);
+  const projectKey = parseProjectToken(token);
   const db = openVaultReadOnly(VAULT_PATH);
 
   try {
@@ -91,7 +91,7 @@ function handleSuccess(taskName: string, result: TaskResultSuccess): void {
 async function runSingleAttempt(
   task: SingleAttemptTask,
   browser: Browser,
-  context: TaskContext,
+  context: VaultSecrets,
 ): Promise<void> {
   const taskLogger = createTaskLogger(task.name);
   const deps = { ...browser.stepRunnerDeps(), taskLogger };
@@ -111,7 +111,7 @@ function parseIntervalMs(raw: string | undefined, fallback: number): number {
 async function runWithRetry(
   task: RetryingTask,
   browser: Browser,
-  context: TaskContext,
+  context: VaultSecrets,
 ): Promise<void> {
   const intervalMs = parseIntervalMs(process.env.SITE_CHECK_INTERVAL_MS, task.intervalMs);
   let attempt = 0;
@@ -152,7 +152,7 @@ async function blockForever(): Promise<never> {
   });
 }
 
-async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
+async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
   const browser = new Browser(WS_PORT);
   const keepOpen = shouldKeepOpen(task);
 

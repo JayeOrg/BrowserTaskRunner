@@ -17,7 +17,8 @@ export async function dumpHtml(
   logger: TaskLogger,
   label: string,
 ): Promise<string> {
-  const { content } = await browser.getContent(undefined, { html: true });
+  const result = await browser.getContent(undefined, { html: true });
+  const content = result.kind === "notFound" ? "" : result.content;
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
   const path = `/tmp/sitecheck-dump-${label}-${timestamp}.html`;
   await writeFile(path, content, "utf-8");

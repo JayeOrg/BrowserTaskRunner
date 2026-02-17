@@ -77,15 +77,11 @@ function formatData(data?: Record<string, unknown>): string {
   return ` → ${pairs.join(", ")}`;
 }
 
-function advanceStepState(state: StepState, step: string): { stepNum: number; duration: string } {
-  if (step !== state.lastStep) {
-    state.stepNum++;
-    state.lastStep = step;
-  }
+function recordStepTransition(state: StepState, step: string): StepState & { duration: string } {
+  const stepNum = step !== state.lastStep ? state.stepNum + 1 : state.stepNum;
   const now = Date.now();
   const duration = formatDuration(now - state.lastTime);
-  state.lastTime = now;
-  return { stepNum: state.stepNum, duration };
+  return { stepNum, lastStep: step, lastTime: now, duration };
 }
 
 function formatLogLine(
@@ -96,7 +92,9 @@ function formatLogLine(
   level: LogLevel,
   output: LogOutput,
 ): void {
-  const { stepNum, duration } = advanceStepState(state, step);
+  const next = recordStepTransition(state, step);
+  Object.assign(state, next);
+  const { stepNum, duration } = next;
   const { icon, color } = levelStyles[level];
   const prefix = `[${stepNum.toString()} ${step}]`;
   const content = `${color}${icon}${colors.reset}    ${prefix} ${msg}${formatData(data)}`;
@@ -132,7 +130,7 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
     };
 
   const fatal = (step: string, reason: string, meta: string | StepErrorMeta = {}): never => {
-    const resolved = typeof meta === "string" ? { details: meta } : meta;
+    const resolved = typeof meta === "string" ? { summary: meta } : meta;
     formatLogLine(state, step, reason, resolved, "error", output);
     throw new StepError(task, step, reason, resolved);
   };

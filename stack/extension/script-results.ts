@@ -4,12 +4,14 @@ const ScriptErrorSchema = z.object({
   error: z.string(),
 });
 
-const RectSchema = z.object({
+export const RectSchema = z.object({
   left: z.number(),
   top: z.number(),
   width: z.number(),
   height: z.number(),
 });
+
+export type Rect = z.infer<typeof RectSchema>;
 
 const ScriptFoundSchema = z.object({
   found: z.boolean(),

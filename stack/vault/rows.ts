@@ -17,7 +17,7 @@ function requireString(row: Record<string, unknown>, field: string): string {
 function requireNumber(row: Record<string, unknown>, field: string): number {
   const val = row[field];
   if (typeof val !== "number") {
-    throw new Error(`Expected NUMBER for field "${field}"`);
+    throw new Error(`Expected INTEGER for field "${field}"`);
   }
   return val;
 }

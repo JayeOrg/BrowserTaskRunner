@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
-import { setTimeout as delay } from "node:timers/promises";
+import { pollUntil } from "./poll.js";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { getErrorMessage } from "../framework/errors.js";
@@ -7,6 +7,8 @@ import { logConnectionInstructions } from "./instructions.js";
 import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
 
 export type IframeOption = { frameId?: number };
+
+const POLL_INTERVAL_MS = 500;
 
 type ClickTextOptions = { tag?: string; exact?: boolean; cdp?: boolean; timeout?: number };
 
@@ -86,9 +88,7 @@ export interface BrowserAPI
     BrowserFormInput,
     BrowserKeyboard,
     BrowserQueries,
-    BrowserScrolling {
-  ping(): Promise<ResponseFor<"ping">>;
-}
+    BrowserScrolling {}
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
   return (
@@ -300,6 +300,7 @@ export class Browser implements BrowserAPI {
   }
   async getText(selector?: string): Promise<string> {
     const result = await this.getContent(selector);
+    if (result.kind === "notFound") return "";
     return result.content;
   }
   querySelectorRect(selectors: string[]) {
@@ -313,14 +314,12 @@ export class Browser implements BrowserAPI {
     if (timeout === undefined) {
       return this.send({ type: "clickText", texts, ...sendOptions });
     }
-    const deadline = Date.now() + timeout;
-    let last: ResponseFor<"clickText">;
-    do {
-      last = await this.send({ type: "clickText", texts, ...sendOptions });
-      if (last.found) return last;
-      await delay(500);
-    } while (Date.now() < deadline);
-    return last;
+    const result = await pollUntil(
+      () => this.send({ type: "clickText", texts, ...sendOptions }),
+      (response) => response.found,
+      { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
+    );
+    return result.ok ? result.value : { type: "clickText", found: false };
   }
   async cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult> {
     const rect = await this.querySelectorRect(selectors);
@@ -332,23 +331,26 @@ export class Browser implements BrowserAPI {
     return { found: true, selector: rect.selector };
   }
   async waitForText(texts: string[], timeout = 10000): Promise<WaitForTextResult> {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const body = await this.getText();
-      const match = texts.find((candidate) => body.includes(candidate));
-      if (match) return { found: true, text: match };
-      await delay(500);
-    }
-    return { found: false };
+    const result = await pollUntil(
+      async () => {
+        const body = await this.getText();
+        return texts.find((candidate) => body.includes(candidate)) ?? "";
+      },
+      (match) => match.length > 0,
+      { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
+    );
+    return result.ok ? { found: true, text: result.value } : { found: false };
   }
   async waitForUrl(pattern: string, timeout = 10000): Promise<WaitForUrlResult> {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const { url } = await this.getUrl();
-      if (url.includes(pattern)) return { found: true, url };
-      await delay(500);
-    }
-    return { found: false };
+    const result = await pollUntil(
+      async () => {
+        const { url } = await this.getUrl();
+        return url;
+      },
+      (url) => url.includes(pattern),
+      { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
+    );
+    return result.ok ? { found: true, url: result.value } : { found: false };
   }
   ping() {
     return this.send({ type: "ping" });

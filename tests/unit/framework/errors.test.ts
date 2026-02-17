@@ -12,11 +12,11 @@ describe("StepError", () => {
     expect(err.name).toBe("StepError");
   });
 
-  it("exposes task, step, reason as readonly properties", () => {
+  it("exposes task, step, displayReason as readonly properties", () => {
     const err = new StepError("myTask", "login", "timeout");
     expect(err.task).toBe("myTask");
     expect(err.step).toBe("login");
-    expect(err.reason).toBe("timeout");
+    expect(err.displayReason).toBe("timeout");
   });
 
   it("defaults meta to empty object", () => {
@@ -29,14 +29,14 @@ describe("StepError", () => {
     expect(err.meta.finalUrl).toBe("https://example.com");
   });
 
-  it("stores details in meta", () => {
-    const err = new StepError("t", "s", "r", { details: "extra info" });
-    expect(err.meta.details).toBe("extra info");
+  it("stores summary in meta", () => {
+    const err = new StepError("t", "s", "r", { summary: "extra info" });
+    expect(err.meta.summary).toBe("extra info");
   });
 
-  it("stores context in meta", () => {
-    const err = new StepError("t", "s", "r", { context: { extra: "data" } });
-    expect(err.meta.context).toEqual({ extra: "data" });
+  it("stores diagnostics in meta", () => {
+    const err = new StepError("t", "s", "r", { diagnostics: { extra: "data" } });
+    expect(err.meta.diagnostics).toEqual({ extra: "data" });
   });
 });
 

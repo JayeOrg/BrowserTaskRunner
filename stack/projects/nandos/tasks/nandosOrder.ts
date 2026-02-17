@@ -2,7 +2,7 @@ import type { BrowserAPI } from "../../../browser/browser.js";
 import {
   needsFromSchema,
   type SingleAttemptTask,
-  type TaskContext,
+  type VaultSecrets,
   type TaskResultSuccess,
 } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
@@ -28,7 +28,9 @@ const TIMINGS = {
   afterFill: 500,
   afterModalAction: 2000,
   afterAddItem: 3000,
+  addressWait: 50_000,
   confirmPoll: 3000,
+  deliveryModalPoll: 10_000,
   mfaPoll: 5000,
   mfaTimeout: 300_000,
   menuLoad: 5000,
@@ -45,6 +47,7 @@ const FINAL_STEP = "selectPaymentAndConfirm" as const;
 const SELECTORS = {
   email: ['input[type="email"]', 'input[name="email"]', "input#email"],
   password: ['input[type="password"]', 'input[name="password"]', "input#password"],
+  submit: ['button[type="submit"]'],
 } as const;
 
 const PROTEIN_FALLBACKS = ["PERi-PERi Tenders", "Chicken Breast Fillets"] as const;
@@ -123,7 +126,7 @@ async function findAndFillLogin(
 }
 
 async function clickSignIn(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  const result = await browser.cdpClickSelector(['button[type="submit"]']);
+  const result = await browser.cdpClickSelector([...SELECTORS.submit]);
   if (!result.found) log.fatal("SIGN_IN_BUTTON_NOT_FOUND", "Could not find submit button");
   log.success("Clicked SIGN IN via cdpClick", { selector: result.selector });
   await sleep(TIMINGS.afterClick);
@@ -234,12 +237,12 @@ async function handleDeliveryModal(
 
   await sleep(TIMINGS.modalWait);
 
-  const modalPoll = await browser.waitForText(["Order Details"], 5 * TIMINGS.afterModalAction);
+  const modalPoll = await browser.waitForText(["Order Details"], TIMINGS.deliveryModalPoll);
   if (!modalPoll.found)
     log.fatal("MODAL_NOT_PRESENT", "Expected Order Details modal but not found");
   log.success("Order details modal confirmed present");
 
-  const addressPoll = await browser.waitForText([expectedAddress], 10 * TIMINGS.modalWait);
+  const addressPoll = await browser.waitForText([expectedAddress], TIMINGS.addressWait);
   if (!addressPoll.found) {
     const body = await browser.getText();
     log.fatal(
@@ -525,7 +528,7 @@ async function selectPaymentAndConfirm(
 
 async function run(
   browser: BrowserAPI,
-  context: TaskContext,
+  context: VaultSecrets,
   deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
   const { email, password, firstName, expectedAddress, savedCardSuffix } =
@@ -564,7 +567,7 @@ async function run(
     .step("navigateToCategory", (log) => navigateToCategory(browser, log));
 
   for (const item of MENU_ITEMS) {
-    runner.step(`addItem:${item.name}`, (log) => addMenuItem(browser, log, item));
+    runner.step(`addMenuItem:${item.name}`, (log) => addMenuItem(browser, log, item));
   }
 
   runner

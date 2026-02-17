@@ -8,11 +8,11 @@ export interface TaskResultSuccess {
   context?: Record<string, unknown>;
 }
 
-export type TaskContext = Record<string, string>;
+export type VaultSecrets = Record<string, string>;
 
 export type TaskRun = (
   browser: BrowserAPI,
-  context: TaskContext,
+  context: VaultSecrets,
   deps: StepRunnerDeps,
 ) => Promise<TaskResultSuccess>;
 
@@ -69,7 +69,7 @@ export interface RetryingTask extends BaseTask {
 
 export type TaskConfig = SingleAttemptTask | RetryingTask;
 
-export function validateContext(task: TaskConfig, context: TaskContext): void {
+export function validateContext(task: TaskConfig, context: VaultSecrets): void {
   if (!task.contextSchema) return;
 
   const result = task.contextSchema.safeParse(context);

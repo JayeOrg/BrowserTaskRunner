@@ -2,7 +2,7 @@ import type { BrowserAPI } from "../../../browser/browser.js";
 import {
   needsFromSchema,
   type RetryingTask,
-  type TaskContext,
+  type VaultSecrets,
   type TaskResultSuccess,
 } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
@@ -97,7 +97,7 @@ async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string
 
 async function run(
   browser: BrowserAPI,
-  context: TaskContext,
+  context: VaultSecrets,
   deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
   const { email, password } = loginContextSchema.parse(context);

@@ -1,9 +1,7 @@
 export type StepErrorMeta = Record<string, unknown> & {
   finalUrl?: string;
-  /** Human-readable explanation of what went wrong. */
-  details?: string;
-  /** Structured key-value debug data (selectors tried, URLs seen, etc.). */
-  context?: Record<string, unknown>;
+  summary?: string;
+  diagnostics?: Record<string, unknown>;
 };
 
 export class StepError extends Error {
@@ -12,10 +10,10 @@ export class StepError extends Error {
   constructor(
     public readonly task: string,
     public readonly step: string,
-    public readonly reason: string,
+    public readonly displayReason: string,
     meta: StepErrorMeta = {},
   ) {
-    super(`${task}.${step}: ${reason}`);
+    super(`${task}.${step}: ${displayReason}`);
     this.name = "StepError";
     this.meta = meta;
   }

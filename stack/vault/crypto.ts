@@ -95,11 +95,11 @@ function decryptFrom(
 
 // ── Token serialization ──
 
-function exportToken(projectKey: Buffer): string {
+function exportProjectToken(projectKey: Buffer): string {
   return projectKey.toString("base64");
 }
 
-function parseToken(token: string): Buffer {
+function parseProjectToken(token: string): Buffer {
   const buf = Buffer.from(token, "base64");
   if (buf.length !== KEY_LENGTH) {
     throw new Error(
@@ -126,6 +126,6 @@ export {
   PROJECT_DEK_COLS,
   VALUE_COLS,
   SESSION_COLS,
-  exportToken,
-  parseToken,
+  exportProjectToken,
+  parseProjectToken,
 };

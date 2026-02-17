@@ -11,11 +11,11 @@ export const getContentSchema = z.object({
 
 export type GetContentCommand = z.infer<typeof getContentSchema> & { type: "getContent" };
 
-export interface GetContentResponse extends BaseResponse {
-  type: "getContent";
-  content: string;
-  found?: boolean;
-}
+export type GetContentResponse = BaseResponse & { type: "getContent" } & (
+    | { kind: "page"; content: string }
+    | { kind: "found"; content: string }
+    | { kind: "notFound" }
+  );
 
 export async function handleGetContent(
   input: z.infer<typeof getContentSchema>,
@@ -35,14 +35,18 @@ export async function handleGetContent(
   });
   const result = results[0]?.result;
   if (isScriptContent(result)) {
-    const response: GetContentResponse = { type: "getContent", content: result.content };
-    if (result.found !== undefined) response.found = result.found;
-    return response;
+    if (result.found === true) {
+      return { type: "getContent", kind: "found", content: result.content };
+    }
+    if (result.found === false) {
+      return { type: "getContent", kind: "notFound" };
+    }
+    return { type: "getContent", kind: "page", content: result.content };
   }
   const selectorLabel = input.selector ?? "body";
   return {
     type: "getContent",
-    content: "",
+    kind: "notFound",
     error: `Script execution failed for selector: ${selectorLabel}`,
   };
 }

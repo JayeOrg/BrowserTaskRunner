@@ -1,7 +1,7 @@
 import type { BrowserAPI } from "../../../stack/browser/browser.js";
 import type {
   RetryingTask,
-  TaskContext,
+  VaultSecrets,
   TaskResultSuccess,
 } from "../../../stack/framework/tasks.js";
 import { StepError } from "../../../stack/framework/errors.js";
@@ -14,17 +14,17 @@ function resetAttempts(): void {
   attemptCount = 0;
 }
 
-async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResultSuccess> {
+async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResultSuccess> {
   attemptCount++;
   const failUntil = parseInt(context.failUntil ?? "0", 10);
 
   if (attemptCount <= failUntil) {
     throw new StepError(TASK_NAME, "check", "NOT_READY_YET", {
-      details: `Attempt ${attemptCount.toString()} of ${failUntil.toString()}`,
+      summary: `Attempt ${attemptCount.toString()} of ${failUntil.toString()}`,
     });
   }
 
-  await browser.ping();
+  await browser.getUrl();
   return { step: "verify" };
 }
 

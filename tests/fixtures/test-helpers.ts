@@ -121,7 +121,7 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
       case "getUrl":
         return { type: "getUrl", url: state.currentUrl, title: "Page" };
       case "getContent":
-        return { type: "getContent", content: "" };
+        return { type: "getContent", kind: "page", content: "" };
       case "fill":
         return { type: "fill" };
       case "select":

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { DatabaseSync } from "node:sqlite";
-import { exportToken, parseToken, aesEncrypt } from "../../../stack/vault/crypto.js";
+import { exportProjectToken, parseProjectToken, aesEncrypt } from "../../../stack/vault/crypto.js";
 import {
   openVault,
   initVault,
@@ -96,10 +96,10 @@ describe("projects", () => {
   it("creates a project and returns a token string", () => {
     const token = createProject(db, masterKey, "test-project");
     expect(token).toBeTypeOf("string");
-    expect(parseToken(token).length).toBe(32);
+    expect(parseProjectToken(token).length).toBe(32);
 
     const retrieved = getProjectKey(db, masterKey, "test-project");
-    expect(Buffer.compare(parseToken(token), retrieved)).toBe(0);
+    expect(Buffer.compare(parseProjectToken(token), retrieved)).toBe(0);
   });
 
   it("throws when getting a nonexistent project", () => {
@@ -143,7 +143,7 @@ describe("renameProject", () => {
 
     renameProject(db, "old-name", "new-name");
 
-    const context = loadProjectDetails(db, parseToken(token), "new-name", { val: "secret" });
+    const context = loadProjectDetails(db, parseProjectToken(token), "new-name", { val: "secret" });
     expect(context).toEqual({ val: "val" });
   });
 
@@ -162,17 +162,17 @@ describe("renameProject", () => {
   });
 });
 
-describe("exportToken / parseToken", () => {
+describe("exportProjectToken / parseProjectToken", () => {
   it("roundtrips a project key through token encoding", () => {
     const token = createProject(db, masterKey, "tok-test");
-    const parsed = parseToken(token);
+    const parsed = parseProjectToken(token);
     expect(parsed).toBeInstanceOf(Buffer);
     expect(parsed.length).toBe(32);
-    expect(exportToken(parsed)).toBe(token);
+    expect(exportProjectToken(parsed)).toBe(token);
   });
 
   it("rejects invalid token length", () => {
-    expect(() => parseToken("dG9vc2hvcnQ=")).toThrow("Invalid token");
+    expect(() => parseProjectToken("dG9vc2hvcnQ=")).toThrow("Invalid token");
   });
 });
 
@@ -249,7 +249,7 @@ describe("loadProjectDetails", () => {
     setDetail(db, masterKey, "runtime-proj", "email", "user@test.com");
     setDetail(db, masterKey, "runtime-proj", "pass", "secret123");
 
-    const context = loadProjectDetails(db, parseToken(token), "runtime-proj", {
+    const context = loadProjectDetails(db, parseProjectToken(token), "runtime-proj", {
       email: "email",
       password: "pass",
     });
@@ -263,9 +263,9 @@ describe("loadProjectDetails", () => {
   it("throws when detail does not exist", () => {
     const token = createProject(db, masterKey, "limited");
 
-    expect(() => loadProjectDetails(db, parseToken(token), "limited", { key: "missing" })).toThrow(
-      'Detail "missing" not found in project "limited"',
-    );
+    expect(() =>
+      loadProjectDetails(db, parseProjectToken(token), "limited", { key: "missing" }),
+    ).toThrow('Detail "missing" not found in project "limited"');
   });
 
   it("fails with wrong project token", () => {
@@ -278,7 +278,9 @@ describe("loadProjectDetails", () => {
       "invalid project token",
     );
 
-    const context = loadProjectDetails(db, parseToken(correctToken), "proj-a", { key: "secret" });
+    const context = loadProjectDetails(db, parseProjectToken(correctToken), "proj-a", {
+      key: "secret",
+    });
     expect(context).toEqual({ key: "val" });
   });
 });
@@ -291,15 +293,19 @@ describe("project isolation", () => {
     setDetail(db, masterKey, "proj-a", "secret", "value-a");
     setDetail(db, masterKey, "proj-b", "secret", "value-b");
 
-    expect(loadProjectDetails(db, parseToken(tokenA), "proj-a", { val: "secret" })).toEqual({
+    expect(loadProjectDetails(db, parseProjectToken(tokenA), "proj-a", { val: "secret" })).toEqual({
       val: "value-a",
     });
-    expect(loadProjectDetails(db, parseToken(tokenB), "proj-b", { val: "secret" })).toEqual({
+    expect(loadProjectDetails(db, parseProjectToken(tokenB), "proj-b", { val: "secret" })).toEqual({
       val: "value-b",
     });
 
-    expect(() => loadProjectDetails(db, parseToken(tokenA), "proj-b", { val: "secret" })).toThrow();
-    expect(() => loadProjectDetails(db, parseToken(tokenB), "proj-a", { val: "secret" })).toThrow();
+    expect(() =>
+      loadProjectDetails(db, parseProjectToken(tokenA), "proj-b", { val: "secret" }),
+    ).toThrow();
+    expect(() =>
+      loadProjectDetails(db, parseProjectToken(tokenB), "proj-a", { val: "secret" }),
+    ).toThrow();
   });
 });
 
@@ -320,7 +326,9 @@ describe("rotateProject", () => {
     const newToken = rotateProject(db, masterKey, "rotating");
     expect(oldToken).not.toBe(newToken);
 
-    const context = loadProjectDetails(db, parseToken(newToken), "rotating", { val: "secret" });
+    const context = loadProjectDetails(db, parseProjectToken(newToken), "rotating", {
+      val: "secret",
+    });
     expect(context).toEqual({ val: "rot-value" });
   });
 
@@ -331,7 +339,7 @@ describe("rotateProject", () => {
     rotateProject(db, masterKey, "rotating2");
 
     expect(() =>
-      loadProjectDetails(db, parseToken(oldToken), "rotating2", { val: "secret" }),
+      loadProjectDetails(db, parseProjectToken(oldToken), "rotating2", { val: "secret" }),
     ).toThrow("invalid project token");
   });
 });
@@ -342,7 +350,7 @@ describe("setDetail update", () => {
     setDetail(db, masterKey, "rewrap", "secret", "old-value");
     setDetail(db, masterKey, "rewrap", "secret", "new-value");
 
-    const context = loadProjectDetails(db, parseToken(token), "rewrap", { val: "secret" });
+    const context = loadProjectDetails(db, parseProjectToken(token), "rewrap", { val: "secret" });
     expect(context).toEqual({ val: "new-value" });
   });
 });
@@ -368,7 +376,7 @@ describe("changePassword", () => {
 
     changePassword(db, PASSWORD, "new-password");
 
-    const context = loadProjectDetails(db, parseToken(token), "proj", { val: "secret" });
+    const context = loadProjectDetails(db, parseProjectToken(token), "proj", { val: "secret" });
     expect(context).toEqual({ val: "token-value" });
   });
 
@@ -579,7 +587,7 @@ describe("vault corruption defenses", () => {
     ).run();
 
     expect(() =>
-      loadProjectDetails(db, parseToken(token), "corrupt-val", { val: "secret" }),
+      loadProjectDetails(db, parseProjectToken(token), "corrupt-val", { val: "secret" }),
     ).toThrow("corrupted data");
   });
 

@@ -12,7 +12,7 @@ function mockTurnstileFound(browser: ReturnType<typeof createMockBrowser>) {
 }
 
 describe("detectTurnstile", () => {
-  it("returns click coordinates when found", async () => {
+  it("returns matched selector when found", async () => {
     const browser = createMockBrowser();
     mockTurnstileFound(browser);
 
@@ -20,8 +20,6 @@ describe("detectTurnstile", () => {
     expect(result).toEqual({
       found: true,
       selector: ".cf-turnstile",
-      clickX: 130, // 100 + 30 (CHECKBOX_OFFSET_X)
-      clickY: 230, // 200 + 60/2
     });
   });
 

@@ -24,6 +24,7 @@ Notes:
 - Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 - Don't add re-exports or barrel files to simplify imports. IDEs handle import paths. Import from the actual source module.
 - Don't create `types.ts` files. Colocate types with the code that uses them and export from there.
+- Prefer descriptive code over JSDoc. If a name, type, or structure can make intent obvious, do that instead of adding a comment. Use descriptive type aliases, clear variable/function names, and self-documenting signatures. JSDoc is a last resort for things the code genuinely can't express.
 - **Never edit `TODO.md`.** It is a personal scratchpad maintained only by the user.
 - Don't use import complexity as an argument against a design. Long import paths are fine — IDEs autocomplete them and they have zero runtime cost.
 

@@ -4,6 +4,7 @@ import { KEY_LENGTH, aesEncrypt, decryptFrom, MASTER_DEK_COLS, VALUE_COLS } from
 import { requireString } from "../rows.js";
 import { getProjectKey } from "./projects.js";
 
+/** Fresh DEK per write — each detail value gets its own randomly-generated encryption key to limit the blast radius of a compromised key. */
 function setDetail(
   db: DatabaseSync,
   masterKey: Buffer,
@@ -11,7 +12,6 @@ function setDetail(
   key: string,
   value: string,
 ): void {
-  /** Fresh DEK per write — each detail value gets its own randomly-generated encryption key to limit the blast radius of a compromised key. */
   const dek = randomBytes(KEY_LENGTH);
   const valueEnc = aesEncrypt(dek, Buffer.from(value, "utf8"));
   const masterDekWrapped = aesEncrypt(masterKey, dek);

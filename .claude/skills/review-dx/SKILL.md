@@ -52,6 +52,8 @@ After all agents complete, read each output and classify every finding as:
 - **Won't** — There's a good reason to keep the current code. You're recommending this be skipped and documented.
 - **Needs Clarification** — Genuinely ambiguous, depends on user preference, or has significant tradeoffs that could go either way.
 
+**When presenting tradeoffs with multiple options**, list every viable option ranked from best to worst. Each option must include a concrete description of what it involves and its specific gains and losses. Don't just say "could refactor" — describe the refactored shape and what changes. The user should be able to pick an option without reading the source.
+
 **Important rules:**
 - List **every individual finding** — do not group findings. If two files have the same issue, list them separately with their own line numbers.
 - Collapse true **duplicates** (same file, same issue) into one entry.
@@ -61,6 +63,8 @@ After all agents complete, read each output and classify every finding as:
 
 **Do NOT make any code changes yet.** Write the full triage to a file at `.claude/dx-review-plan.md` and also output it to the user. This file persists across sessions so progress is never lost to context compaction.
 
+All three sections use the same four-column format:
+
 ```
 # DX Review — <date>
 
@@ -68,39 +72,41 @@ After all agents complete, read each output and classify every finding as:
 <3-5 bullet overview>
 
 ## Will
-| # | File:Line | Description | Tradeoffs | Why |
-|---|-----------|-------------|-----------|-----|
-| 1 | `path.ts:42` | What the change is (2-3 sentences describing the current state and the proposed change) | Any downsides or risks of making this change | Why this improves DX |
+| # | File | Description | Tradeoffs |
+|---|------|-------------|-----------|
+| 1 | `path.ts:42` | 2-3 sentences: what the current state is and what the proposed change is. Should be self-contained — a reader should understand the issue without opening the file. | 2-3 sentences: any downsides, risks, or complexity cost of making this change. |
 
 ## Won't
-| # | File:Line | Finding | Rationale |
-|---|-----------|---------|-----------|
-| 1 | `path.ts:42` | What was flagged | Why we're recommending keeping the current code |
+| # | File | Description | Tradeoffs |
+|---|------|-------------|-----------|
+| 2 | `path.ts:42` | 2-3 sentences: what was flagged. | 2-3 sentences: why we're recommending keeping the current code. |
 
 ## Needs Clarification
-| # | File:Line | Finding | Question |
-|---|-----------|---------|----------|
-| 1 | `path.ts:42` | What was flagged | The specific question or tradeoff the user needs to decide on |
+| # | File | Description | Tradeoffs |
+|---|------|-------------|-----------|
+| 3 | `path.ts:42` | 2-3 sentences: what was flagged. | 2-3 sentences: the tradeoffs and the specific question the user needs to decide on. |
 ```
 
 **Formatting rules:**
 - Number items **continuously across all three sections** (e.g. if Will ends at #29, Won't starts at #30, Needs Clarification continues from there). This lets the user reference any finding by a single number.
 - Every item gets a file path and line number.
-- Descriptions should be hearty (2-3 sentences), not terse.
-- The Tradeoffs column captures risks, downsides, or complexity cost of the change.
+- Descriptions should be 2-3 full sentences. A reader must understand the issue and the proposed change without viewing the file.
+- Tradeoffs should be 2-3 sentences. For Won't items, this is the rationale for keeping the current code. For Needs Clarification, this includes the question the user needs to answer.
 
 **Then stop and wait for the user's response.** The user will review the list and respond with their decisions:
 - Which **Will** items to implement (confirm, remove, or move to Won't)
 - Which **Won't** items to accept (confirm for REJECTED.md), override (move to Will), or ask about
 - Which **Needs Clarification** items to resolve (move to Will, Won't, or provide further direction)
 
+**Never assume implicit approval.** Every item in every section requires explicit user confirmation before acting on it. If the user only addresses Will items, ask about Won't and Needs Clarification. If the user says "fix" for Will items but doesn't mention Won't, do NOT treat Won't items as confirmed — ask the user to review them. No category is "approved by default."
+
 **Keep iterating until every item is explicitly sorted into Will or Won't.** If the user asks for clarification on any item, answer the question and wait for their decision. If there are still unresolved Needs Clarification items after the user's response, present the remaining items again. Only proceed to implementation once every finding has been assigned a final disposition.
 
-**Write Won't items to `REJECTED.md` immediately** as the user confirms them (don't batch them until the end). This prevents loss if context compacts mid-session.
+**Write Won't items to `REJECTED.md` immediately** as the user **explicitly** confirms them (don't batch them until the end). This prevents loss if context compacts mid-session. Never write to `REJECTED.md` without explicit user confirmation of each Won't item.
 
 Update `.claude/dx-review-plan.md` after each user response to reflect their decisions (mark items as confirmed-Will, confirmed-Won't, or still-pending).
 
-Do not proceed to implementation until the user has responded and all items are resolved.
+Do not proceed to implementation until the user has responded and **all items across all categories** are resolved.
 
 ### 5. Apply user decisions
 
@@ -147,3 +153,4 @@ Run `npm run validate` as the final step to confirm all fixes pass lint, build, 
 - **Agents must update tests for their changes**: When an agent changes a function's return type, error message, or behavior, it must also update the corresponding test assertions. Leaving test updates for later causes cascading failures at `npm run validate` time that are tedious to debug.
 - **Dependency-ordered implementation prevents type conflicts**: Parallel agents that change shared types (e.g. one agent changes a return type from Buffer to string, another agent imports that function) create conflicts neither agent can see. Running framework first, then independent modules, then downstream modules eliminates this.
 - **Write Won't items to REJECTED.md immediately**: Don't batch them. Context compaction can lose item descriptions if they're only in the conversation history. Writing to disk as items are confirmed preserves them.
+- **Never treat silence as approval**: If the user responds to Will items but doesn't mention Won't or Needs Clarification, those categories are **unreviewed**, not approved. Present them again and ask for explicit decisions. The same applies in reverse — confirming Won't items doesn't implicitly approve Will items. Every category, every item, needs an explicit "yes", "no", or "move to X" from the user before acting on it.

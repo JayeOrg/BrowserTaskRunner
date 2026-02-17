@@ -33,9 +33,9 @@ SQLite database (`vault.db` at project root). Three tables:
 | Table | Purpose | Encrypted columns |
 |-------|---------|-------------------|
 | `config` | Global salt + password verification blob | password check value |
-| `projects` | Project encryption keys wrapped with master key | `encrypted_key` |
-| `details` | Secret values + DEK wrapped with both master and project key | `ciphertext`, `master_wrapped_dek`, `project_wrapped_dek` |
-| `sessions` | Time-limited admin sessions, master key encrypted with session key | `encrypted_master_key` |
+| `projects` | Project encryption keys wrapped with master key | `key_ciphertext` |
+| `details` | Secret values + DEK wrapped with both master and project key | `ciphertext`, `master_dek_ciphertext`, `project_dek_ciphertext` |
+| `sessions` | Time-limited admin sessions, master key encrypted with session key | `ciphertext` |
 
 Details have a composite primary key `(project, key)` — the same detail name can exist in different projects. All CLI commands require authentication (password or admin session). Only secret values and encryption keys are encrypted; metadata (detail names, project names) is stored in plaintext columns.
 
@@ -65,6 +65,7 @@ npm run vault -- project export <name>       # re-export token
 npm run vault -- project list
 npm run vault -- project remove <name>       # cascades details
 npm run vault -- project rotate <name>       # new key, re-wraps all DEKs
+npm run vault -- project rename <old> <new>  # rename project, preserves details
 npm run vault -- project setup <name>        # check + prompt for missing details
 
 # Password management

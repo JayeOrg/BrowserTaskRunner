@@ -1,14 +1,14 @@
 import type { BrowserAPI } from "../../../stack/browser/browser.js";
 import type {
   SingleAttemptTask,
-  TaskContext,
+  VaultSecrets,
   TaskResultSuccess,
 } from "../../../stack/framework/tasks.js";
 import { StepError } from "../../../stack/framework/errors.js";
 
 const TASK_NAME = "click-test";
 
-async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResultSuccess> {
+async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResultSuccess> {
   await browser.navigate(context.url);
 
   const button = await browser.waitForSelector("#go");

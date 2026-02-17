@@ -35,6 +35,18 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **All project schemas in one file (`schemas.ts`)**: Only 2 schemas today. Splitting into per-project files is premature until there's actual conflict.
 - **`promptConfirm` auto-approves in non-TTY mode**: Intentional for scripting/automation. The alternative (failing in non-TTY) would make the CLI unusable in pipelines.
 - **`setEnvVar` splits on `\n` without handling `\r\n`**: macOS/Linux only tool. `.env` is created and maintained by this same code, so line endings are always `\n`.
+- **Two private `logAt` closures with different signatures in `logging.ts`**: Completely different scopes (`createTaskLogger` vs `createPrefixLogger`), 50 lines apart in different factory functions. No real risk of confusion.
+- **`needsFromSchema` silently returns `{}` for non-ZodObject schemas**: A non-ZodObject schema would also fail `contextSchema` validation at runtime with a clear error. Adding a throw would create a duplicate error path. Current behavior is safe.
+- **`loader.ts` error says `.ts` but loader resolves `.js`**: The `.ts` extension in the error message is correct — tells contributors where to create the source file. The loader finds the compiled `.js`. Showing `.js` would confuse source-file seekers.
+- **Module-level `WS_PORT` validation throws before `main()` in `run.ts`**: Must happen at module scope because `WS_PORT` is a constant used elsewhere. Moving into `main()` would require threading as a parameter. Error is clear and actionable.
+- **`attempt` initialized to 0, immediately `++` to 1 in `run.ts`**: `while(true) { attempt++; ... }` is idiomatic for "attempt starts at 1, increments each iteration." Established pattern.
+- **Redundant `if (elements)` guards in `extension/overlay/controls.ts`**: TypeScript's control flow analysis doesn't narrow module-level variables across function calls. Without the guards, `elements.foo` is a type error. Guards are required by the type checker, not redundant.
+- **`DRY_RUN` env var in `nandosOrder.ts`**: Safety valve for dev/testing — prevents accidentally placing a real food order. Task-level feature flag, not infrastructure. Not the same as dev/prod environment separation.
+- **`TIMINGS` has 14 keys; single-use ones could be local in `nandosOrder.ts`**: All timing values at the top in one place makes them easy to find and tune together. Scattering into functions would require searching. Correct approach for empirical constants.
+- **`formatTime` helper in `extension/logging.ts` only called once**: 3 lines of date formatting. Inlining into `log()` would reduce readability. Extracting small formatting helpers is standard.
+- **No `blur` event after fill in `extension/messages/commands/fill.ts`**: Adding `blur` would change behavior for all sites. Current sequence (focus → value → input → change) works. Speculatively adding it risks unwanted side effects. If needed, add as an option per-command.
+- **Async guard in `vault/db.ts` is runtime-only; could be compile-time**: TypeScript's `Exclude` on return types is fragile with confusing error messages. Runtime guard gives clear, actionable error (`"callback must be synchronous — got a Promise"`). Intentional defense-in-depth.
+- **`withVault`/`withVaultReadOnly` have duplicated structure in `vault/cli/env.ts`**: Two functions, 8 lines each, differ only in the opener call. A shared helper would save 4 lines but add indirection. Tolerable at this scale.
 
 ## Failed Approaches
 

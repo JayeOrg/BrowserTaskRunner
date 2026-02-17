@@ -3,13 +3,31 @@ import type { BaseResponse } from "../responses/base.js";
 import { getScriptTarget } from "../../script-target.js";
 import { extractResult } from "../../script-results.js";
 
-export const scrollSchema = z.object({
-  mode: z.enum(["intoView", "to", "by"]),
-  selector: z.string().optional(),
-  x: z.number().optional(),
-  y: z.number().optional(),
+const scrollIntoViewSchema = z.object({
+  mode: z.literal("intoView"),
+  selector: z.string(),
   frameId: z.number().optional(),
 });
+
+const scrollToSchema = z.object({
+  mode: z.literal("to"),
+  x: z.number(),
+  y: z.number(),
+  frameId: z.number().optional(),
+});
+
+const scrollBySchema = z.object({
+  mode: z.literal("by"),
+  x: z.number(),
+  y: z.number(),
+  frameId: z.number().optional(),
+});
+
+export const scrollSchema = z.discriminatedUnion("mode", [
+  scrollIntoViewSchema,
+  scrollToSchema,
+  scrollBySchema,
+]);
 
 export type ScrollCommand = z.infer<typeof scrollSchema> & { type: "scroll" };
 
@@ -19,29 +37,53 @@ export interface ScrollResponse extends BaseResponse {
 
 export async function handleScroll(input: z.infer<typeof scrollSchema>): Promise<ScrollResponse> {
   const target = await getScriptTarget(input.frameId);
-  const results = await chrome.scripting.executeScript({
-    target,
-    func: (mode: string, sel: string | null, x: number, y: number) => {
-      if (mode === "intoView") {
-        if (!sel) {
-          return { error: "scrollIntoView requires a selector" };
-        }
+
+  if (input.mode === "intoView") {
+    const { selector } = input;
+    const results = await chrome.scripting.executeScript({
+      target,
+      func: (sel: string) => {
         const element = document.querySelector(sel);
         if (!element) {
           return { error: `Element not found: ${sel}` };
         }
         element.scrollIntoView({ block: "center", behavior: "instant" });
         return {};
-      }
-      if (mode === "to") {
-        window.scrollTo(x, y);
+      },
+      args: [selector],
+    });
+    const extracted = extractResult(results);
+    if (!extracted.ok) {
+      return { type: "scroll", error: extracted.error };
+    }
+    return { type: "scroll" };
+  }
+
+  const { x: scrollX, y: scrollY } = input;
+  if (input.mode === "to") {
+    const results = await chrome.scripting.executeScript({
+      target,
+      func: (px: number, py: number) => {
+        window.scrollTo(px, py);
         return {};
-      }
-      // Mode === "by"
-      window.scrollBy(x, y);
+      },
+      args: [scrollX, scrollY],
+    });
+    const extracted = extractResult(results);
+    if (!extracted.ok) {
+      return { type: "scroll", error: extracted.error };
+    }
+    return { type: "scroll" };
+  }
+
+  // Mode === "by"
+  const results = await chrome.scripting.executeScript({
+    target,
+    func: (px: number, py: number) => {
+      window.scrollBy(px, py);
       return {};
     },
-    args: [input.mode, input.selector ?? null, input.x ?? 0, input.y ?? 0],
+    args: [scrollX, scrollY],
   });
   const extracted = extractResult(results);
   if (!extracted.ok) {

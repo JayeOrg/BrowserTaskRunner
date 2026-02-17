@@ -8,26 +8,16 @@ const TURNSTILE_SELECTORS = [
   '[class*="turnstile"]',
 ];
 
-// Click offset from left edge of container (where the checkbox typically is)
-const CHECKBOX_OFFSET_X = 30;
-
-export type TurnstileDetectionResult =
-  | { found: true; selector: string; clickX: number; clickY: number }
-  | { found: false };
+export type TurnstileDetectionResult = { found: true; selector: string } | { found: false };
 
 /**
- * Detects Turnstile on the page and returns click coordinates if found.
+ * Detects Turnstile on the page and returns the matched selector if found.
  */
 export async function detectTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
   const response = await browser.querySelectorRect(TURNSTILE_SELECTORS);
 
   if (response.found) {
-    return {
-      found: true,
-      selector: response.selector,
-      clickX: response.rect.left + CHECKBOX_OFFSET_X,
-      clickY: response.rect.top + response.rect.height / 2,
-    };
+    return { found: true, selector: response.selector };
   }
 
   return { found: false };

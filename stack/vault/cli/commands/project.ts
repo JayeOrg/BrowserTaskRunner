@@ -1,4 +1,4 @@
-import { exportToken } from "../../crypto.js";
+import { exportProjectToken } from "../../crypto.js";
 import {
   createProject,
   getProjectKey,
@@ -42,6 +42,7 @@ async function handleProject(args: string[]): Promise<void> {
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const token = createProject(db, masterKey, name);
+        // Token goes to stdout for scripting, so informational messages use stderr
         console.error(`Project "${name}" created`);
         if (writeEnv) writeTokenToEnv(name, token);
         else console.log(token);
@@ -53,7 +54,7 @@ async function handleProject(args: string[]): Promise<void> {
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const projectKey = getProjectKey(db, masterKey, name);
-        const token = exportToken(projectKey);
+        const token = exportProjectToken(projectKey);
         if (writeEnv) writeTokenToEnv(name, token);
         else console.log(token);
       });
@@ -116,7 +117,7 @@ async function handleProject(args: string[]): Promise<void> {
 
         console.log(`Project "${name}" needs: ${needs.join(", ")}`);
         for (const key of needs) {
-          console.log(`  ${key} ${existing.has(key) ? "\u2713" : "\u2717"}`);
+          console.log(`  ${key} ${existing.has(key) ? "✓" : "✗"}`);
         }
 
         if (missing.length === 0) {

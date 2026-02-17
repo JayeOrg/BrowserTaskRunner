@@ -22,7 +22,7 @@ async function handleDetailGet(subArgs: string[]): Promise<void> {
   const key = subArgs[1];
   requireArg(project, "detail get <project> <key>");
   requireArg(key, "detail get <project> <key>");
-  await withVault(async (db) => {
+  await withVaultReadOnly(async (db) => {
     const masterKey = await resolveAdminAuth(db);
     console.log(getDetail(db, masterKey, project, key));
   });

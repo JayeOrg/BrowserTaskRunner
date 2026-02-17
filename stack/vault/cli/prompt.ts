@@ -74,16 +74,12 @@ function promptConfirm(message: string): Promise<boolean> {
 }
 
 async function getNewPassword(): Promise<string> {
-  if (process.stdin.isTTY) {
-    const password = await promptHidden("New vault password");
-    const confirm = await promptHidden("Confirm new password");
-    if (password !== confirm) {
-      throw new Error("Passwords do not match");
-    }
-    return password;
-  }
-  const password = await readStdinLine("No password provided on stdin");
-  const confirm = await readStdinLine("No confirmation password provided on stdin");
+  const password = process.stdin.isTTY
+    ? await promptHidden("New vault password")
+    : await readStdinLine("No password provided on stdin");
+  const confirm = process.stdin.isTTY
+    ? await promptHidden("Confirm new password")
+    : await readStdinLine("No confirmation password provided on stdin");
   if (password !== confirm) {
     throw new Error("Passwords do not match");
   }

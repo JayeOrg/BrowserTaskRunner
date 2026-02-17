@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getScriptTarget } from "../../script-target.js";
-import { isScriptFound } from "../../script-results.js";
+import { isScriptFound, type Rect } from "../../script-results.js";
 
 export const querySelectorRectSchema = z.object({
   selectors: z.array(z.string()),
@@ -16,7 +16,7 @@ export type QuerySelectorRectResponse = BaseResponse & { type: "querySelectorRec
     | {
         found: true;
         selector: string;
-        rect: { left: number; top: number; width: number; height: number };
+        rect: Rect;
       }
     | { found: false }
   );
@@ -58,12 +58,9 @@ export async function handleQuerySelectorRect(
       rect: result.rect,
     };
   }
-  const scriptFailed = !isScriptFound(result);
-  return {
-    type: "querySelectorRect",
-    found: false,
-    ...(scriptFailed
-      ? { error: `Script execution failed for selectors: ${input.selectors.join(", ")}` }
-      : {}),
-  };
+  const response: QuerySelectorRectResponse = { type: "querySelectorRect", found: false };
+  if (!isScriptFound(result)) {
+    response.error = `Script execution failed for selectors: ${input.selectors.join(", ")}`;
+  }
+  return response;
 }
