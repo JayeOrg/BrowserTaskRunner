@@ -5,7 +5,7 @@ import {
   deleteSession,
   DEFAULT_SESSION_MINUTES,
 } from "../../ops/sessions.js";
-import { VAULT_PATH, setEnvVar, removeEnvVar, withVault } from "../env.js";
+import { VAULT_PATH, setEnvVar, removeEnvVar, withVault, withVaultReadOnly } from "../env.js";
 import { getPassword, getNewPassword } from "../prompt.js";
 
 async function handleInit(): Promise<void> {
@@ -67,7 +67,7 @@ async function handleStatus(): Promise<void> {
     console.log("No active session");
     return;
   }
-  await withVault((db) => {
+  await withVaultReadOnly((db) => {
     const expiresAt = getSessionExpiry(db, token);
     if (expiresAt === null || Date.now() > expiresAt) {
       try {

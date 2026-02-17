@@ -19,6 +19,20 @@ function toReceivedCommand(raw: unknown): ReceivedCommand {
   return raw;
 }
 
+// --- Shared connect logic ---
+
+async function connectExtension(port: number): Promise<WebSocket> {
+  const ws = new WebSocket(`ws://localhost:${port.toString()}`);
+  await new Promise<void>((resolve, reject) => {
+    ws.on("open", () => {
+      ws.send(JSON.stringify({ type: "ready" }));
+      resolve();
+    });
+    ws.on("error", reject);
+  });
+  return ws;
+}
+
 // --- Mode 1: Queue-based (for protocol tests) ---
 
 export function createQueuedExtension(port: number) {
@@ -28,15 +42,7 @@ export function createQueuedExtension(port: number) {
 
   return {
     async connect(): Promise<void> {
-      ws = new WebSocket(`ws://localhost:${port.toString()}`);
-      await new Promise<void>((resolve, reject) => {
-        ws?.on("open", () => {
-          ws?.send(JSON.stringify({ type: "ready" }));
-          resolve();
-        });
-        ws?.on("error", reject);
-      });
-
+      ws = await connectExtension(port);
       ws.on("message", (data: Buffer) => {
         const raw: unknown = JSON.parse(data.toString());
         const parsed = toReceivedCommand(raw);
@@ -84,15 +90,7 @@ export function createRespondingExtension(port: number, respond: CommandResponde
 
   return {
     async connect(): Promise<void> {
-      ws = new WebSocket(`ws://localhost:${port.toString()}`);
-      await new Promise<void>((resolve, reject) => {
-        ws?.on("open", () => {
-          ws?.send(JSON.stringify({ type: "ready" }));
-          resolve();
-        });
-        ws?.on("error", reject);
-      });
-
+      ws = await connectExtension(port);
       ws.on("message", (data: Buffer) => {
         const raw: unknown = JSON.parse(data.toString());
         if (!isReceivedCommand(raw)) return;

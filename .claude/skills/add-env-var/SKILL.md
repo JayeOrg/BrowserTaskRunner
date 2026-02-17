@@ -20,9 +20,9 @@ environment:
 
 Use `${VAR:-}` for optional vars (empty default), `${VAR:-value}` for vars with defaults, or just `VAR` to require it from the host.
 
-## 2. Add to `stack/infra/run.sh` (if Chrome or Xvfb needs it)
+## 2. Add to `stack/infra/run.ts` (if Chrome or Xvfb needs it)
 
-Most env vars are for the Node.js process and don't need run.sh changes. Only add here if Chrome flags, display settings, or startup behavior depend on it.
+Most env vars are for the Node.js process and don't need run.ts changes. Only add here if Chrome flags, display settings, or startup behavior depend on it.
 
 ## 3. Read in application code
 

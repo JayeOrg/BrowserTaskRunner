@@ -1,7 +1,7 @@
 import { setDetail, getDetail, listDetails, removeDetail } from "../../ops/details.js";
 import { requireArg } from "../args.js";
-import { resolveAdminAuth, requireAdmin } from "../auth.js";
-import { withVault } from "../env.js";
+import { resolveAdminAuth } from "../auth.js";
+import { withVault, withVaultReadOnly } from "../env.js";
 import { getSecretValue, promptConfirm } from "../prompt.js";
 
 async function handleDetailSet(subArgs: string[]): Promise<void> {
@@ -29,8 +29,8 @@ async function handleDetailGet(subArgs: string[]): Promise<void> {
 }
 
 async function handleDetailList(subArgs: string[]): Promise<void> {
-  await withVault(async (db) => {
-    await requireAdmin(db);
+  await withVaultReadOnly(async (db) => {
+    await resolveAdminAuth(db);
     const project = subArgs[0];
     const details = listDetails(db, project);
     if (details.length === 0) {
@@ -62,7 +62,7 @@ async function handleDetailRemove(subArgs: string[]): Promise<void> {
     return;
   }
   await withVault(async (db) => {
-    await requireAdmin(db);
+    await resolveAdminAuth(db);
     removeDetail(db, project, key);
     console.log(`Removed detail "${key}" from project "${project}"`);
   });

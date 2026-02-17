@@ -58,15 +58,22 @@ function createStepState(): StepState {
   return { stepNum: 0, lastStep: "", lastTime: Date.now() };
 }
 
+function formatValue(val: unknown): string {
+  if (typeof val === "object" && val !== null) {
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
 function formatData(data?: Record<string, unknown>): string {
   if (!data || Object.keys(data).length === 0) {
     return "";
   }
   const values = Object.values(data);
   if (values.length === 1) {
-    return ` → ${String(values[0])}`;
+    return ` → ${formatValue(values[0])}`;
   }
-  const pairs = Object.entries(data).map(([key, val]) => `${key}=${String(val)}`);
+  const pairs = Object.entries(data).map(([key, val]) => `${key}=${formatValue(val)}`);
   return ` → ${pairs.join(", ")}`;
 }
 

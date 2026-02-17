@@ -1,5 +1,0 @@
-services:
-  sitecheck:
-    volumes:
-      # Hot-load built assets from host for faster iteration
-      - ../../dist:/app/dist:ro

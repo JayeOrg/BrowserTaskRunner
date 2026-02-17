@@ -1,6 +1,6 @@
 import type { BrowserAPI } from "../browser/browser.js";
 import type { ZodType } from "zod";
-import type { TaskLogger } from "./logging.js";
+import type { StepRunnerDeps } from "./step-runner.js";
 
 export interface TaskResultSuccess {
   step: string;
@@ -13,7 +13,7 @@ export type TaskContext = Record<string, string>;
 export type TaskRun = (
   browser: BrowserAPI,
   context: TaskContext,
-  logger: TaskLogger,
+  deps: StepRunnerDeps,
 ) => Promise<TaskResultSuccess>;
 
 /**
@@ -30,26 +30,40 @@ export function normalizeNeeds(needs: TaskNeeds): Record<string, string> {
   return needs;
 }
 
-export interface SingleAttemptTask {
+/**
+ * Derives a `needs` mapping from a zod schema's top-level keys.
+ * Use when the local context keys match vault detail names 1:1.
+ *
+ * ```ts
+ * needs: needsFromSchema(contextSchema),
+ * ```
+ */
+export function needsFromSchema(schema: ZodType): Record<string, string> {
+  if ("shape" in schema) {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- narrowing ZodObject.shape
+    const shape = (schema as { shape: Record<string, unknown> }).shape;
+    return Object.fromEntries(Object.keys(shape).map((key) => [key, key]));
+  }
+  return {};
+}
+
+interface BaseTask {
   name: string;
   url: string;
   project: string;
   needs: TaskNeeds;
-  mode: "once";
-  keepBrowserOpen?: boolean;
   contextSchema?: ZodType;
   run: TaskRun;
 }
 
-export interface RetryingTask {
-  name: string;
-  url: string;
-  project: string;
-  needs: TaskNeeds;
+export interface SingleAttemptTask extends BaseTask {
+  mode: "once";
+  keepBrowserOpen?: boolean;
+}
+
+export interface RetryingTask extends BaseTask {
   mode: "retry";
   intervalMs: number;
-  contextSchema?: ZodType;
-  run: TaskRun;
 }
 
 export type TaskConfig = SingleAttemptTask | RetryingTask;

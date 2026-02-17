@@ -1,5 +1,5 @@
 import { isStepUpdateMessage } from "../step-state.js";
-import { updateOverlay, toggleVisibility } from "./controls.js";
+import { updateOverlay, toggleInteractive } from "./controls.js";
 
 chrome.runtime.onMessage.addListener((message: unknown) => {
   if (isStepUpdateMessage(message)) {
@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey && event.shiftKey && event.key === ".") {
     event.preventDefault();
-    toggleVisibility();
+    toggleInteractive();
   }
 });
 

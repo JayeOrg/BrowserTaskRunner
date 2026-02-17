@@ -424,13 +424,9 @@ describe("Browser convenience methods", () => {
 
     const clickPromise = setup.browser.clickText(["Nope"], { timeout: 100 });
 
-    // First poll: not found
+    // First poll: not found — 500ms delay exceeds 100ms timeout, so loop exits
     const cmd1 = await setup.ext.receiveCommand();
     setup.ext.sendResponse({ id: cmd1.id, type: "clickText", found: false });
-
-    // After 500ms delay, timeout exceeded → final attempt
-    const cmd2 = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd2.id, type: "clickText", found: false });
 
     const result = await clickPromise;
     expect(result.found).toBe(false);

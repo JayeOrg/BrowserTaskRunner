@@ -20,7 +20,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "tsc && npm run build:extension",
     "build:extension": "mkdir -p dist/extension && cp stack/extension/manifest.json dist/extension/ && esbuild stack/extension/service-worker.ts --bundle --outfile=dist/extension/service-worker.js --format=iife --target=chrome100 && esbuild stack/extension/overlay/main.ts --bundle --outfile=dist/extension/overlay.js --format=iife --target=chrome100",
-    "check": "./stack/infra/check.sh",
+    "check": "node --import jiti/register stack/infra/check.ts",
     "vault": "npm run build && node dist/vault/cli/main.js",
     "dev:watch": "npm run build:extension && (tsc --watch --preserveWatchOutput & esbuild stack/extension/service-worker.ts --bundle --outfile=dist/extension/service-worker.js --format=iife --target=chrome100 --watch & esbuild stack/extension/overlay/main.ts --bundle --outfile=dist/extension/overlay.js --format=iife --target=chrome100 --watch)",
     "logs": "docker compose -f stack/infra/docker-compose.yml logs -f",

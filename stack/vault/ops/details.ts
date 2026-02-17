@@ -67,16 +67,10 @@ function getDetail(db: DatabaseSync, masterKey: Buffer, project: string, key: st
 }
 
 function listDetails(db: DatabaseSync, project?: string): Array<{ key: string; project: string }> {
-  if (project !== undefined) {
-    const rows = db
-      .prepare("SELECT key, project FROM details WHERE project = ? ORDER BY key")
-      .all(project);
-    return rows.map((row) => ({
-      key: requireString(row, "key"),
-      project: requireString(row, "project"),
-    }));
-  }
-  const rows = db.prepare("SELECT key, project FROM details ORDER BY project, key").all();
+  const rows =
+    project !== undefined
+      ? db.prepare("SELECT key, project FROM details WHERE project = ? ORDER BY key").all(project)
+      : db.prepare("SELECT key, project FROM details ORDER BY project, key").all();
   return rows.map((row) => ({
     key: requireString(row, "key"),
     project: requireString(row, "project"),

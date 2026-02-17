@@ -27,7 +27,7 @@ Secrets are stored in the vault (see `stack/vault/README.md`). The `.env` file n
 
 ```bash
 # Required — one per project (export from vault)
-VAULT_TOKEN_BOTC=<token>
+VAULT_TOKEN_MONITOR_BOTC=<token>
 VAULT_TOKEN_NANDOS=<token>
 
 # Optional
@@ -59,17 +59,6 @@ To disable VNC:
 ```bash
 npm run check botcLogin --no-vnc
 ```
-
-### Fast local iterations (use host build)
-
-Mount your locally built `dist/` into the container to skip image rebuilds while iterating:
-
-```bash
-npm run docker:build                 # one-time to build base image + deps
-npm run check botcLogin --host-dist --no-build
-```
-
-The `--host-dist` flag runs `npm run build` on the host, then mounts `./dist` read-only into the container via `stack/infra/docker-compose.dev.yml`.
 
 ## How It Works
 

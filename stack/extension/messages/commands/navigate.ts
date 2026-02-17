@@ -18,8 +18,9 @@ export async function handleNavigate(
   input: z.infer<typeof navigateSchema>,
 ): Promise<NavigateResponse> {
   const tabId = await getActiveTabId();
+  const loadPromise = waitForTabLoad(tabId);
   await chrome.tabs.update(tabId, { url: input.url });
-  const loadResult = await waitForTabLoad(tabId);
+  const loadResult = await loadPromise;
   const updatedTab = await chrome.tabs.get(tabId);
   if (loadResult.timedOut) {
     return {

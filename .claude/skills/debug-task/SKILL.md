@@ -24,7 +24,7 @@ Disable with `--no-vnc` if not needed. VNC lets you watch Chrome in real-time.
 
 ## Log files (Docker)
 
-Inside the container, `stack/infra/run.sh` writes:
+Inside the container, `stack/infra/run.ts` writes:
 - `logs/xvfb.log` — X display server
 - `logs/chromium.log` — Chrome stderr
 - `logs/vnc.log` — VNC server (if enabled)

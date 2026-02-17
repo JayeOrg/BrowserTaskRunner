@@ -11,7 +11,7 @@ Master password (interactive prompt, or piped to stdin)
       → wraps DEKs for admin access (details table, master_wrapped_dek)
 
 Project key (random, per project)
-  → exportable as base64 token (VAULT_TOKEN)
+  → exportable as base64 token (VAULT_TOKEN_<PROJECT>)
   → wraps DEKs for runtime access (details table, project_wrapped_dek)
 
 DEK (random, per detail)
@@ -24,7 +24,7 @@ Each detail value is encrypted with its own random DEK. The DEK is wrapped twice
 
 **Admin** (CLI): prompted for password interactively, or use `vault login` to start a time-limited session that writes an admin token to `.env`. Subsequent commands pick up the token automatically — no re-entering the password. In non-interactive contexts (CI, scripts), pipe the password to stdin.
 
-**Runtime** (tasks, requires `VAULT_TOKEN`): project key unwraps DEKs from the project's own details. Master password not needed. A compromised token exposes only that project's details.
+**Runtime** (tasks, requires `VAULT_TOKEN_<PROJECT>`): project key unwraps DEKs from the project's own details. Master password not needed. A compromised token exposes only that project's details.
 
 ## Storage
 
@@ -86,7 +86,7 @@ export const myTask: RetryingTask = {
 
 `needs` maps local context keys to detail keys within the project. At runtime, the framework:
 
-1. Reads `VAULT_TOKEN` (base64 project key)
+1. Reads `VAULT_TOKEN_<PROJECT>` (base64 project key, falls back to `VAULT_TOKEN`)
 2. Queries details for the task's project + needed keys
 3. Unwraps each DEK with the project key
 4. Decrypts each value with its DEK
@@ -129,6 +129,7 @@ All encryption uses AES-256-GCM via `node:crypto`. Key derivation uses scrypt (c
 stack/vault/
 ├── core.ts              DB init, master key, password change
 ├── crypto.ts            AES-256-GCM, scrypt, token serialization
+├── db.ts                SQLite helpers (withSavepoint)
 ├── rows.ts              SQLite row type extractors
 ├── schema.ts            SQL DDL
 ├── ops/

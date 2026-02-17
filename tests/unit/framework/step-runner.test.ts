@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   StepRunner,
   type StepUpdate,
   type StepRunnerDeps,
 } from "../../../stack/framework/step-runner.js";
+import { createTaskLogger } from "../../../stack/framework/logging.js";
 
 function createDeps(overrides?: Partial<StepRunnerDeps>): {
   deps: StepRunnerDeps;
@@ -18,6 +19,7 @@ function createDeps(overrides?: Partial<StepRunnerDeps>): {
     onControl: (handler) => {
       controlHandler = handler;
     },
+    taskLogger: createTaskLogger("test", () => undefined),
     ...overrides,
   };
 
@@ -35,10 +37,6 @@ function tick(ms = 10): Promise<void> {
     setTimeout(resolve, ms);
   });
 }
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
 
 describe("StepRunner execution", () => {
   it("executes steps in sequence", async () => {
@@ -94,8 +92,8 @@ describe("StepRunner execution", () => {
     ]);
   });
 
-  it("throws step errors when pauseOnError is inactive", async () => {
-    const { deps } = createDeps();
+  it("throws step errors when pauseOnError is false", async () => {
+    const { deps } = createDeps({ pauseOnError: false });
     const runner = new StepRunner(deps);
 
     runner.step("fail", async () => {
@@ -111,6 +109,74 @@ describe("StepRunner execution", () => {
 
     const result = runner.step("x", async () => {});
     expect(result).toBe(runner);
+  });
+
+  it("skips a step when skip returns true", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const order: string[] = [];
+
+    runner
+      .step("a", async () => {
+        order.push("a");
+      })
+      .step(
+        "b",
+        async () => {
+          order.push("b");
+        },
+        { skip: () => true },
+      )
+      .step("c", async () => {
+        order.push("c");
+      });
+
+    await runner.execute();
+    expect(order).toEqual(["a", "c"]);
+  });
+
+  it("runs step when skip returns false", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const order: string[] = [];
+
+    runner
+      .step(
+        "a",
+        async () => {
+          order.push("a");
+        },
+        { skip: () => false },
+      )
+      .step("b", async () => {
+        order.push("b");
+      });
+
+    await runner.execute();
+    expect(order).toEqual(["a", "b"]);
+  });
+
+  it("evaluates skip at execution time not registration time", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    let shouldSkip = false;
+    const order: string[] = [];
+
+    runner
+      .step("a", async () => {
+        order.push("a");
+        shouldSkip = true;
+      })
+      .step(
+        "b",
+        async () => {
+          order.push("b");
+        },
+        { skip: () => shouldSkip },
+      );
+
+    await runner.execute();
+    expect(order).toEqual(["a"]);
   });
 });
 
@@ -286,9 +352,7 @@ describe("StepRunner skipBack/skipForward", () => {
 });
 
 describe("StepRunner pauseOnError", () => {
-  it("pauses on error and re-runs step after play when STEP_DEBUG=1", async () => {
-    vi.stubEnv("STEP_DEBUG", "1");
-
+  it("pauses on error and re-runs step after play", async () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
     let calls = 0;
@@ -312,20 +376,7 @@ describe("StepRunner pauseOnError", () => {
     expect(calls).toBe(2);
   });
 
-  it("does not pause on error when STEP_DEBUG is not set", async () => {
-    const { deps } = createDeps();
-    const runner = new StepRunner(deps);
-
-    runner.step("fail", async () => {
-      throw new Error("immediate");
-    });
-
-    await expect(runner.execute()).rejects.toThrow("immediate");
-  });
-
-  it("does not pause on error when pauseOnError is explicitly false", async () => {
-    vi.stubEnv("STEP_DEBUG", "1");
-
+  it("throws when pauseOnError is false", async () => {
     const { deps } = createDeps({ pauseOnError: false });
     const runner = new StepRunner(deps);
 

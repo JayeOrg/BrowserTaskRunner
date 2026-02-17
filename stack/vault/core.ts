@@ -56,11 +56,11 @@ function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
   try {
     decrypted = aesDecrypt(masterKey, iv, authTag, ciphertext);
   } catch {
-    throw new Error("Vault decryption failed — wrong password or corrupted vault");
+    throw new Error("Vault decryption failed — wrong password (GCM auth tag mismatch)");
   }
 
   if (decrypted.toString("utf8") !== PASSWORD_CHECK_MAGIC) {
-    throw new Error("Vault decryption failed — wrong password or corrupted vault");
+    throw new Error("Vault decryption failed — data corrupted (magic string mismatch)");
   }
 }
 

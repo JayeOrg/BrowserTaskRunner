@@ -5,7 +5,7 @@ import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { logConnectionInstructions } from "./instructions.js";
 import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
 
-type FrameOption = { frameId?: number };
+export type IframeOption = { frameId?: number };
 
 type ClickTextOptions = { tag?: string; exact?: boolean; cdp?: boolean; timeout?: number };
 
@@ -18,48 +18,75 @@ type WaitForUrlResult = { found: true; url: string } | { found: false };
 export interface BrowserOptions {
   commandTimeoutMs?: number;
   connectionTimeoutMs?: number;
+  pauseOnError?: boolean;
 }
 
-export interface BrowserAPI {
+interface BrowserNavigation {
   navigate(url: string): Promise<ResponseFor<"navigate">>;
   getUrl(): Promise<ResponseFor<"getUrl">>;
-  fill(selector: string, value: string, options?: FrameOption): Promise<ResponseFor<"fill">>;
-  click(selector: string, options?: FrameOption): Promise<ResponseFor<"click">>;
-  cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
+}
+
+interface BrowserWaiting {
   waitForSelector(
     selector: string,
     timeout?: number,
-    options?: FrameOption,
+    options?: IframeOption,
   ): Promise<ResponseFor<"waitForSelector">>;
-  getContent(
-    selector?: string,
-    options?: { html?: boolean } & FrameOption,
-  ): Promise<ResponseFor<"getContent">>;
-  getText(selector?: string): Promise<string>;
-  querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
-  clickText(texts: string[], options?: ClickTextOptions): Promise<ResponseFor<"clickText">>;
-  cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult>;
   waitForText(texts: string[], timeout?: number): Promise<WaitForTextResult>;
   waitForUrl(pattern: string, timeout?: number): Promise<WaitForUrlResult>;
-  ping(): Promise<ResponseFor<"ping">>;
+}
+
+interface BrowserClicking {
+  click(selector: string, options?: IframeOption): Promise<ResponseFor<"click">>;
+  cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
+  clickText(texts: string[], options?: ClickTextOptions): Promise<ResponseFor<"clickText">>;
+  cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult>;
+}
+
+interface BrowserFormInput {
+  fill(selector: string, value: string, options?: IframeOption): Promise<ResponseFor<"fill">>;
+  type(selector: string, text: string): Promise<ResponseFor<"keyboard">>;
   selectOption(
     selector: string,
     values: string[],
-    options?: FrameOption,
+    options?: IframeOption,
   ): Promise<ResponseFor<"select">>;
-  type(selector: string, text: string): Promise<ResponseFor<"keyboard">>;
+  check(selector: string, options?: IframeOption): Promise<ResponseFor<"check">>;
+  uncheck(selector: string, options?: IframeOption): Promise<ResponseFor<"check">>;
+}
+
+interface BrowserKeyboard {
   press(key: string): Promise<ResponseFor<"keyboard">>;
   keyDown(key: string): Promise<ResponseFor<"keyboard">>;
   keyUp(key: string): Promise<ResponseFor<"keyboard">>;
-  check(selector: string, options?: FrameOption): Promise<ResponseFor<"check">>;
-  uncheck(selector: string, options?: FrameOption): Promise<ResponseFor<"check">>;
-  scrollIntoView(selector: string, options?: FrameOption): Promise<ResponseFor<"scroll">>;
+}
+
+interface BrowserQueries {
+  getContent(
+    selector?: string,
+    options?: { html?: boolean } & IframeOption,
+  ): Promise<ResponseFor<"getContent">>;
+  getText(selector?: string): Promise<string>;
+  querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
+  getFrameId(selector: string): Promise<number>;
+}
+
+interface BrowserScrolling {
+  scrollIntoView(selector: string, options?: IframeOption): Promise<ResponseFor<"scroll">>;
   scrollTo(x: number, y: number): Promise<ResponseFor<"scroll">>;
   scrollBy(x: number, y: number): Promise<ResponseFor<"scroll">>;
-  getFrameId(selector: string): Promise<number>;
-  sendStepUpdate(update: StepUpdate): void;
-  onControl(handler: (action: string) => void): void;
-  stepRunnerDeps(): StepRunnerDeps;
+}
+
+export interface BrowserAPI
+  extends
+    BrowserNavigation,
+    BrowserWaiting,
+    BrowserClicking,
+    BrowserFormInput,
+    BrowserKeyboard,
+    BrowserQueries,
+    BrowserScrolling {
+  ping(): Promise<ResponseFor<"ping">>;
 }
 
 function isResponseMessage(value: unknown): value is ResponseMessage {
@@ -89,6 +116,7 @@ export class Browser implements BrowserAPI {
   private readonly port: number;
   private readonly commandTimeoutMs: number;
   private readonly connectionTimeoutMs: number;
+  private readonly pauseOnError: boolean | undefined;
   private readonly logger: PrefixLogger;
   private ws: WebSocket | null = null;
   private server: WebSocketServer | null = null;
@@ -100,6 +128,7 @@ export class Browser implements BrowserAPI {
     this.port = port;
     this.commandTimeoutMs = options.commandTimeoutMs ?? 30000;
     this.connectionTimeoutMs = options.connectionTimeoutMs ?? 60000;
+    this.pauseOnError = options.pauseOnError;
     this.logger = createPrefixLogger(`Browser:${port.toString()}`);
   }
 
@@ -141,12 +170,11 @@ export class Browser implements BrowserAPI {
           return;
         }
         this.ws = incoming;
-        const ws = incoming;
-        ws.on("close", () => {
+        incoming.on("close", () => {
           this.ws = null;
           this.rejectAllPending(new Error("Extension disconnected"));
         });
-        ws.on("message", (data: Buffer) => {
+        incoming.on("message", (data: Buffer) => {
           let parsed: unknown;
           try {
             parsed = JSON.parse(data.toString());
@@ -256,19 +284,19 @@ export class Browser implements BrowserAPI {
   getUrl() {
     return this.send({ type: "getUrl" });
   }
-  fill(selector: string, value: string, options?: FrameOption) {
+  fill(selector: string, value: string, options?: IframeOption) {
     return this.send({ type: "fill", selector, value, ...options });
   }
-  click(selector: string, options?: FrameOption) {
+  click(selector: string, options?: IframeOption) {
     return this.send({ type: "click", selector, ...options });
   }
   cdpClick(x: number, y: number) {
     return this.send({ type: "cdpClick", x, y });
   }
-  waitForSelector(selector: string, timeout = 10000, options?: FrameOption) {
+  waitForSelector(selector: string, timeout = 10000, options?: IframeOption) {
     return this.send({ type: "waitForSelector", selector, timeout, ...options });
   }
-  getContent(selector?: string, options: { html?: boolean } & FrameOption = {}) {
+  getContent(selector?: string, options: { html?: boolean } & IframeOption = {}) {
     return this.send({ type: "getContent", ...(selector ? { selector } : {}), ...options });
   }
   async getText(selector?: string): Promise<string> {
@@ -283,16 +311,17 @@ export class Browser implements BrowserAPI {
     options: ClickTextOptions = {},
   ): Promise<ResponseFor<"clickText">> {
     const { timeout, ...sendOptions } = options;
-    if (!timeout) {
+    if (timeout === undefined) {
       return this.send({ type: "clickText", texts, ...sendOptions });
     }
     const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const result = await this.send({ type: "clickText", texts, ...sendOptions });
-      if (result.found) return result;
+    let last: ResponseFor<"clickText">;
+    do {
+      last = await this.send({ type: "clickText", texts, ...sendOptions });
+      if (last.found) return last;
       await delay(500);
-    }
-    return this.send({ type: "clickText", texts, ...sendOptions });
+    } while (Date.now() < deadline);
+    return last;
   }
   async cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult> {
     const rect = await this.querySelectorRect(selectors);
@@ -325,7 +354,7 @@ export class Browser implements BrowserAPI {
   ping() {
     return this.send({ type: "ping" });
   }
-  selectOption(selector: string, values: string[], options?: FrameOption) {
+  selectOption(selector: string, values: string[], options?: IframeOption) {
     return this.send({ type: "select", selector, values, ...options });
   }
   type(selector: string, text: string) {
@@ -345,13 +374,13 @@ export class Browser implements BrowserAPI {
   keyUp(key: string) {
     return this.send({ type: "keyboard", action: "up" as const, key });
   }
-  check(selector: string, options?: FrameOption) {
+  check(selector: string, options?: IframeOption) {
     return this.send({ type: "check", selector, checked: true, ...options });
   }
-  uncheck(selector: string, options?: FrameOption) {
+  uncheck(selector: string, options?: IframeOption) {
     return this.send({ type: "check", selector, checked: false, ...options });
   }
-  scrollIntoView(selector: string, options?: FrameOption) {
+  scrollIntoView(selector: string, options?: IframeOption) {
     return this.send({
       type: "scroll",
       mode: "intoView" as const,
@@ -368,7 +397,7 @@ export class Browser implements BrowserAPI {
   async getFrameId(selector: string): Promise<number> {
     const result = await this.send({ type: "getFrameId", selector });
     if (!result.found) {
-      throw new Error(result.error ?? `Frame not found for selector: ${selector}`);
+      throw new Error(`Frame not found for selector: ${selector}`);
     }
     return result.frameId;
   }
@@ -382,7 +411,11 @@ export class Browser implements BrowserAPI {
     this.controlHandler = handler;
   }
 
-  stepRunnerDeps(): StepRunnerDeps {
+  offControl(): void {
+    this.controlHandler = null;
+  }
+
+  stepRunnerDeps(): Omit<StepRunnerDeps, "taskLogger"> {
     return {
       sendStepUpdate: (update) => {
         this.sendStepUpdate(update);
@@ -390,6 +423,7 @@ export class Browser implements BrowserAPI {
       onControl: (handler) => {
         this.onControl(handler);
       },
+      ...(this.pauseOnError !== undefined && { pauseOnError: this.pauseOnError }),
     };
   }
 

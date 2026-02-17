@@ -75,7 +75,7 @@ beforeAll(() => {
   templateVaultPath = join(templateDir, "vault.db");
   const templateEnvPath = join(templateDir, ".env");
 
-  spawnSync("node", [CLI_PATH, "init"], {
+  const initResult = spawnSync("node", [CLI_PATH, "init"], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -86,8 +86,11 @@ beforeAll(() => {
     },
     input: `${PASSWORD}\n${PASSWORD}\n`,
   });
+  if (initResult.status !== 0) {
+    throw new Error(`vault init failed (exit ${String(initResult.status)}):\n${initResult.stderr}`);
+  }
 
-  spawnSync("node", [CLI_PATH, "login", "--duration", "120"], {
+  const loginResult = spawnSync("node", [CLI_PATH, "login", "--duration", "120"], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -98,6 +101,11 @@ beforeAll(() => {
     },
     input: `${PASSWORD}\n`,
   });
+  if (loginResult.status !== 0) {
+    throw new Error(
+      `vault login failed (exit ${String(loginResult.status)}):\n${loginResult.stderr}`,
+    );
+  }
 
   const envContent = readFileSync(templateEnvPath, "utf8");
   const match = /^VAULT_ADMIN=(?<token>.+)$/mu.exec(envContent);
@@ -195,8 +203,8 @@ describe("vault CLI", () => {
 
   it("creates a project and shows token", () => {
     const result = run(["project", "create", "test-proj"], TOKEN());
-    expect(result.stdout).toContain("test-proj");
-    expect(result.stdout).toContain("Token:");
+    expect(result.stderr).toContain("test-proj");
+    expect(result.stdout.trim()).toMatch(/^[A-Za-z0-9+/=]+$/u);
   });
 
   it("project create --write-env writes token to .env", () => {
@@ -452,7 +460,7 @@ describe("project rename", () => {
 describe("project rotate", () => {
   it("rotates the project key and outputs a new token", () => {
     const createResult = run(["project", "create", "rotating"], TOKEN());
-    const oldToken = /Token: (?<token>.+)/u.exec(createResult.stdout)?.groups?.token;
+    const oldToken = createResult.stdout.trim();
     expect(oldToken).toBeTruthy();
 
     run(["detail", "set", "rotating", "secret"], { ...TOKEN(), secretValue: "my-val" });

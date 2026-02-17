@@ -78,16 +78,14 @@ async function getNewPassword(): Promise<string> {
     const password = await promptHidden("New vault password");
     const confirm = await promptHidden("Confirm password");
     if (password !== confirm) {
-      console.error("Passwords do not match");
-      process.exit(1);
+      throw new Error("Passwords do not match");
     }
     return password;
   }
   const password = await readStdinLine("No password provided on stdin");
   const confirm = await readStdinLine("No confirmation password provided on stdin");
   if (password !== confirm) {
-    console.error("Passwords do not match");
-    process.exit(1);
+    throw new Error("Passwords do not match");
   }
   return password;
 }

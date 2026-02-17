@@ -559,7 +559,7 @@ describe("vault corruption defenses", () => {
     const wrongBlob = Buffer.concat([wrongMagic.iv, wrongMagic.authTag, wrongMagic.ciphertext]);
     db.prepare("UPDATE config SET value = ? WHERE key = ?").run(wrongBlob, "password_check");
 
-    expect(() => deriveMasterKey(db, PASSWORD)).toThrow("wrong password or corrupted vault");
+    expect(() => deriveMasterKey(db, PASSWORD)).toThrow("data corrupted (magic string mismatch)");
   });
 
   it("getProjectKey throws 'wrong master password' with wrong key", () => {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   validateContext,
   normalizeNeeds,
+  needsFromSchema,
   type SingleAttemptTask,
 } from "../../../stack/framework/tasks.js";
 
@@ -97,5 +98,19 @@ describe("normalizeNeeds", () => {
 
   it("handles empty record", () => {
     expect(normalizeNeeds({})).toEqual({});
+  });
+});
+
+describe("needsFromSchema", () => {
+  it("extracts keys from a zod object schema", () => {
+    const schema = z.object({ email: z.string(), password: z.string() });
+    expect(needsFromSchema(schema)).toEqual({
+      email: "email",
+      password: "password",
+    });
+  });
+
+  it("returns empty record for non-object schema", () => {
+    expect(needsFromSchema(z.string())).toEqual({});
   });
 });

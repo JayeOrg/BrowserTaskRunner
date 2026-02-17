@@ -30,7 +30,7 @@ function createSession(db: DatabaseSync, masterKey: Buffer, durationMinutes?: nu
   db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
 
   db.prepare(
-    "INSERT INTO sessions (id, session_iv, session_auth_tag, session_ciphertext, expires_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO sessions (id, iv, auth_tag, ciphertext, expires_at) VALUES (?, ?, ?, ?, ?)",
   ).run(sessionId, wrapped.iv, wrapped.authTag, wrapped.ciphertext, expiresAt);
 
   return Buffer.concat([sessionId, sessionKey]).toString("base64");
@@ -40,9 +40,7 @@ function getMasterKeyFromSession(db: DatabaseSync, token: string): Buffer {
   const { sessionId, sessionKey } = parseSessionToken(token);
 
   const row = db
-    .prepare(
-      "SELECT session_iv, session_auth_tag, session_ciphertext, expires_at FROM sessions WHERE id = ?",
-    )
+    .prepare("SELECT iv, auth_tag, ciphertext, expires_at FROM sessions WHERE id = ?")
     .get(sessionId);
   if (!row) throw new Error("Admin session not found");
 

@@ -1,30 +1,11 @@
 import { log } from "./logging.js";
 
-let tabIdPromise: Promise<number> | null = null;
-let lockedTabId: number | null = null;
-
-async function resolveTabId(): Promise<number> {
+export async function getActiveTabId(): Promise<number> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) {
-    throw new Error("No active tab");
+  if (!tab?.id) {
+    throw new Error("No active tab found");
   }
-  if (tab.id === undefined) {
-    throw new Error("Tab has no ID (possibly a devtools or extension tab)");
-  }
-  lockedTabId = tab.id;
-  log("Locked to tab", { tabId: tab.id });
   return tab.id;
-}
-
-export function getActiveTabId(): Promise<number> {
-  if (!tabIdPromise) {
-    tabIdPromise = resolveTabId();
-  }
-  return tabIdPromise;
-}
-
-export function getLockedTabId(): number | null {
-  return lockedTabId;
 }
 
 export interface TabLoadResult {

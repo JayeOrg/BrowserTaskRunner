@@ -28,6 +28,7 @@ The `Browser` constructor accepts an optional `BrowserOptions` object:
 | -------------------- | ------- | ---------------------------------------------- |
 | `commandTimeoutMs`   | 30000   | Timeout per command (navigate, click, etc.)     |
 | `connectionTimeoutMs`| 60000   | How long `start()` waits for extension to connect |
+| `pauseOnError`       | —       | Passed to StepRunner (which defaults to `true`)  |
 
 ## Files
 
@@ -38,17 +39,33 @@ The `Browser` constructor accepts an optional `BrowserOptions` object:
 
 Tasks receive a `BrowserAPI` instance and use these methods:
 
-| Method                        | Description                            |
-| ----------------------------- | -------------------------------------- |
-| `navigate(url)`               | Navigate to a URL                      |
-| `getUrl()`                    | Get current page URL and title         |
-| `fill(selector, value)`       | Fill an input field                    |
-| `click(selector)`             | Click an element via DOM events        |
-| `cdpClick(x, y)`              | Click at coordinates                   |
-| `waitForSelector(sel, timeout)` | Wait for an element to appear        |
-| `getContent(selector?)`       | Get page text content                  |
-| `querySelectorRect(selectors)` | Get bounding rect for first match     |
-| `ping()`                      | Test connection                        |
+| Method                                | Description                                    |
+| ------------------------------------- | ---------------------------------------------- |
+| `navigate(url)`                       | Navigate to a URL                              |
+| `getUrl()`                            | Get current page URL and title                 |
+| `fill(selector, value, opts?)`        | Fill an input field                            |
+| `click(selector, opts?)`              | Click an element via DOM events                |
+| `cdpClick(x, y)`                      | Click at viewport coordinates via CDP          |
+| `clickText(texts, opts?)`             | Find and click element by visible text         |
+| `cdpClickSelector(selectors)`         | Resolve selector to rect, then CDP click       |
+| `waitForSelector(sel, timeout, opts?)`| Wait for an element to appear                  |
+| `waitForText(texts, timeout?)`        | Poll page text for any matching string         |
+| `waitForUrl(pattern, timeout?)`       | Poll URL until it contains pattern             |
+| `getContent(selector?, opts?)`        | Get page text or HTML content                  |
+| `getText(selector?)`                  | Shorthand for `getContent().content`           |
+| `querySelectorRect(selectors)`        | Get bounding rect for first match              |
+| `type(selector, text)`                | CDP keyboard text insertion                    |
+| `press(key)`                          | CDP key press (down + up)                      |
+| `keyDown(key)`                        | CDP key down                                   |
+| `keyUp(key)`                          | CDP key up                                     |
+| `selectOption(selector, values, opts?)`| Select dropdown options by value              |
+| `check(selector, opts?)`              | Check a checkbox/radio                         |
+| `uncheck(selector, opts?)`            | Uncheck a checkbox/radio                       |
+| `scrollIntoView(selector, opts?)`     | Scroll element to viewport center              |
+| `scrollTo(x, y)`                      | Absolute page scroll                           |
+| `scrollBy(x, y)`                      | Relative page scroll                           |
+| `getFrameId(selector)`                | Resolve iframe selector to frameId             |
+| `ping()`                              | Test connection                                |
 
 ## Design Decisions
 

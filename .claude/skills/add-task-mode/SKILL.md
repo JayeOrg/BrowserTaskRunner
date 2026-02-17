@@ -15,17 +15,17 @@ export interface ScheduledTask {
   name: string;
   url: string;
   project: string;
-  needs: Record<string, string>;
+  needs: TaskNeeds;
   mode: "scheduled";
   cronExpr: string; // mode-specific fields go here
   contextSchema?: ZodType;
-  run: (browser: BrowserAPI, context: TaskContext) => Promise<TaskResultSuccess>;
+  run: TaskRun;
 }
 
 export type TaskConfig = SingleAttemptTask | RetryingTask | ScheduledTask;
 ```
 
-Every mode shares `name`, `url`, `project`, `needs`, `mode`, `contextSchema?`, and `run`. The `mode` field is the discriminant — TypeScript narrows the type via `task.mode === "scheduled"`.
+Every mode shares `name`, `url`, `project`, `needs`, `mode`, `contextSchema?`, and `run`. The `mode` field is the discriminant — TypeScript narrows the type via `task.mode === "scheduled"`. Use `needsFromSchema(contextSchema)` when vault keys match schema keys 1:1.
 
 ## 2. Add the execution strategy in `stack/framework/run.ts`
 
@@ -39,7 +39,9 @@ async function runScheduled(
 ): Promise<void> {
   // Implementation here — the runner owns orchestration,
   // the task's run() implements a single attempt
-  await task.run(browser, context);
+  const taskLogger = createTaskLogger(task.name);
+  const deps = { ...browser.stepRunnerDeps(), taskLogger };
+  await task.run(browser, context, deps);
   logger.success("TASK SUCCESSFUL!");
   writeAlert(task.name);
 }

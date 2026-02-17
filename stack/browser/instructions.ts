@@ -1,14 +1,14 @@
 import path from "node:path";
 import type { PrefixLogger } from "../framework/logging.js";
 
-function isAutomatedEnvironment(): boolean {
-  return Boolean(process.env["DOCKER"] || process.env["CI"] || process.env["VITEST"]);
+function shouldShowInstructions(): boolean {
+  return process.env.SHOW_INSTRUCTIONS === "true";
 }
 
 export function logConnectionInstructions(logger: PrefixLogger, port: number): void {
   logger.log("WebSocket server listening", { port });
 
-  if (isAutomatedEnvironment()) {
+  if (!shouldShowInstructions()) {
     return;
   }
 

@@ -28,9 +28,9 @@ const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS sessions (
     id BLOB PRIMARY KEY,
-    session_iv BLOB NOT NULL,
-    session_auth_tag BLOB NOT NULL,
-    session_ciphertext BLOB NOT NULL,
+    iv BLOB NOT NULL,
+    auth_tag BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
     expires_at INTEGER NOT NULL
   ) STRICT;
 `;

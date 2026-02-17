@@ -9,6 +9,7 @@ import {
   BUTTON_BG,
   BUTTON_HOVER_BG,
   errorLabelStyle,
+  hotkeyHintStyle,
 } from "./styles.js";
 
 const OVERLAY_ID = "sitecheck-overlay";
@@ -17,6 +18,7 @@ export interface OverlayElements {
   container: HTMLDivElement;
   stepLabel: HTMLDivElement;
   errorLabel: HTMLDivElement;
+  hotkeyHint: HTMLDivElement;
   stateBadge: HTMLSpanElement;
   rewindBtn: HTMLButtonElement;
   pauseBtn: HTMLButtonElement;
@@ -46,8 +48,11 @@ function createButton(
   return btn;
 }
 
-export function createOverlay(onControl: (action: string) => void): OverlayElements | null {
-  if (document.getElementById(OVERLAY_ID)) return null;
+export function createOverlay(onControl: (action: string) => void): OverlayElements {
+  const existing = document.getElementById(OVERLAY_ID);
+  if (existing) {
+    existing.remove();
+  }
 
   const container = document.createElement("div");
   container.id = OVERLAY_ID;
@@ -76,10 +81,10 @@ export function createOverlay(onControl: (action: string) => void): OverlayEleme
   const controls = document.createElement("div");
   Object.assign(controls.style, controlsContainerStyle);
 
-  const rewindBtn = createButton("\u23EE", "skipBack", "Skip back", onControl);
-  const pauseBtn = createButton("\u23F8", "pause", "Pause", onControl);
-  const playBtn = createButton("\u25B6", "play", "Play", onControl);
-  const stepBtn = createButton("\u23ED", "skipForward", "Skip forward", onControl);
+  const rewindBtn = createButton("⏮", "skipBack", "Skip back", onControl);
+  const pauseBtn = createButton("⏸", "pause", "Pause", onControl);
+  const playBtn = createButton("▶", "play", "Play", onControl);
+  const stepBtn = createButton("⏭", "skipForward", "Skip forward", onControl);
 
   controls.appendChild(rewindBtn);
   controls.appendChild(pauseBtn);
@@ -90,11 +95,27 @@ export function createOverlay(onControl: (action: string) => void): OverlayEleme
   const errorLabel = document.createElement("div");
   Object.assign(errorLabel.style, errorLabelStyle);
 
+  // Hotkey hint
+  const hotkeyHint = document.createElement("div");
+  hotkeyHint.textContent = "Ctrl+Shift+. to unlock controls";
+  Object.assign(hotkeyHint.style, hotkeyHintStyle);
+
   container.appendChild(header);
   container.appendChild(stepLabel);
   container.appendChild(controls);
   container.appendChild(errorLabel);
+  container.appendChild(hotkeyHint);
   document.body.appendChild(container);
 
-  return { container, stepLabel, errorLabel, stateBadge, rewindBtn, pauseBtn, playBtn, stepBtn };
+  return {
+    container,
+    stepLabel,
+    errorLabel,
+    hotkeyHint,
+    stateBadge,
+    rewindBtn,
+    pauseBtn,
+    playBtn,
+    stepBtn,
+  };
 }

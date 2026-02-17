@@ -4,7 +4,7 @@ Automated login checker for sites with human verification (Cloudflare Turnstile,
 
 ## The Problem
 
-Cloudflare detects browser automation tools (Playwright, Puppeteer, Selenium) via the Chrome DevTools Protocol (CDP). See [FAILED_APPROACHES.md](./FAILED_APPROACHES.md) for details on what doesn't work.
+Cloudflare detects browser automation tools (Playwright, Puppeteer, Selenium) via the Chrome DevTools Protocol (CDP). See [REJECTED.md](./REJECTED.md) for details on what doesn't work.
 
 ## Solution
 
@@ -41,9 +41,10 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 
 ## Available Tasks
 
-| Task        | URL               | Description             |
-| ----------- | ----------------- | ----------------------- |
-| `botcLogin` | https://botc.app/ | Login flow for botc.app |
+| Task          | URL                                 | Description                          |
+| ------------- | ----------------------------------- | ------------------------------------ |
+| `botcLogin`   | https://botc.app/                   | Login flow for botc.app              |
+| `nandosOrder` | https://www.nandos.com.au/sign-in   | Login + order for Nando's Australia  |
 
 ## Running Modes
 
@@ -55,17 +56,17 @@ Runs Chrome + extension inside a Docker container with virtual display.
 npm run check <taskName>
 ```
 
-To debug with VNC:
+To debug with VNC (enabled by default):
 
 ```bash
-ENABLE_VNC=true npm run check botcLogin
-# Connect VNC viewer to localhost:5900
+npm run check botcLogin
+# Connect VNC viewer to localhost:5900 (no password)
 ```
 
-To iterate quickly using a local build (mounts `./dist` into the container instead of rebuilding the image):
+To disable VNC:
 
 ```bash
-npm run check botcLogin --host-dist
+npm run check botcLogin --no-vnc
 ```
 
 [Full documentation](./stack/infra/README.md)
@@ -74,36 +75,34 @@ npm run check botcLogin --host-dist
 
 ## Adding New Tasks
 
-1. Create a project directory in `stack/projects/yoursite/`:
+1. Create a task file in `stack/projects/yoursite/tasks/yourSite.ts`. The filename must match the task name. Export `const task`:
 
     ```typescript
-    // stack/projects/yoursite/tasks/yoursite.ts
-    import type { RetryingTask } from "../../../framework/tasks.js";
+    // stack/projects/yoursite/tasks/yourSite.ts
+    import type { RetryingTask, TaskContext } from "../../../framework/tasks.js";
+    import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 
-    export const yourSiteTask: RetryingTask = {
+    export const task: RetryingTask = {
         name: "yourSite",
         url: "https://yoursite.com/login",
         project: "monitor-yoursite",
         needs: ["email", "password"],
         mode: "retry",
         intervalMs: 300_000,
-        run: async (browser, context, logger) => {
-            await browser.navigate("https://yoursite.com/login");
-            // Your login logic here
-            return { ok: true, step: "done" };
+        run: async (browser, context, deps) => {
+            const runner = new StepRunner(deps);
+            runner
+                .step("navigate", (log) => { /* ... */ })
+                .step("verify", (log) => { /* ... */ });
+            await runner.execute();
+            return { step: "verify", finalUrl: "" };
         },
     };
     ```
 
-2. Register it in `stack/framework/registry.ts`:
+    Task discovery is convention-based — no registry file. The loader finds `export const task` in `stack/projects/*/tasks/*.ts`.
 
-    ```typescript
-    import { yourSiteTask } from "../projects/yoursite/tasks/yoursite.js";
-
-    export const allTasks: TaskConfig[] = [botcLoginTask, yourSiteTask];
-    ```
-
-3. Set up vault secrets and run:
+2. Set up vault secrets and run:
     ```bash
     npm run vault -- project create monitor-yoursite
     npm run vault -- detail set monitor-yoursite email user@example.com
@@ -119,11 +118,13 @@ stack/
 ├── framework/       # Orchestration, types, logging, errors
 │   ├── run.ts       # Entry point
 │   ├── tasks.ts     # TaskConfig types
-│   ├── registry.ts  # Task registry
+│   ├── loader.ts    # Convention-based task discovery
+│   ├── step-runner.ts # StepRunner (pause/play/skip controls)
 │   ├── logging.ts   # Logging infrastructure
 │   └── errors.ts    # Result types + StepError
 ├── projects/        # Project-specific task implementations
 │   ├── botc/        # BotC login project
+│   ├── nandos/      # Nando's order project
 │   └── utils/       # Shared task utilities (selectors, timing, polling)
 ├── vault/           # Local secrets service (SQLite + AES-256-GCM)
 ├── browser/         # WebSocket server — typed browser API
@@ -133,9 +134,10 @@ stack/
 └── infra/           # Docker and deployment
     ├── Dockerfile
     ├── docker-compose.yml
-    └── run.sh
+    ├── check.ts     # CLI entry point (npm run check)
+    └── run.ts       # Container entry point
 ```
 
 ## Alerts
 
-Task results are written to `logs/alert-<taskName>.txt`. On success, the terminal bell is triggered as an audible notification.
+On success, an alert file `alert-<taskName>.txt` is written to the project root and the terminal bell is triggered as an audible notification.

@@ -32,11 +32,5 @@ export function createMockBrowser(): BrowserAPI {
     scrollTo: vi.fn().mockResolvedValue({ type: "scroll" }),
     scrollBy: vi.fn().mockResolvedValue({ type: "scroll" }),
     getFrameId: vi.fn().mockResolvedValue(0),
-    sendStepUpdate: vi.fn(),
-    onControl: vi.fn(),
-    stepRunnerDeps: vi.fn().mockReturnValue({
-      sendStepUpdate: vi.fn(),
-      onControl: vi.fn(),
-    }),
   };
 }

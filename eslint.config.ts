@@ -88,9 +88,20 @@ export default [
     },
   },
 
+  // Infra scripts – intentionally run OS commands and write to /tmp
+  {
+    files: ['stack/infra/*.ts'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+      'sonarjs/os-command': 'off',
+      'sonarjs/publicly-writable-directories': 'off',
+      'camelcase': 'off',
+    },
+  },
+
   // Tests – relaxed rules
   {
-    files: ['**/*.{spec,test}.ts', '**/__tests__/**/*', 'tests/fixtures/**/*.ts', 'tests/setup/**/*.ts'],
+    files: ['**/*.{spec,test}.ts', 'tests/fixtures/**/*.ts', 'tests/setup/**/*.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',

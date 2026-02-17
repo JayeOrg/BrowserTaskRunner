@@ -51,29 +51,18 @@ Existing volume patterns:
 - `./vault.db:/app/vault.db:ro` — read-only database mount
 - `tmpfs: /tmp/chrome-profile` — ephemeral Chrome data
 
-## 3. Update `stack/infra/check.sh` (if the service needs task-specific config)
+## 3. Update `stack/infra/check.ts` (if the service needs task-specific config)
 
-If the new service needs the `TASK_NAME` or other runtime config, pass it through:
+If the new service needs the `TASK_NAME` or other runtime config, set it in `process.env` before spawning docker compose. The existing pattern sets env vars and passes them via `docker-compose.yml`'s environment section.
 
-```bash
-docker compose ... -e NEW_SERVICE_CONFIG="$VALUE" up
-```
-
-The existing pattern exports env vars and passes them via `docker-compose.yml`'s environment section.
-
-## 4. Update `stack/infra/run.sh` (if sitecheck needs to wait for the service)
+## 4. Update `stack/infra/run.ts` (if sitecheck needs to wait for the service)
 
 Add a readiness check before starting the task:
 
-```bash
-log "Waiting for proxy..."
-for i in $(seq 1 $READINESS_TIMEOUT); do
-  if curl -sf http://proxy:8080/health > /dev/null 2>&1; then
-    success "Proxy ready"
-    break
-  fi
-  sleep 1
-done
+```typescript
+log("Waiting for proxy...");
+await waitForService("http://proxy:8080/health", READINESS_TIMEOUT);
+logSuccess("Proxy ready");
 ```
 
 ## 5. Wire into application code

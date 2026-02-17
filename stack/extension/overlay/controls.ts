@@ -3,7 +3,7 @@ import { createOverlay, type OverlayElements } from "./dom.js";
 import type { StepState } from "../step-state.js";
 
 let elements: OverlayElements | null = null;
-let visible = false;
+let interactive = false;
 let currentState: StepState["state"] = "idle";
 
 function sendControl(action: string): void {
@@ -13,9 +13,7 @@ function sendControl(action: string): void {
 function ensureOverlay(): void {
   if (!elements) {
     elements = createOverlay(sendControl);
-    if (elements) {
-      updateStateBadge("idle");
-    }
+    updateStateBadge("idle");
   }
 }
 
@@ -28,15 +26,37 @@ function updateStateBadge(state: StepState["state"]): void {
   elements.stateBadge.style.color = entry.color;
 }
 
+function buttonVisibility(state: StepState["state"]): {
+  rewind: string;
+  pause: string;
+  play: string;
+  step: string;
+} {
+  if (state === "done") return { rewind: "none", pause: "none", play: "none", step: "none" };
+  const stopped = state === "paused" || state === "failed";
+  return {
+    rewind: stopped ? "" : "none",
+    pause: stopped ? "none" : "",
+    play: stopped ? "" : "none",
+    step: stopped ? "" : "none",
+  };
+}
+
 function updateControlButtons(): void {
   if (!elements) return;
-  const stopped = currentState === "paused" || currentState === "failed";
-  // When paused/failed: show step back, play, step forward. Hide pause.
-  // When running: show pause only.
-  elements.rewindBtn.style.display = stopped ? "" : "none";
-  elements.pauseBtn.style.display = stopped ? "none" : "";
-  elements.playBtn.style.display = stopped ? "" : "none";
-  elements.stepBtn.style.display = stopped ? "" : "none";
+  const vis = buttonVisibility(currentState);
+  elements.rewindBtn.style.display = vis.rewind;
+  elements.pauseBtn.style.display = vis.pause;
+  elements.playBtn.style.display = vis.play;
+  elements.stepBtn.style.display = vis.step;
+}
+
+function applyInteractive(): void {
+  if (!elements) return;
+  elements.container.style.pointerEvents = interactive ? "auto" : "none";
+  elements.hotkeyHint.textContent = interactive
+    ? "Ctrl+Shift+. to lock controls"
+    : "Ctrl+Shift+. to unlock controls";
 }
 
 export function updateOverlay(update: StepState): void {
@@ -57,16 +77,13 @@ export function updateOverlay(update: StepState): void {
   }
 
   // Auto-show on first update
-  if (!visible && elements) {
-    visible = true;
+  if (elements && elements.container.style.display === "none") {
     elements.container.style.display = "block";
   }
 }
 
-export function toggleVisibility(): void {
+export function toggleInteractive(): void {
   ensureOverlay();
-  visible = !visible;
-  if (elements) {
-    elements.container.style.display = visible ? "block" : "none";
-  }
+  interactive = !interactive;
+  applyInteractive();
 }

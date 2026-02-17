@@ -25,7 +25,8 @@ describe("waitForFirst", () => {
     });
 
     const result = await waitForFirst(browser, [".a", ".b"], 100);
-    expect(result).toEqual({ found: false });
+    expect(result.found).toBe(false);
+    expect(result).toHaveProperty("error");
   });
 });
 

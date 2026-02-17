@@ -15,9 +15,9 @@ export const noopLogger = createTaskLogger("test", () => undefined);
 const DEFAULT_PAGE_HTML = '<button id="go">Click me</button>';
 const DEFAULT_SUCCESS_HTML = "<h1>Success</h1>";
 
-type SiteHandler = (req: IncomingMessage, res: ServerResponse) => void;
+type HttpRequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
-function defaultSiteHandler(req: IncomingMessage, res: ServerResponse): void {
+function defaultHttpRequestHandler(req: IncomingMessage, res: ServerResponse): void {
   if (req.url === "/success") {
     res.end(DEFAULT_SUCCESS_HTML);
   } else {
@@ -25,13 +25,18 @@ function defaultSiteHandler(req: IncomingMessage, res: ServerResponse): void {
   }
 }
 
-export function startTestSite(handler?: SiteHandler): Promise<{ server: Server; url: string }> {
-  return new Promise((resolve) => {
-    const server = createServer(handler ?? defaultSiteHandler);
+export function startTestSite(
+  handler?: HttpRequestHandler,
+): Promise<{ server: Server; url: string }> {
+  return new Promise((resolve, reject) => {
+    const server = createServer(handler ?? defaultHttpRequestHandler);
+    server.on("error", reject);
     server.listen(0, () => {
       const addr = server.address();
       if (typeof addr === "object" && addr !== null) {
         resolve({ server, url: `http://localhost:${addr.port.toString()}` });
+      } else {
+        reject(new Error("server.address() returned unexpected value"));
       }
     });
   });
@@ -48,11 +53,11 @@ export interface TaskTestSetup {
 
 export async function setupTaskTest(
   respond: CommandResponder,
-  siteHandler?: SiteHandler,
+  siteHandler?: HttpRequestHandler,
 ): Promise<TaskTestSetup> {
   const site = await startTestSite(siteHandler);
   const port = nextPort();
-  const browser = new Browser(port);
+  const browser = new Browser(port, { pauseOnError: false });
   const ext = createRespondingExtension(port, respond);
 
   const startPromise = browser.start();
@@ -73,6 +78,12 @@ export interface ResponderState {
   commands: string[];
 }
 
+/**
+ * Build a command responder with sensible defaults for every command type.
+ * Pass `overrides` to replace individual handlers — each override completely
+ * replaces the default for that command type. The returned `state` object is
+ * mutated by the responder (tracks `currentUrl`, `commands` history, etc.).
+ */
 export function createDefaultResponder(overrides?: Partial<Record<string, CommandOverride>>): {
   responder: CommandResponder;
   state: ResponderState;

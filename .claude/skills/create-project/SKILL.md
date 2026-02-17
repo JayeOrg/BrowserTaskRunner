@@ -26,7 +26,7 @@ This outputs a project token. Save it — you'll need it for `.env`.
 
 ## 3. Add vault details
 
-After writing the task file (step 4), use `project setup` to interactively add all missing details declared in the task's `needs` field. This requires a build first so the loader can discover needs:
+After writing the task file (step 4), use `project setup` to interactively add all missing details from the task's `needs`. This requires a build first so the loader can discover needs:
 
 ```bash
 npm run build
@@ -58,12 +58,18 @@ export const task: RetryingTask = {
   name: "acmeLogin",              // must match filename
   url: "https://acme.example.com/login",
   project: "monitor-acme",        // must match vault project name
-  needs: { email: "email", password: "password" },  // local key -> vault detail key
+  needs: needsFromSchema(contextSchema),
   mode: "retry",
   intervalMs: 300_000,
   contextSchema,
   run,
 };
+```
+
+Use `needsFromSchema(contextSchema)` when vault keys match schema keys. If the vault detail names differ from the local context keys, use an explicit mapping:
+
+```typescript
+needs: { loginEmail: "email", loginPassword: "password" },
 ```
 
 No registration step needed — the loader discovers tasks by filename convention.

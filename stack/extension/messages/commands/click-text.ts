@@ -58,7 +58,7 @@ export async function handleClickText(
           const domRect = node.getBoundingClientRect();
           return {
             found: true,
-            selector: text,
+            matchedText: text,
             rect: {
               left: domRect.left,
               top: domRect.top,
@@ -74,7 +74,7 @@ export async function handleClickText(
   });
 
   const result = results[0]?.result;
-  if (!isScriptFound(result) || !result.found || !result.rect || !result.selector) {
+  if (!isScriptFound(result) || !result.found || !result.rect || !result.matchedText) {
     return { type: "clickText", found: false };
   }
 
@@ -90,7 +90,7 @@ export async function handleClickText(
   return {
     type: "clickText",
     found: true,
-    text: result.selector,
+    text: result.matchedText,
     rect: result.rect,
   };
 }

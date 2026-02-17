@@ -17,6 +17,7 @@ export const containerStyle = {
   display: "none",
   userSelect: "none",
   lineHeight: "1.4",
+  pointerEvents: "none",
 };
 
 export const headerStyle = {
@@ -78,6 +79,13 @@ export const errorLabelStyle = {
   marginTop: "6px",
   wordBreak: "break-word",
   maxWidth: "250px",
+};
+
+export const hotkeyHintStyle = {
+  fontSize: "10px",
+  color: "#666",
+  marginTop: "6px",
+  textAlign: "center",
 };
 
 export const stateStyles: Record<StepState["state"], { bg: string; color: string; text: string }> =

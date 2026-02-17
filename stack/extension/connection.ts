@@ -1,7 +1,7 @@
 import { log } from "./logging.js";
 import { handleCommand, isIncomingCommand } from "./messages/index.js";
 import { isStepUpdateMessage } from "./step-state.js";
-import { getLockedTabId } from "./tabs.js";
+import { getActiveTabId } from "./tabs.js";
 
 const DEFAULT_WS_PORT = 8765;
 const MAX_RECONNECT_DELAY_MS = 30000;
@@ -10,6 +10,7 @@ const BASE_RECONNECT_DELAY_MS = 1000;
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+// Caches the latest step update so it survives content script re-injection on page navigation
 let cachedStepUpdate: unknown = null;
 let portPromise: Promise<number> | null = null;
 
@@ -57,19 +58,20 @@ export async function connect(): Promise<void> {
 
   const wsUrl = `ws://localhost:${String(port)}`;
   log("Connecting", { url: wsUrl });
-  ws = new WebSocket(wsUrl);
+  const socket = new WebSocket(wsUrl);
+  ws = socket;
 
-  ws.onopen = () => {
+  socket.onopen = () => {
     log("Connected to server");
     reconnectAttempts = 0;
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
-    ws?.send(JSON.stringify({ type: "ready" }));
+    socket.send(JSON.stringify({ type: "ready" }));
   };
 
-  ws.onmessage = async (event: MessageEvent) => {
+  socket.onmessage = async (event: MessageEvent) => {
     let messageId: number | undefined;
     try {
       if (typeof event.data !== "string") {
@@ -96,38 +98,29 @@ export async function connect(): Promise<void> {
       }
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
-      ws?.send(JSON.stringify({ id: messageId, ...result }));
+      socket.send(JSON.stringify({ id: messageId, ...result }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log("Error handling message", { error: message });
-      ws?.send(JSON.stringify({ id: messageId, type: "error", error: message }));
+      socket.send(JSON.stringify({ id: messageId, type: "error", error: message }));
     }
   };
 
-  ws.onclose = () => {
+  socket.onclose = () => {
     log("Disconnected from server");
     ws = null;
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
+  socket.onerror = () => {
     log("WebSocket error");
   };
 }
 
 async function forwardStepUpdateToContentScript(update: unknown): Promise<void> {
   try {
-    const tabId = getLockedTabId();
-    if (tabId !== null) {
-      await chrome.tabs.sendMessage(tabId, update);
-      return;
-    }
-    // Tab not locked yet (step update arrived before first command) — fall back
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
-    if (tab && tab.id !== undefined) {
-      await chrome.tabs.sendMessage(tab.id, update);
-    }
+    const tabId = await getActiveTabId();
+    await chrome.tabs.sendMessage(tabId, update);
   } catch {
     // Content script not injected yet or tab closed — ignore
   }

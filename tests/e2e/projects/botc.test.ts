@@ -25,7 +25,7 @@ describe("e2e: botcLoginTask", () => {
     expect(botcLoginTask.name).toBe("botcLogin");
     expect(botcLoginTask.mode).toBe("retry");
     expect(botcLoginTask.project).toBe("monitor-botc");
-    expect(botcLoginTask.needs).toEqual(["email", "password"]);
+    expect(botcLoginTask.contextSchema).toBeDefined();
   });
 
   it("validates context schema requires email and password", () => {
@@ -62,13 +62,14 @@ describe("e2e: botcLoginTask", () => {
     setup = await setupTaskTest(responder);
     state.siteUrl = setup.siteUrl;
 
+    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     const result = await botcLoginTask.run(
       setup.browser,
       {
         email: "user@test.com",
         password: "pass123",
       },
-      noopLogger,
+      deps,
     );
 
     expect(result.finalUrl).toContain("dashboard");
@@ -82,8 +83,9 @@ describe("e2e: botcLoginTask", () => {
     setup = await setupTaskTest(responder);
     state.siteUrl = setup.siteUrl;
 
+    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(
-      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, noopLogger),
+      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, deps),
     ).rejects.toThrow("EMAIL_INPUT_NOT_FOUND");
   });
 
@@ -107,8 +109,9 @@ describe("e2e: botcLoginTask", () => {
     setup = await setupTaskTest(responder);
     state.siteUrl = setup.siteUrl;
 
+    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(
-      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, noopLogger),
+      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, deps),
     ).rejects.toThrow("STILL_ON_LOGIN_PAGE");
   });
 });

@@ -33,21 +33,34 @@ printf 'secret-value' | npm run vault -- detail set <project> <key>
 
 ## Wiring into a task
 
-The task's `needs` field maps local names to vault detail keys:
+Every task declares `needs` explicitly — a mapping from local context keys to vault detail names. Use `needsFromSchema` when keys match 1:1:
 
 ```typescript
+import { needsFromSchema } from "../../../framework/tasks.js";
+
+const contextSchema = z.object({
+  email: z.string().min(1),
+  password: z.string().min(1),
+  apiKey: z.string().min(1),
+});
+
 export const myTask: RetryingTask = {
   name: "myTask",
   project: "my-project",
-  needs: { email: "email", password: "password", apiKey: "api-key" },
+  needs: needsFromSchema(contextSchema),
+  // Produces: { email: "email", password: "password", apiKey: "apiKey" }
+  contextSchema,
   // ...
 };
+
+// When local keys differ from vault detail names, use an explicit mapping:
+needs: { loginEmail: "email", loginPassword: "password", key: "api-key" },
 ```
 
 At runtime, the framework loads each vault key and passes them as `context`:
 
 ```typescript
-async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResultSuccess> {
+async function run(browser: BrowserAPI, context: TaskContext, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
   const { email, password, apiKey } = context;
   // ...
 }

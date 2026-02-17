@@ -14,8 +14,9 @@ services:
             - SITE_CHECK_INTERVAL_MS=${SITE_CHECK_INTERVAL_MS:-300000}
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - PERSIST_CHROME_PROFILE=${PERSIST_CHROME_PROFILE:-false}
+            - DRY_RUN=${DRY_RUN:-false}
             - DOCKER=true
-            # Configurable display/port settings (match run.sh defaults)
+            # Configurable display/port settings (match run.ts defaults)
             - DISPLAY_NUM=${DISPLAY_NUM:-99}
             - WS_PORT=${WS_PORT:-8765}
         ports:
@@ -24,4 +25,5 @@ services:
         volumes:
             - ../../logs:/app/logs
             - ../../vault.db:/app/vault.db
+        stop_grace_period: "0s"
         restart: "no"

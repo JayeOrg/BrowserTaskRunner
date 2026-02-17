@@ -24,7 +24,13 @@ export async function waitForFirst(
         } satisfies SelectorResult;
       }),
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof AggregateError) {
+      const detail = error.errors
+        .map((inner: unknown) => (inner instanceof Error ? inner.message : String(inner)))
+        .join("; ");
+      return { found: false, error: detail };
+    }
     return { found: false };
   }
 }
@@ -60,15 +66,15 @@ export async function fillFirst(
   value: string,
   timeout: number,
 ): Promise<SelectorResult> {
-  const found = await waitForFirst(browser, selectors, timeout);
-  if (!found.found) {
-    return found;
+  const result = await waitForFirst(browser, selectors, timeout);
+  if (!result.found) {
+    return result;
   }
   try {
-    await browser.fill(found.selector, value);
-    return found;
+    await browser.fill(result.selector, value);
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { found: false, error: `fill failed for ${found.selector}: ${message}` };
+    return { found: false, error: `fill failed for ${result.selector}: ${message}` };
   }
 }

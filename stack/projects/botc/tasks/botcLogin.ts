@@ -1,7 +1,12 @@
 import type { BrowserAPI } from "../../../browser/browser.js";
-import type { RetryingTask, TaskContext, TaskResultSuccess } from "../../../framework/tasks.js";
-import type { StepLogger, TaskLogger } from "../../../framework/logging.js";
-import { StepRunner } from "../../../framework/step-runner.js";
+import {
+  needsFromSchema,
+  type RetryingTask,
+  type TaskContext,
+  type TaskResultSuccess,
+} from "../../../framework/tasks.js";
+import type { StepLogger } from "../../../framework/logging.js";
+import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 import { clickFirst, fillFirst } from "../../utils/selectors.js";
 import { loginContextSchema } from "../../utils/schemas.js";
 import { sleep } from "../../utils/timing.js";
@@ -13,9 +18,10 @@ const TASK = {
   url: "https://botc.app/",
 } as const;
 
+const FINAL_STEP = "checkResult" as const;
+
 const TIMINGS = {
   afterNav: 2000,
-  afterSubmit: 2000,
   afterTurnstile: 3000,
   beforeTurnstile: 1000,
   waitEmail: 15000,
@@ -62,21 +68,17 @@ async function fillLogin(
   log.success("Entered credentials");
 }
 
-async function turnstile(
-  browser: BrowserAPI,
-  log: StepLogger,
-  phase: "beforeSubmit" | "afterSubmit",
-): Promise<void> {
-  await sleep(phase === "beforeSubmit" ? TIMINGS.beforeTurnstile : TIMINGS.afterSubmit);
+async function turnstileBeforeSubmit(browser: BrowserAPI, log: StepLogger): Promise<void> {
+  await sleep(TIMINGS.beforeTurnstile);
 
   const result = await clickTurnstile(browser);
   if (result.found) {
-    log.success(`Clicked (${phase})`, {
+    log.success("Clicked (beforeSubmit)", {
       selector: result.selector,
     });
     await sleep(TIMINGS.afterTurnstile);
   } else {
-    log.success(`None found (${phase})`);
+    log.success("None found (beforeSubmit)");
   }
 }
 
@@ -108,27 +110,26 @@ async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string
 async function run(
   browser: BrowserAPI,
   context: TaskContext,
-  logger: TaskLogger,
+  deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
   const { email, password } = loginContextSchema.parse(context);
   let finalUrl = "";
 
-  const runner = new StepRunner(browser.stepRunnerDeps(), logger);
+  const runner = new StepRunner(deps);
 
   runner
     .step("navigate", (log) => navigate(browser, log))
     .step("fillLogin", (log) => fillLogin(browser, log, email, password))
-    .step("turnstileBeforeSubmit", (log) => turnstile(browser, log, "beforeSubmit"))
+    .step("turnstileBeforeSubmit", (log) => turnstileBeforeSubmit(browser, log))
     .step("submit", (log) => submit(browser, log))
-    .step("turnstileAfterSubmit", (log) => turnstile(browser, log, "afterSubmit"))
-    .step("checkResult", async (log) => {
+    .step(FINAL_STEP, async (log) => {
       finalUrl = await checkResult(browser, log);
     });
 
   await runner.execute();
 
   return {
-    step: "checkResult",
+    step: FINAL_STEP,
     finalUrl,
     context: { task: TASK.name },
   };
@@ -138,7 +139,7 @@ export const task: RetryingTask = {
   name: TASK.name,
   url: TASK.url,
   project: "monitor-botc",
-  needs: ["email", "password"],
+  needs: needsFromSchema(loginContextSchema),
   mode: "retry",
   intervalMs: 300_000,
   contextSchema: loginContextSchema,

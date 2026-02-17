@@ -15,6 +15,7 @@ function isTaskConfig(value: unknown): value is TaskConfig {
     "mode" in value &&
     typeof value.mode === "string" &&
     (value.mode === "once" || value.mode === "retry") &&
+    (value.mode !== "retry" || ("intervalMs" in value && typeof value.intervalMs === "number")) &&
     "run" in value &&
     typeof value.run === "function" &&
     "url" in value &&

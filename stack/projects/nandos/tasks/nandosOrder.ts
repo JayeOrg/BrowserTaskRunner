@@ -1,15 +1,20 @@
 import type { BrowserAPI } from "../../../browser/browser.js";
-import type {
-  SingleAttemptTask,
-  TaskContext,
-  TaskResultSuccess,
+import {
+  needsFromSchema,
+  type SingleAttemptTask,
+  type TaskContext,
+  type TaskResultSuccess,
 } from "../../../framework/tasks.js";
-import type { StepLogger, TaskLogger } from "../../../framework/logging.js";
-import { StepRunner } from "../../../framework/step-runner.js";
+import type { StepLogger } from "../../../framework/logging.js";
+import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 import { fillFirst } from "../../utils/selectors.js";
 import { nandosContextSchema } from "../../utils/schemas.js";
 import { sleep } from "../../utils/timing.js";
 import { pollUntil } from "../../utils/poll.js";
+
+const URLS = {
+  menu: "https://www.nandos.com.au/menu",
+} as const;
 
 const TASK = {
   name: "nandosOrder",
@@ -28,34 +33,40 @@ const TIMINGS = {
   menuLoad: 5000,
   modalWait: 5000,
   selectorWait: 10000,
+  sessionCheck: 5000,
+  sessionCheckPoll: 1000,
 } as const;
 
 const DRY_RUN = process.env.DRY_RUN === "true";
+
+const FINAL_STEP = "selectPaymentAndConfirm" as const;
 
 const SELECTORS = {
   email: ['input[type="email"]', 'input[name="email"]', "input#email"],
   password: ['input[type="password"]', 'input[name="password"]', "input#password"],
 } as const;
 
+const PROTEIN_FALLBACKS = ["PERi-PERi Tenders", "Chicken Breast Fillets"] as const;
+
 const MENU_ITEMS = [
   {
     name: "PERi-Chip Wrap",
     protein: "Chicken Leg Fillets",
-    proteinFallbacks: ["PERi-PERi Tenders", "Chicken Breast Fillets"],
+    proteinFallbacks: PROTEIN_FALLBACKS,
     heat: "Hot",
     style: undefined,
   },
   {
     name: "Smoky Churrasco Burger",
     protein: "Chicken Leg Fillets",
-    proteinFallbacks: ["PERi-PERi Tenders", "Chicken Breast Fillets"],
+    proteinFallbacks: PROTEIN_FALLBACKS,
     heat: "Hot",
     style: "Garlic bread",
   },
   {
     name: "The Halloumi",
     protein: "Chicken Leg Fillets",
-    proteinFallbacks: ["PERi-PERi Tenders", "Chicken Breast Fillets"],
+    proteinFallbacks: PROTEIN_FALLBACKS,
     heat: "Hot",
     style: "Wrap",
   },
@@ -66,13 +77,13 @@ async function checkAlreadyLoggedIn(
   log: StepLogger,
   firstName: string,
 ): Promise<boolean> {
-  await browser.navigate("https://www.nandos.com.au/menu");
+  await browser.navigate(URLS.menu);
   await sleep(TIMINGS.afterNav);
 
   const result = await pollUntil(
     () => browser.getText(),
     (text) => text.includes(firstName),
-    { timeoutMs: 5000, intervalMs: 1000 },
+    { timeoutMs: TIMINGS.sessionCheck, intervalMs: TIMINGS.sessionCheckPoll },
   );
 
   if (result.ok) {
@@ -152,7 +163,7 @@ async function verifyLoginAndNavigateToMenu(browser: BrowserAPI, log: StepLogger
   }
   log.success("Login confirmed, on homepage", { url });
 
-  await browser.navigate("https://www.nandos.com.au/menu");
+  await browser.navigate(URLS.menu);
   await sleep(TIMINGS.menuLoad);
 
   const { url: menuUrl } = await browser.getUrl();
@@ -254,13 +265,18 @@ async function navigateToCategory(browser: BrowserAPI, log: StepLogger): Promise
   log.success("Navigated to Burgers, Wraps & Pitas", {
     text: result.text,
   });
-  await sleep(TIMINGS.afterClick);
+  await sleep(TIMINGS.menuLoad);
 }
 
-const ADD_BUTTON_TEXTS = ["ADD ITEM ONLY", "Add item only", "ADD TO ORDER", "Add to order"];
+const ADD_BUTTON_TEXTS = [
+  "ADD ITEM ONLY",
+  "Add item only",
+  "ADD TO ORDER",
+  "Add to order",
+] as const;
 
 async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  const addResult = await browser.clickText(ADD_BUTTON_TEXTS, {
+  const addResult = await browser.clickText([...ADD_BUTTON_TEXTS], {
     tag: "button",
     cdp: true,
     timeout: 15_000,
@@ -328,7 +344,7 @@ async function addMenuItem(
   await sleep(TIMINGS.afterSelection);
 
   if (item.style) {
-    const styleResult = await browser.clickText([item.style], { cdp: true });
+    const styleResult = await browser.clickText([item.style], { exact: true, cdp: true });
     if (styleResult.found) {
       log.success(`Selected style: ${item.style}`, { text: styleResult.text });
     } else {
@@ -397,13 +413,13 @@ async function tryDismissSuggestions(browser: BrowserAPI, log: StepLogger): Prom
   return false;
 }
 
-async function dismissSuggestionsAndCheckout(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  // Suggestions modal can overlay the checkout button — dismiss first
+async function dismissSuggestions(browser: BrowserAPI, log: StepLogger): Promise<void> {
   await sleep(TIMINGS.afterModalAction);
-
   await tryDismissSuggestions(browser, log);
   await sleep(TIMINGS.modalWait);
+}
 
+async function continueToCheckout(browser: BrowserAPI, log: StepLogger): Promise<void> {
   // Site runs a validation step after dismiss — can take 30s+ on slow loads
   const checkoutResult = await browser.clickText(["Continue to checkout"], {
     tag: "button",
@@ -487,11 +503,11 @@ async function selectPaymentAndConfirm(
   const placeResult = await browser.clickText(["Place Order"], {
     tag: "button",
     cdp: true,
-    timeout: 30_000,
+    timeout: 60_000,
   });
   if (!placeResult.found) {
     return log.fail("PLACE_ORDER_NOT_FOUND", {
-      details: "Place Order not found on page within 30 seconds",
+      details: "Place Order not found on page within 60 seconds",
     });
   }
   log.success("Clicked Place Order", { text: placeResult.text });
@@ -507,13 +523,14 @@ async function selectPaymentAndConfirm(
       body.includes("order confirmed") ||
       body.includes("order placed") ||
       body.includes("thank you") ||
-      body.includes("order number"),
-    { timeoutMs: 30_000, intervalMs: TIMINGS.afterNav },
+      body.includes("order number") ||
+      body.includes("still processing your order"),
+    { timeoutMs: 60_000, intervalMs: TIMINGS.afterNav },
   );
 
   if (!confirmed.ok) {
     return log.fail("ORDER_NOT_CONFIRMED", {
-      details: "Clicked Place Order but page did not navigate to confirmation within 30 seconds",
+      details: "Clicked Place Order but page did not navigate to confirmation within 60 seconds",
     });
   }
   log.success("Order confirmed", { url: confirmed.value.url });
@@ -523,28 +540,38 @@ async function selectPaymentAndConfirm(
 async function run(
   browser: BrowserAPI,
   context: TaskContext,
-  logger: TaskLogger,
+  deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
   const { email, password, firstName, expectedAddress, savedCardSuffix } =
     nandosContextSchema.parse(context);
+  const logger = deps.taskLogger;
+  logger.scoped("config").log(DRY_RUN ? "DRY RUN mode — will not place order" : "LIVE mode");
   let finalUrl = "";
+  let alreadyLoggedIn = false;
 
-  const alreadyLoggedIn = await checkAlreadyLoggedIn(
-    browser,
-    logger.scoped("checkSession"),
-    firstName,
-  );
+  const skipLogin = () => alreadyLoggedIn;
 
-  const runner = new StepRunner(browser.stepRunnerDeps(), logger);
+  const runner = new StepRunner(deps);
 
-  if (!alreadyLoggedIn) {
-    runner
-      .step("navigate", (log) => navigate(browser, log))
-      .step("findAndFillLogin", (log) => findAndFillLogin(browser, log, email, password))
-      .step("clickSignIn", (log) => clickSignIn(browser, log))
-      .step("handleMfa", (log) => handleMfa(browser, log))
-      .step("verifyLoginAndNavigateToMenu", (log) => verifyLoginAndNavigateToMenu(browser, log));
-  }
+  runner
+    .step("checkAlreadyLoggedIn", async (log) => {
+      alreadyLoggedIn = await checkAlreadyLoggedIn(browser, log, firstName);
+    })
+    .step("navigate", (log) => navigate(browser, log), {
+      skip: skipLogin,
+    })
+    .step("findAndFillLogin", (log) => findAndFillLogin(browser, log, email, password), {
+      skip: skipLogin,
+    })
+    .step("clickSignIn", (log) => clickSignIn(browser, log), {
+      skip: skipLogin,
+    })
+    .step("handleMfa", (log) => handleMfa(browser, log), {
+      skip: skipLogin,
+    })
+    .step("verifyLoginAndNavigateToMenu", (log) => verifyLoginAndNavigateToMenu(browser, log), {
+      skip: skipLogin,
+    });
 
   runner
     .step("handleDeliveryModal", (log) => handleDeliveryModal(browser, log, expectedAddress))
@@ -556,15 +583,16 @@ async function run(
 
   runner
     .step("verifyCartAndOpen", (log) => verifyCartAndOpen(browser, log))
-    .step("dismissSuggestionsAndCheckout", (log) => dismissSuggestionsAndCheckout(browser, log))
-    .step("selectPaymentAndConfirm", async (log) => {
+    .step("dismissSuggestions", (log) => dismissSuggestions(browser, log))
+    .step("continueToCheckout", (log) => continueToCheckout(browser, log))
+    .step(FINAL_STEP, async (log) => {
       finalUrl = await selectPaymentAndConfirm(browser, log, savedCardSuffix);
     });
 
   await runner.execute();
 
   return {
-    step: "selectPaymentAndConfirm",
+    step: FINAL_STEP,
     finalUrl,
     context: { task: TASK.name },
   };
@@ -574,7 +602,7 @@ export const task: SingleAttemptTask = {
   name: TASK.name,
   url: TASK.url,
   project: "nandos",
-  needs: ["email", "password", "firstName", "expectedAddress", "savedCardSuffix"],
+  needs: needsFromSchema(nandosContextSchema),
   mode: "once",
   keepBrowserOpen: true,
   contextSchema: nandosContextSchema,

@@ -10,7 +10,7 @@ import {
 import { listDetails, setDetail } from "../../ops/details.js";
 import { getProjectNeeds } from "../../../framework/loader.js";
 import { requireArg } from "../args.js";
-import { resolveAdminAuth, requireAdmin } from "../auth.js";
+import { resolveAdminAuth } from "../auth.js";
 import { setEnvVar, withVault } from "../env.js";
 import { promptConfirm, getSecretValue } from "../prompt.js";
 
@@ -43,9 +43,9 @@ async function handleProject(args: string[]): Promise<void> {
         const masterKey = await resolveAdminAuth(db);
         const projectKey = createProject(db, masterKey, name);
         const token = exportToken(projectKey);
-        console.log(`Project "${name}" created`);
+        console.error(`Project "${name}" created`);
         if (writeEnv) writeTokenToEnv(name, token);
-        else console.log(`Token: ${token}`);
+        else console.log(token);
       });
       break;
     }
@@ -62,7 +62,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "list": {
       await withVault(async (db) => {
-        await requireAdmin(db);
+        await resolveAdminAuth(db);
         const projects = listProjects(db);
         if (projects.length === 0) {
           console.log("No projects in vault");
@@ -84,7 +84,7 @@ async function handleProject(args: string[]): Promise<void> {
         return;
       }
       await withVault(async (db) => {
-        await requireAdmin(db);
+        await resolveAdminAuth(db);
         removeProject(db, name);
         console.log(`Removed project "${name}"`);
       });
@@ -96,7 +96,7 @@ async function handleProject(args: string[]): Promise<void> {
       requireArg(oldName, "project rename <old-name> <new-name>");
       requireArg(newName, "project rename <old-name> <new-name>");
       await withVault(async (db) => {
-        await requireAdmin(db);
+        await resolveAdminAuth(db);
         renameProject(db, oldName, newName);
         console.log(`Renamed project "${oldName}" to "${newName}"`);
       });

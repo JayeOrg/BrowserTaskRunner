@@ -64,19 +64,27 @@ function unpackBlob(blob: Buffer): EncryptedParts {
 
 // ── Column groups for multi-column encrypted fields ──
 
-type ColGroup = readonly [iv: string, authTag: string, ciphertext: string];
+type EncryptedColumnNames = readonly [iv: string, authTag: string, ciphertext: string];
 
-const PROJECT_KEY_COLS: ColGroup = ["key_iv", "key_auth_tag", "key_ciphertext"];
-const MASTER_DEK_COLS: ColGroup = ["master_dek_iv", "master_dek_auth_tag", "master_dek_ciphertext"];
-const PROJECT_DEK_COLS: ColGroup = [
+const PROJECT_KEY_COLS: EncryptedColumnNames = ["key_iv", "key_auth_tag", "key_ciphertext"];
+const MASTER_DEK_COLS: EncryptedColumnNames = [
+  "master_dek_iv",
+  "master_dek_auth_tag",
+  "master_dek_ciphertext",
+];
+const PROJECT_DEK_COLS: EncryptedColumnNames = [
   "project_dek_iv",
   "project_dek_auth_tag",
   "project_dek_ciphertext",
 ];
-const VALUE_COLS: ColGroup = ["value_iv", "value_auth_tag", "value_ciphertext"];
-const SESSION_COLS: ColGroup = ["session_iv", "session_auth_tag", "session_ciphertext"];
+const VALUE_COLS: EncryptedColumnNames = ["value_iv", "value_auth_tag", "value_ciphertext"];
+const SESSION_COLS: EncryptedColumnNames = ["iv", "auth_tag", "ciphertext"];
 
-function decryptFrom(key: Buffer, row: Record<string, unknown>, cols: ColGroup): Buffer {
+function decryptFrom(
+  key: Buffer,
+  row: Record<string, unknown>,
+  cols: EncryptedColumnNames,
+): Buffer {
   return aesDecrypt(
     key,
     requireBlob(row, cols[0]),
@@ -104,10 +112,9 @@ function parseToken(token: string): Buffer {
 export {
   KEY_LENGTH,
   SALT_LENGTH,
-  IV_LENGTH,
   PASSWORD_CHECK_MAGIC,
   type EncryptedParts,
-  type ColGroup,
+  type EncryptedColumnNames,
   deriveKey,
   aesEncrypt,
   aesDecrypt,

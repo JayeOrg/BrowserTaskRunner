@@ -74,6 +74,6 @@ Cloudflare detects automation by looking for Chrome DevTools Protocol (CDP) usag
 
 - Uses standard `chrome.scripting.executeScript()` API
 - Manipulates DOM with normal JavaScript
-- No CDP connection whatsoever
+- No CDP for page navigation or form submission (keyboard input and coordinate clicks use CDP selectively)
 - Browser fingerprint is unchanged
 - Indistinguishable from manual user actions

@@ -15,6 +15,7 @@ The steps are:
 Notes:
 
 - Don't care about code churn cost when coming up with new solutions
+- Don't factor in the cost of a DB migration when suggesting changes — migrations are cheap and welcome
 - Prioritise the best end state, not minimal disruption
 - Prioritise developer experience
 - Don't preserve legacy code
@@ -23,11 +24,16 @@ Notes:
 - Extension and Behaviour have to be built separately so extension is chrome compatible. There will be some duplication across them.
 - Don't add re-exports or barrel files to simplify imports. IDEs handle import paths. Import from the actual source module.
 - Don't create `types.ts` files. Colocate types with the code that uses them and export from there.
+- **Never edit `TODO.md`.** It is a personal scratchpad maintained only by the user.
 - Don't use import complexity as an argument against a design. Long import paths are fine — IDEs autocomplete them and they have zero runtime cost.
 
-Review FAILED_APPROACHES for things to avoid, and add to it as paths fail.
+Review `REJECTED.md` for won't-fix decisions and failed approaches. Add to it as paths fail or DX review items are confirmed as won't-fix.
 
 We don't want to publish this extension, it's for personal use.
+
+## Environment
+
+There is no dev/prod separation. This runs on a local machine (and maybe an EC2 later). Don't introduce environment-based conditionals, separate compose files, or NODE_ENV switches.
 
 ## Architecture
 
@@ -35,7 +41,7 @@ Modules with strict separation:
 
 - **Infra**: Docker, Xvfb, Chrome startup. No knowledge of sites or automation logic.
 - **Extension**: Generic browser automation bridge. Receives commands, returns results. No site-specific knowledge.
-  - Runs in Docker — single tab per container. `tabs.ts` locks to the first active tab; the tab ID is cached as a Promise to avoid races.
+  - Runs in Docker — single tab per container. `tabs.ts` queries the active tab on each command.
 - **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
 - **Projects**: All site-specific logic lives here. Each project gets its own subdirectory under `stack/projects/`. Shared task utilities live in `stack/projects/utils/`.
 - **Vault**: Local secrets service with project-scoped access control. See `stack/vault/README.md`.
@@ -74,19 +80,19 @@ Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 All tasks must use `StepRunner` to register named steps. This enables the debug overlay (pause/rewind/play controls via `Ctrl+Shift+.` in the browser).
 
 ```typescript
-import { StepRunner } from "../../../framework/step-runner.js";
+import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 
-async function run(browser, context, logger): Promise<TaskResultSuccess> {
+async function run(browser, context, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
   let finalUrl = "";
 
-  const runner = new StepRunner(browser.stepRunnerDeps());
+  const runner = new StepRunner(deps);
 
   runner
-    .step("navigate", () => navigate(browser, logger))
-    .step("fillLogin", () => fillLogin(browser, logger, email, password))
-    .step("submit", () => submit(browser, logger))
-    .step("verify", async () => {
-      finalUrl = await verify(browser, logger);
+    .step("navigate", (log) => navigate(browser, log))
+    .step("fillLogin", (log) => fillLogin(browser, log, email, password))
+    .step("submit", (log) => submit(browser, log))
+    .step("verify", async (log) => {
+      finalUrl = await verify(browser, log);
     });
 
   await runner.execute();
@@ -99,10 +105,10 @@ async function run(browser, context, logger): Promise<TaskResultSuccess> {
 
 - Each `.step(name, fn)` is a named logical step (not every browser command — group related commands)
 - Steps that return values used later: capture into a closure variable (`let finalUrl = ""`), assign inside the step fn. **Minimise these** — if step B always needs step A's output, merge them into one step. Only use closure variables for values that genuinely span independent steps (e.g. `finalUrl` used in the return value)
-- Steps are `() => Promise<void>` — inter-step data flows through closure variables. Pipeline/context-bag approaches were rejected because rewind/skipBack replays steps out of order, conditional steps may not run, and dynamic step addition breaks pipeline assumptions
-- Step names should match the existing helper function names
+- Steps are `(log: StepLogger) => Promise<void>` — each step receives its own scoped logger. Inter-step data flows through closure variables. Pipeline/context-bag approaches were rejected because rewind/skipBack replays steps out of order, conditional steps may not run, and dynamic step addition breaks pipeline assumptions
+- Step names should match the existing helper function names. Use `:` as a subtitle separator to differentiate multiple calls of the same step type (e.g. `addItem:PERi-Chip Wrap`)
 - The runner chains with `.step()` returning `this` — use a single chain, break with `for` loops for dynamic steps
-- `pauseOnError` defaults to `true` — it only activates when `STEP_DEBUG=1` is set in the environment, so it's safe in CI/tests. When active, failed steps pause instead of throwing, letting you inspect via VNC and rewind/retry from the overlay
+- `pauseOnError` defaults to `true` — failed steps pause instead of throwing, letting you inspect via VNC and rewind/retry from the overlay. Tests pass `pauseOnError: false` via `BrowserOptions` so errors throw immediately for assertions
 
 ### Task Design Principle
 
@@ -158,6 +164,7 @@ Use `/create-project` for end-to-end project setup.
 Use `/add-task-util` to add a shared task utility.
 Use `/debug-task` to debug a failing task.
 Use `/review-dx` to review DX and readability across the codebase.
+Use `/review-tests` to review test coverage, comprehensiveness, and readability.
 
 ### Shared Task Utilities (`stack/projects/utils/`)
 
@@ -199,7 +206,7 @@ After using any skill, review the conversation history for confusions, mistakes,
 - Zod is `zod/v4/mini` — `ZodMiniType` has `.safeParse()` method, consistent with `script-results.ts`
 - **Double context parsing is intentional.** Framework calls `safeParse()` as a gate (fail early with a clear error before connecting to browser). Tasks call `contextSchema.parse()` again to get a typed destructured object. Making `run` generic on schema output was rejected: the generic erases at `TaskConfig[]` since TS lacks existentials, and the only payoff would be saving one `.parse()` line per task. Tasks own their own context typing — framework stays type-agnostic about context shape.
 - Framework uses `node:timers/promises` setTimeout for retry delays (avoids importing from tasks layer)
-- Class is `Browser` (in `stack/browser/main.ts`), tasks receive `browser: Browser` parameter
+- Class is `Browser` (in `stack/browser/browser.ts`), tasks receive `browser: BrowserAPI` parameter
 
 ## Build Pipeline
 
@@ -219,6 +226,7 @@ After using any skill, review the conversation history for confusions, mistakes,
 
 - Don't propose dev scripts (dev:watch improvements, vault:dev, etc.) — not needed
 - Don't flag deep relative imports as a DX issue — IDEs resolve, autocomplete, and navigate them. Path aliases add build complexity for zero readability gain.
+- Never dismiss a DX improvement because code is "internal" or because of "churn cost." All code deserves good DX — being internal doesn't make clarity less important, and churn is cheap.
 
 ## Conventions (from AGENTS.md)
 
@@ -226,3 +234,4 @@ After using any skill, review the conversation history for confusions, mistakes,
 - Don't add re-exports or barrel files
 - Import from actual source module
 - These are tasks, not tests — don't confuse terminology
+

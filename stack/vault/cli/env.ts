@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
-import { openVault } from "../core.js";
+import { openVault, openVaultReadOnly } from "../core.js";
 
 // Defaults resolve to project root relative to stack/vault/cli/
 const VAULT_PATH = process.env.VAULT_PATH ?? resolve(import.meta.dirname, "../../../vault.db");
@@ -48,4 +48,13 @@ async function withVault<T>(fn: (db: DatabaseSync) => T | Promise<T>): Promise<T
   }
 }
 
-export { VAULT_PATH, setEnvVar, removeEnvVar, withVault };
+async function withVaultReadOnly<T>(fn: (db: DatabaseSync) => T | Promise<T>): Promise<T> {
+  const db = openVaultReadOnly(VAULT_PATH);
+  try {
+    return await fn(db);
+  } finally {
+    db.close();
+  }
+}
+
+export { VAULT_PATH, setEnvVar, removeEnvVar, withVault, withVaultReadOnly };

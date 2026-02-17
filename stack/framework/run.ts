@@ -20,6 +20,9 @@ import { openVaultReadOnly } from "../vault/core.js";
 import { loadProjectDetails } from "../vault/ops/runtime.js";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
+if (!Number.isFinite(WS_PORT)) {
+  throw new Error(`Invalid WS_PORT: "${process.env.WS_PORT ?? ""}". Must be a finite number.`);
+}
 const VAULT_PATH = process.env.VAULT_PATH || resolve(import.meta.dirname, "../../vault.db");
 const logger = createPrefixLogger("Framework");
 
@@ -82,15 +85,16 @@ function handleSuccess(taskName: string, result: TaskResultSuccess): void {
   });
 
   const timestamp = new Date().toISOString();
-  mkdirSync("logs", { recursive: true });
-  const alertFile = `logs/alert-${taskName}.txt`;
+  const logsDir = resolve(import.meta.dirname, "../../logs");
+  mkdirSync(logsDir, { recursive: true });
+  const alertFile = resolve(logsDir, `alert-${taskName}.txt`);
   const lines = [`Task: ${taskName}`, `Success: ${timestamp}`, `Step: ${result.step}`];
   if (result.finalUrl) {
     lines.push(`URL: ${result.finalUrl}`);
   }
   writeFileSync(alertFile, `${lines.join("\n")}\n`);
   logger.success("Alert written", { file: alertFile });
-  process.stdout.write("\u0007");
+  process.stdout.write("\u0007"); // Bell character — triggers a system alert sound
   logger.success("ALERT: Task successful!");
 }
 
@@ -100,7 +104,8 @@ async function runSingleAttempt(
   context: TaskContext,
 ): Promise<void> {
   const taskLogger = createTaskLogger(task.name);
-  const result = await task.run(browser, context, taskLogger);
+  const deps = { ...browser.stepRunnerDeps(), taskLogger };
+  const result = await task.run(browser, context, deps);
   handleSuccess(task.name, result);
 }
 
@@ -118,16 +123,17 @@ async function runWithRetry(
   browser: Browser,
   context: TaskContext,
 ): Promise<void> {
-  const intervalMs = parseIntervalMs(context.SITE_CHECK_INTERVAL_MS, task.intervalMs);
+  const intervalMs = parseIntervalMs(process.env.SITE_CHECK_INTERVAL_MS, task.intervalMs);
   let attempt = 0;
 
   while (true) {
     attempt++;
     logger.log(`Attempt ${attempt.toString()}`, { task: task.name });
     const taskLogger = createTaskLogger(task.name);
+    const deps = { ...browser.stepRunnerDeps(), taskLogger };
 
     try {
-      const result = await task.run(browser, context, taskLogger);
+      const result = await task.run(browser, context, deps);
       handleSuccess(task.name, result);
       return;
     } catch (error) {
@@ -168,10 +174,17 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
     await browser.ping();
     logger.success("Extension connected and ready");
 
-    if (task.mode === "once") {
-      await runSingleAttempt(task, browser, context);
-    } else {
-      await runWithRetry(task, browser, context);
+    switch (task.mode) {
+      case "once":
+        await runSingleAttempt(task, browser, context);
+        break;
+      case "retry":
+        await runWithRetry(task, browser, context);
+        break;
+      default: {
+        const exhaustive: never = task;
+        throw new Error(`Unknown task mode: ${JSON.stringify(exhaustive)}`);
+      }
     }
 
     if (keepOpen) {

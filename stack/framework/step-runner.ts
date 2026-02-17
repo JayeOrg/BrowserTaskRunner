@@ -13,15 +13,17 @@ type ControlAction = "pause" | "play" | "skipBack" | "skipForward";
 interface StepDefinition {
   name: string;
   fn: (log: StepLogger) => Promise<void>;
+  skip?: (() => boolean) | undefined;
 }
 
+/** Synchronization primitive: awaiting `promise` blocks; calling `open()` unblocks. */
 interface Gate {
   promise: Promise<void>;
   open: () => void;
 }
 
 function createGate(): Gate {
-  let resolver = (): void => {};
+  let resolver!: () => void;
   const promise = new Promise<void>((resolve) => {
     resolver = resolve;
   });
@@ -36,6 +38,7 @@ export interface StepRunnerDeps {
   sendStepUpdate: (update: StepUpdate) => void;
   onControl: (handler: (action: string) => void) => void;
   logger?: PrefixLogger;
+  taskLogger: TaskLogger;
   pauseOnError?: boolean;
 }
 
@@ -47,13 +50,13 @@ export class StepRunner {
   private readonly sendUpdate: (update: StepUpdate) => void;
   private readonly log: PrefixLogger | undefined;
   private readonly pauseOnError: boolean;
-  private readonly taskLogger: TaskLogger | undefined;
+  private readonly taskLogger: TaskLogger;
 
-  constructor(deps: StepRunnerDeps, taskLogger?: TaskLogger) {
+  constructor(deps: StepRunnerDeps) {
     this.sendUpdate = deps.sendStepUpdate;
     this.log = deps.logger;
-    this.taskLogger = taskLogger;
-    this.pauseOnError = (deps.pauseOnError ?? true) && process.env.STEP_DEBUG === "1";
+    this.taskLogger = deps.taskLogger;
+    this.pauseOnError = deps.pauseOnError ?? true;
     deps.onControl((raw) => {
       if (isControlAction(raw)) {
         this.handleControl(raw);
@@ -61,8 +64,12 @@ export class StepRunner {
     });
   }
 
-  step(name: string, fn: (log: StepLogger) => Promise<void>): this {
-    this.steps.push({ name, fn });
+  step(
+    name: string,
+    fn: (log: StepLogger) => Promise<void>,
+    options?: { skip?: () => boolean },
+  ): this {
+    this.steps.push({ name, fn, skip: options?.skip });
     return this;
   }
 
@@ -81,29 +88,36 @@ export class StepRunner {
       const idx = this.pointer;
       const step = this.steps[idx];
       if (!step) break;
-      this.emitUpdate("running");
-      this.log?.log("Running step", {
-        step: step.name,
-        progress: `${String(idx + 1)}/${String(this.steps.length)}`,
-      });
 
-      let stepFailed = false;
-      try {
-        await step.fn(this.scopeStep(step.name));
-      } catch (error) {
-        if (!this.pauseOnError) throw error;
-
-        const msg = error instanceof Error ? error.message : String(error);
-        this.log?.error("Step failed", { step: step.name, error: msg });
-        this.emitErrorUpdate(msg);
-
-        this.paused = true;
-        await this.gate.promise;
-        stepFailed = true;
-      }
-
-      if (!stepFailed && this.pointer === idx) {
+      if (step.skip?.()) {
+        this.log?.log("Skipping step", { step: step.name });
         this.pointer++;
+      } else {
+        this.emitUpdate("running");
+        this.log?.log("Running step", {
+          step: step.name,
+          progress: `${String(idx + 1)}/${String(this.steps.length)}`,
+        });
+
+        let stepFailed = false;
+        try {
+          await step.fn(this.scopeStep(step.name));
+        } catch (error) {
+          if (!this.pauseOnError) throw error;
+
+          const msg = error instanceof Error ? error.message : String(error);
+          this.log?.error("Step failed", { step: step.name, error: msg });
+          this.emitErrorUpdate(msg);
+
+          this.paused = true;
+          await this.gate.promise;
+          stepFailed = true;
+        }
+
+        // Only advance if the step succeeded and no skip control moved the pointer
+        if (!stepFailed && this.pointer === idx) {
+          this.pointer++;
+        }
       }
     }
 
@@ -124,6 +138,7 @@ export class StepRunner {
         this.log?.log("Play requested");
         break;
       case "skipBack":
+        this.paused = true;
         if (this.pointer > 0) {
           this.pointer--;
         }
@@ -131,6 +146,7 @@ export class StepRunner {
         this.log?.log("Skip back", { step: this.currentStepName() });
         break;
       case "skipForward":
+        this.paused = true;
         if (this.pointer < this.steps.length - 1) {
           this.pointer++;
         }
@@ -143,20 +159,7 @@ export class StepRunner {
   }
 
   private scopeStep(name: string): StepLogger {
-    if (this.taskLogger) {
-      return this.taskLogger.scoped(name);
-    }
-    const noop = (): void => {
-      /* No-op when no task logger */
-    };
-    return {
-      log: noop,
-      success: noop,
-      warn: noop,
-      fail: (reason: string): never => {
-        throw new Error(reason);
-      },
-    };
+    return this.taskLogger.scoped(name);
   }
 
   private currentStepName(): string {

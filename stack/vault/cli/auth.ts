@@ -29,9 +29,4 @@ async function resolveAdminAuth(db: DatabaseSync): Promise<Buffer> {
   return deriveMasterKey(db, password);
 }
 
-// Auth gate for commands that don't need the master key (list, remove, etc.)
-async function requireAdmin(db: DatabaseSync): Promise<void> {
-  await resolveAdminAuth(db);
-}
-
-export { resolveAdminAuth, requireAdmin };
+export { resolveAdminAuth };

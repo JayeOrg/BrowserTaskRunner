@@ -28,7 +28,7 @@ export const task: SingleAttemptTask = {
   name: "acmeCheck",
   url: "https://example.com",
   project: "acme",
-  needs: ["email", "password"],
+  needs: needsFromSchema(contextSchema),
   mode: "once",
   contextSchema,
   run,
@@ -40,7 +40,7 @@ export const task: RetryingTask = {
   name: "acmeLogin",
   url: "https://example.com",
   project: "monitor-acme",
-  needs: ["email", "password"],
+  needs: needsFromSchema(contextSchema),
   mode: "retry",
   intervalMs: 300_000,
   contextSchema,
@@ -52,19 +52,22 @@ The runner owns the retry loop. Tasks implement a single attempt — throw `Step
 
 ### `needs` — vault detail mapping
 
-Array shorthand when the local key and vault detail name are the same:
+Every task must declare `needs` — a mapping from local context keys to vault detail names. Use `needsFromSchema` when the keys match 1:1:
 
 ```typescript
-needs: ["email", "password"],
-```
+import { needsFromSchema } from "../../../framework/tasks.js";
 
-Object form when they differ:
+// When keys match vault detail names (common case)
+needs: needsFromSchema(contextSchema),
+// Produces: { email: "email", password: "password" }
 
-```typescript
+// When local keys differ from vault detail names
 needs: { loginEmail: "email", loginPassword: "password" },
 ```
 
-### Context validation (optional)
+`needs` is always **explicit** — it is never derived implicitly from `contextSchema`. The schema validates shape/types; `needs` maps vault keys. They overlap in the common case but serve different purposes.
+
+### Context validation
 
 Add a `contextSchema` using `zod` to validate the context loaded from the vault:
 
@@ -88,7 +91,7 @@ const { email, password } = contextSchema.parse(context);
 Define steps as file-scope functions, not nested inside `run`. Pass `browser` and `logger` explicitly:
 
 ```typescript
-async function navigate(browser: BrowserAPI, logger: TaskLogger): Promise<void> {
+async function navigate(browser: BrowserAPI, logger: StepLogger): Promise<void> {
   await browser.navigate(TASK.url);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
@@ -100,18 +103,19 @@ Use `logger.fail()` for step failures — it throws a `StepError` which the fram
 
 ### StepRunner
 
-All tasks use `StepRunner` to register named steps (enables the debug overlay):
+All tasks use `StepRunner` to register named steps (enables the debug overlay). The `run` function receives `deps: StepRunnerDeps` which contains `taskLogger` and the plumbing needed by `StepRunner`:
 
 ```typescript
 async function run(
   browser: BrowserAPI,
   context: TaskContext,
-  logger: TaskLogger,
+  deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
+  const logger = deps.taskLogger!;
   const { email, password } = contextSchema.parse(context);
   let finalUrl = "";
 
-  const runner = new StepRunner(browser.stepRunnerDeps());
+  const runner = new StepRunner(deps);
 
   runner
     .step("navigate", () => navigate(browser, logger))
@@ -156,4 +160,4 @@ The loader discovers tasks by filename convention. Name the file `{taskName}.ts`
 npm run check acmeLogin
 ```
 
-Context is loaded from the vault using the task's `project` and `needs` fields. See `stack/vault/README.md`.
+Context is loaded from the vault using the task's `project` and `needs`. See `stack/vault/README.md`.
