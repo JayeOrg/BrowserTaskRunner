@@ -124,6 +124,16 @@ type ResponseMessage =
 
 export type { ResponseMessage };
 
+/**
+ * Extract the response type corresponding to a command type or command message.
+ *
+ * @example
+ * // By command type string:
+ * type NavResp = ResponseFor<"navigate">; // NavigateResponse
+ *
+ * // By command message type:
+ * type ClickResp = ResponseFor<ClickCommand>; // ClickResponse
+ */
 export type ResponseFor<T extends CommandMessage["type"] | CommandMessage> = Extract<
   ResponseMessage,
   { type: T extends CommandMessage ? T["type"] : T }

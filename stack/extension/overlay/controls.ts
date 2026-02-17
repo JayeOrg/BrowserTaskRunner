@@ -35,10 +35,10 @@ function buttonVisibility(state: StepState["state"]): {
   if (state === "done") return { rewind: "none", pause: "none", play: "none", step: "none" };
   const stopped = state === "paused" || state === "failed";
   return {
-    rewind: stopped ? "" : "none",
-    pause: stopped ? "none" : "",
-    play: stopped ? "" : "none",
-    step: stopped ? "" : "none",
+    rewind: stopped ? "inline-block" : "none",
+    pause: stopped ? "none" : "inline-block",
+    play: stopped ? "inline-block" : "none",
+    step: stopped ? "inline-block" : "none",
   };
 }
 

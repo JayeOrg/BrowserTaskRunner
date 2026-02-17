@@ -4,13 +4,22 @@ import { getActiveTabId } from "../../tabs.js";
 import { getScriptTarget } from "../../script-target.js";
 import { isScriptError } from "../../script-results.js";
 
-export const keyboardSchema = z.object({
-  action: z.enum(["type", "press", "down", "up"]),
-  text: z.string().optional(),
-  key: z.string().optional(),
-  selector: z.string().optional(),
-  frameId: z.number().optional(),
-});
+export const keyboardSchema = z
+  .object({
+    action: z.enum(["type", "press", "down", "up"]),
+    text: z.string().optional(),
+    key: z.string().optional(),
+    selector: z.string().optional(),
+    frameId: z.number().optional(),
+  })
+  .refine((data) => data.action !== "type" || typeof data.text === "string", {
+    message: "keyboard 'type' action requires 'text'",
+    path: ["text"],
+  })
+  .refine((data) => data.action === "type" || typeof data.key === "string", {
+    message: "keyboard action requires 'key' when action is not 'type'",
+    path: ["key"],
+  });
 
 export type KeyboardCommand = z.infer<typeof keyboardSchema> & { type: "keyboard" };
 
@@ -21,13 +30,6 @@ export interface KeyboardResponse extends BaseResponse {
 export async function handleKeyboard(
   input: z.infer<typeof keyboardSchema>,
 ): Promise<KeyboardResponse> {
-  if (input.action === "type" && !input.text) {
-    return { type: "keyboard", error: "keyboard 'type' action requires 'text'" };
-  }
-  if (input.action !== "type" && !input.key) {
-    return { type: "keyboard", error: `keyboard '${input.action}' action requires 'key'` };
-  }
-
   const key = input.key ?? "";
   const tabId = await getActiveTabId();
 

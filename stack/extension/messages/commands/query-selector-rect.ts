@@ -1,10 +1,11 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
-import { getActiveTabId } from "../../tabs.js";
+import { getScriptTarget } from "../../script-target.js";
 import { isScriptFound } from "../../script-results.js";
 
 export const querySelectorRectSchema = z.object({
   selectors: z.array(z.string()),
+  frameId: z.number().optional(),
 });
 
 export type QuerySelectorRectCommand = z.infer<typeof querySelectorRectSchema> & {
@@ -23,9 +24,9 @@ export type QuerySelectorRectResponse = BaseResponse & { type: "querySelectorRec
 export async function handleQuerySelectorRect(
   input: z.infer<typeof querySelectorRectSchema>,
 ): Promise<QuerySelectorRectResponse> {
-  const tabId = await getActiveTabId();
+  const target = await getScriptTarget(input.frameId);
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (sels: string[]) => {
       for (const sel of sels) {
         const element = document.querySelector(sel);

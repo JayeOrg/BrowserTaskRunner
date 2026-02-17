@@ -37,11 +37,9 @@ export async function handleScroll(input: z.infer<typeof scrollSchema>): Promise
         window.scrollTo(x, y);
         return {};
       }
-      if (mode === "by") {
-        window.scrollBy(x, y);
-        return {};
-      }
-      return { error: `Unknown scroll mode: ${mode}` };
+      // Mode === "by"
+      window.scrollBy(x, y);
+      return {};
     },
     args: [input.mode, input.selector ?? null, input.x ?? 0, input.y ?? 0],
   });

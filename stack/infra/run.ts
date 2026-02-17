@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   createWriteStream,
@@ -29,9 +29,29 @@ const CHROMIUM_LOG = join(LOG_DIR, "chromium.log");
 const VNC_LOG = join(LOG_DIR, "vnc.log");
 const LOG_FILES = [XVFB_LOG, CHROMIUM_LOG, VNC_LOG];
 
+const CHROMIUM_FLAGS = [
+  "--no-sandbox",
+  "--disable-gpu",
+  "--disable-dev-shm-usage",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-background-networking",
+  "--disable-sync",
+  "--disable-translate",
+  "--metrics-recording-only",
+  "--disable-features=MediaRouter,MediaCapture",
+  "--disable-notifications",
+  "--start-maximized",
+];
+
 // =============================================================================
 // Logging utilities
 // =============================================================================
+const CYAN = "\x1b[36m";
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
 const TERM_WIDTH = 120;
 let previousLogTime = Math.floor(Date.now() / 1000);
 
@@ -47,18 +67,18 @@ function formatLog(icon: string, color: string, msg: string): void {
   const text = `[Infra] ${msg}`;
   const padding = Math.max(1, TERM_WIDTH - text.length - duration.length - 2);
   process.stdout.write(
-    `${color}${icon}\x1b[0m ${text}${" ".repeat(padding)}\x1b[2m${duration}\x1b[0m\n`,
+    `${color}${icon}${RESET} ${text}${" ".repeat(padding)}${DIM}${duration}${RESET}\n`,
   );
 }
 
 function log(msg: string): void {
-  formatLog("\u2192", "\x1b[36m", msg);
+  formatLog("→", CYAN, msg);
 }
 function logSuccess(msg: string): void {
-  formatLog("\u2713", "\x1b[32m", msg);
+  formatLog("✓", GREEN, msg);
 }
 function logError(msg: string): void {
-  formatLog("\u2717", "\x1b[31m", msg);
+  formatLog("✗", RED, msg);
 }
 
 // =============================================================================
@@ -83,7 +103,7 @@ mkdirSync(LOG_DIR, { recursive: true });
 
 function resetChromeProfile(): void {
   if (process.env["PERSIST_CHROME_PROFILE"] === "true") {
-    log("Chrome profile persistence enabled \u2014 preserving existing profile");
+    log("Chrome profile persistence enabled — preserving existing profile");
     mkdirSync("/tmp/chrome-profile", { recursive: true });
   } else {
     rmSync("/tmp/chrome-profile", { recursive: true, force: true });
@@ -124,6 +144,14 @@ function captureScreenshot(): void {
       log(`Screenshot saved: ${screenshotPath}`);
     }
   }
+}
+
+function spawnWithLog(cmd: string, args: string[], logPath: string): ChildProcess {
+  const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+  const logStream = createWriteStream(logPath, { flags: "a" });
+  child.stdout.pipe(logStream);
+  child.stderr.pipe(logStream);
+  return child;
 }
 
 function tailFile(path: string, lines: number): string {
@@ -172,12 +200,7 @@ async function main(): Promise<void> {
   log(`Logs will be written to ${LOG_DIR}`);
 
   // Start Xvfb with readiness check
-  const xvfb = spawn("Xvfb", [`:${DISPLAY_NUM}`, "-screen", "0", SCREEN_SIZE], {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const xvfbLog = openLogFile(XVFB_LOG);
-  xvfb.stdout.pipe(xvfbLog);
-  xvfb.stderr.pipe(xvfbLog);
+  spawnWithLog("Xvfb", [`:${DISPLAY_NUM}`, "-screen", "0", SCREEN_SIZE], XVFB_LOG);
 
   if (!(await waitForDisplay(READINESS_TIMEOUT))) {
     logError(`Xvfb failed to start within ${String(READINESS_TIMEOUT)}s`);
@@ -188,12 +211,7 @@ async function main(): Promise<void> {
 
   // Start VNC if enabled
   if (process.env["ENABLE_VNC"] === "true") {
-    const vnc = spawn("x11vnc", ["-display", `:${DISPLAY_NUM}`, "-forever", "-nopw", "-quiet"], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    const vncLog = openLogFile(VNC_LOG);
-    vnc.stdout.pipe(vncLog);
-    vnc.stderr.pipe(vncLog);
+    spawnWithLog("x11vnc", ["-display", `:${DISPLAY_NUM}`, "-forever", "-nopw", "-quiet"], VNC_LOG);
     logSuccess("VNC server started on port 5900");
   }
 
@@ -222,30 +240,16 @@ async function main(): Promise<void> {
   // Start Chromium
   // --no-sandbox is required when running as root in Docker.
   // Docker provides container isolation, making Chrome's sandbox redundant.
-  const chromium = spawn(
+  const chromium = spawnWithLog(
     "chromium",
     [
-      "--no-sandbox",
-      "--disable-gpu",
-      "--disable-dev-shm-usage",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-background-networking",
-      "--disable-sync",
-      "--disable-translate",
-      "--metrics-recording-only",
-      "--disable-features=MediaRouter,MediaCapture",
-      "--disable-notifications",
-      "--start-maximized",
+      ...CHROMIUM_FLAGS,
       "--load-extension=/app/dist/extension",
       "--user-data-dir=/tmp/chrome-profile",
       "about:blank",
     ],
-    { stdio: ["ignore", "pipe", "pipe"] },
+    CHROMIUM_LOG,
   );
-  const chromiumLog = openLogFile(CHROMIUM_LOG);
-  chromium.stdout.pipe(chromiumLog);
-  chromium.stderr.pipe(chromiumLog);
 
   // Wait for Chromium process to survive startup
   await sleep(2000);
@@ -282,10 +286,6 @@ async function main(): Promise<void> {
 
   onExit(exitCode);
   process.exit(exitCode);
-}
-
-function openLogFile(path: string): NodeJS.WritableStream {
-  return createWriteStream(path, { flags: "a" });
 }
 
 main().catch((err: unknown) => {

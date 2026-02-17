@@ -54,6 +54,7 @@ export interface TaskTestSetup {
 export async function setupTaskTest(
   respond: CommandResponder,
   siteHandler?: HttpRequestHandler,
+  state?: ResponderState,
 ): Promise<TaskTestSetup> {
   const site = await startTestSite(siteHandler);
   const port = nextPort();
@@ -64,6 +65,10 @@ export async function setupTaskTest(
   await ext.connect();
   await startPromise;
   await browser.ping();
+
+  if (state) {
+    state.siteUrl = site.url;
+  }
 
   return { browser, ext, siteUrl: site.url, site };
 }
@@ -93,7 +98,14 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
   const responder: CommandResponder = (cmd) => {
     state.commands.push(cmd.type);
     const override = overrides?.[cmd.type];
-    if (override) return override(cmd, state);
+    if (override) {
+      const result = override(cmd, state);
+      // Auto-track URL changes from navigate overrides
+      if (cmd.type === "navigate" && "url" in result && typeof result.url === "string") {
+        state.currentUrl = result.url;
+      }
+      return result;
+    }
 
     switch (cmd.type) {
       case "ping":

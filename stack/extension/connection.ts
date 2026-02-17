@@ -1,6 +1,6 @@
 import { log } from "./logging.js";
 import { handleCommand, isIncomingCommand } from "./messages/index.js";
-import { isStepUpdateMessage } from "./step-state.js";
+import { isStepUpdateMessage, type StepState } from "./step-state.js";
 import { getActiveTabId } from "./tabs.js";
 
 const DEFAULT_WS_PORT = 8765;
@@ -11,7 +11,8 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 // Caches the latest step update so it survives content script re-injection on page navigation
-let cachedStepUpdate: unknown = null;
+type StepUpdateMessage = StepState & { type: "stepUpdate" };
+let cachedStepUpdate: StepUpdateMessage | null = null;
 let portPromise: Promise<number> | null = null;
 
 function getWsPort(): Promise<number> {
@@ -32,16 +33,15 @@ function getWsPort(): Promise<number> {
   return portPromise;
 }
 
-function getReconnectDelay(): number {
-  const delay = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY_MS);
-  return delay;
+function getReconnectDelay(attempts: number): number {
+  return Math.min(BASE_RECONNECT_DELAY_MS * 2 ** attempts, MAX_RECONNECT_DELAY_MS);
 }
 
 function scheduleReconnect(): void {
   if (reconnectTimeout) {
     return;
   }
-  const delay = getReconnectDelay();
+  const delay = getReconnectDelay(reconnectAttempts);
   reconnectAttempts++;
   log("Reconnecting", { delayMs: delay, attempt: reconnectAttempts });
   reconnectTimeout = setTimeout(() => {
@@ -132,6 +132,6 @@ export function sendControlToServer(action: string): void {
   }
 }
 
-export function getCachedStepUpdate(): unknown {
+export function getCachedStepUpdate(): StepUpdateMessage | null {
   return cachedStepUpdate;
 }

@@ -1,4 +1,5 @@
 import type { PrefixLogger, StepLogger, TaskLogger } from "./logging.js";
+import { getErrorMessage } from "./errors.js";
 
 export interface StepUpdate {
   current: number;
@@ -37,7 +38,7 @@ function isControlAction(value: string): value is ControlAction {
 export interface StepRunnerDeps {
   sendStepUpdate: (update: StepUpdate) => void;
   onControl: (handler: (action: string) => void) => void;
-  logger?: PrefixLogger;
+  frameworkLogger?: PrefixLogger;
   taskLogger: TaskLogger;
   pauseOnError?: boolean;
 }
@@ -54,7 +55,7 @@ export class StepRunner {
 
   constructor(deps: StepRunnerDeps) {
     this.sendUpdate = deps.sendStepUpdate;
-    this.log = deps.logger;
+    this.log = deps.frameworkLogger;
     this.taskLogger = deps.taskLogger;
     this.pauseOnError = deps.pauseOnError ?? true;
     deps.onControl((raw) => {
@@ -74,7 +75,10 @@ export class StepRunner {
   }
 
   async execute(): Promise<void> {
-    if (this.steps.length === 0) return;
+    if (this.steps.length === 0) {
+      this.log?.warn("execute() called with no steps registered");
+      return;
+    }
 
     this.pointer = 0;
 
@@ -105,7 +109,7 @@ export class StepRunner {
         } catch (error) {
           if (!this.pauseOnError) throw error;
 
-          const msg = error instanceof Error ? error.message : String(error);
+          const msg = getErrorMessage(error);
           this.log?.error("Step failed", { step: step.name, error: msg });
           this.emitErrorUpdate(msg);
 
@@ -114,7 +118,8 @@ export class StepRunner {
           stepFailed = true;
         }
 
-        // Only advance if the step succeeded and no skip control moved the pointer
+        // On failure the pointer stays put, so pressing "play" re-runs the same step.
+        // Only advance if the step succeeded and no skip control moved the pointer.
         if (!stepFailed && this.pointer === idx) {
           this.pointer++;
         }

@@ -7,7 +7,7 @@ Local secrets service with project-scoped access control. Stores encrypted crede
 ```
 Master password (interactive prompt, or piped to stdin)
   → scrypt → masterKey
-      → encrypts project keys (projects table)
+      → encrypts project encryption keys (projects table)
       → wraps DEKs for admin access (details table, master_wrapped_dek)
 
 Project key (random, per project)
@@ -33,11 +33,11 @@ SQLite database (`vault.db` at project root). Three tables:
 | Table | Purpose | Encrypted columns |
 |-------|---------|-------------------|
 | `config` | Global salt + password verification blob | password check value |
-| `projects` | Project keys encrypted with master key | `encrypted_key` |
+| `projects` | Project encryption keys wrapped with master key | `encrypted_key` |
 | `details` | Secret values + DEK wrapped with both master and project key | `ciphertext`, `master_wrapped_dek`, `project_wrapped_dek` |
 | `sessions` | Time-limited admin sessions, master key encrypted with session key | `encrypted_master_key` |
 
-Details have a composite primary key `(project, key)` — the same key name can exist in different projects. All CLI commands require authentication (password or admin session). Only values and keys are encrypted; metadata (detail keys, project names) is stored in plaintext columns.
+Details have a composite primary key `(project, key)` — the same detail name can exist in different projects. All CLI commands require authentication (password or admin session). Only secret values and encryption keys are encrypted; metadata (detail names, project names) is stored in plaintext columns.
 
 ## CLI
 
@@ -65,6 +65,7 @@ npm run vault -- project export <name>       # re-export token
 npm run vault -- project list
 npm run vault -- project remove <name>       # cascades details
 npm run vault -- project rotate <name>       # new key, re-wraps all DEKs
+npm run vault -- project setup <name>        # check + prompt for missing details
 
 # Password management
 npm run vault -- change-password             # prompts for old + new + confirm
@@ -84,10 +85,10 @@ export const myTask: RetryingTask = {
 };
 ```
 
-`needs` maps local context keys to detail keys within the project. At runtime, the framework:
+`needs` maps local context names to detail names within the project. At runtime, the framework:
 
-1. Reads `VAULT_TOKEN_<PROJECT>` (base64 project key, falls back to `VAULT_TOKEN`)
-2. Queries details for the task's project + needed keys
+1. Reads `VAULT_TOKEN_<PROJECT>` (base64 project encryption key, falls back to `VAULT_TOKEN`)
+2. Queries details for the task's project + needed detail names
 3. Unwraps each DEK with the project key
 4. Decrypts each value with its DEK
 5. Passes `{ email: "decrypted", password: "decrypted" }` to `run()`
@@ -108,6 +109,20 @@ npm run vault -- logout
 
 # Run a task
 npm run check myTask
+```
+
+### Guided Setup with `project setup`
+
+`project setup <name>` scans built task files for a project's declared `needs`, shows which details are already present and which are missing, then interactively prompts for each missing value:
+
+```bash
+npm run vault -- login
+npm run vault -- project setup my-project
+# Project "my-project" needs: email, password
+#   email ✓
+#   password ✗
+# Enter value for "password": ****
+npm run vault -- logout
 ```
 
 ## Security Properties

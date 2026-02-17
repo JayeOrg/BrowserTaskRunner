@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getScriptTarget } from "../../script-target.js";
 import { extractResult } from "../../script-results.js";
+import { domClickAt } from "../../clicks.js";
 
 export const clickSchema = z.object({
   selector: z.string(),
@@ -14,6 +15,13 @@ export interface ClickResponse extends BaseResponse {
   type: "click";
 }
 
+const RectResultSchema = z.object({
+  left: z.number(),
+  top: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
 export async function handleClick(input: z.infer<typeof clickSchema>): Promise<ClickResponse> {
   const target = await getScriptTarget(input.frameId);
   const results = await chrome.scripting.executeScript({
@@ -23,28 +31,14 @@ export async function handleClick(input: z.infer<typeof clickSchema>): Promise<C
       if (!element) {
         return { error: `Element not found: ${sel}` };
       }
-
+      element.scrollIntoView({ block: "center", behavior: "instant" });
       const rect = element.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-
-      const eventOptions = {
-        view: window,
-        bubbles: true,
-        cancelable: true,
-        clientX: centerX,
-        clientY: centerY,
-        screenX: centerX + window.screenX,
-        screenY: centerY + window.screenY,
-        button: 0,
-        buttons: 1,
+      return {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
       };
-
-      element.dispatchEvent(new MouseEvent("mousedown", eventOptions));
-      element.dispatchEvent(new MouseEvent("mouseup", eventOptions));
-      element.dispatchEvent(new MouseEvent("click", eventOptions));
-
-      return {};
     },
     args: [input.selector],
   });
@@ -52,5 +46,12 @@ export async function handleClick(input: z.infer<typeof clickSchema>): Promise<C
   if (!extracted.ok) {
     return { type: "click", error: extracted.error };
   }
+  const parsed = RectResultSchema.safeParse(extracted.value);
+  if (!parsed.success) {
+    return { type: "click", error: "Unexpected script result" };
+  }
+  const clickX = parsed.data.left + parsed.data.width / 2;
+  const clickY = parsed.data.top + parsed.data.height / 2;
+  await domClickAt(target.tabId, clickX, clickY);
   return { type: "click" };
 }

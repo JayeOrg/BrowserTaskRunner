@@ -18,8 +18,8 @@ function isTaskConfig(value: unknown): value is TaskConfig {
     (value.mode !== "retry" || ("intervalMs" in value && typeof value.intervalMs === "number")) &&
     "run" in value &&
     typeof value.run === "function" &&
-    "url" in value &&
-    typeof value.url === "string" &&
+    "displayUrl" in value &&
+    typeof value.displayUrl === "string" &&
     "project" in value &&
     typeof value.project === "string" &&
     "needs" in value
@@ -30,8 +30,9 @@ function readTaskDir(base: string, projectName: string): string[] {
   const tasksPath = resolve(base, projectName, "tasks");
   try {
     return readdirSync(tasksPath);
-  } catch {
-    return [];
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
   }
 }
 

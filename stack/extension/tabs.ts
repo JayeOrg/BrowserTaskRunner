@@ -9,7 +9,6 @@ export async function getActiveTabId(): Promise<number> {
 }
 
 export interface TabLoadResult {
-  loaded: boolean;
   timedOut: boolean;
 }
 
@@ -24,7 +23,7 @@ export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoa
         resolved = true;
         chrome.tabs.onUpdated.removeListener(listener);
         setTimeout(() => {
-          resolve({ loaded: true, timedOut: false });
+          resolve({ timedOut: false });
         }, POST_LOAD_SETTLE_MS);
       }
     };
@@ -36,7 +35,7 @@ export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoa
         resolved = true;
         chrome.tabs.onUpdated.removeListener(listener);
         log("Tab load timed out", { timeoutMs });
-        resolve({ loaded: false, timedOut: true });
+        resolve({ timedOut: true });
       }
     }, timeoutMs);
   });

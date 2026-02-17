@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { deriveMasterKey } from "../core.js";
 import { KEY_LENGTH } from "../crypto.js";
-import { getMasterKeyFromSession } from "../ops/sessions.js";
+import { getMasterKeyFromSession, SESSION_TOKEN_LENGTH } from "../ops/sessions.js";
 import { removeEnvVar } from "./env.js";
 import { getPassword } from "./prompt.js";
 
@@ -14,7 +14,7 @@ async function resolveAdminAuth(db: DatabaseSync): Promise<Buffer> {
     if (tokenBytes === KEY_LENGTH) {
       removeEnvVar("VAULT_ADMIN");
       console.error(
-        "VAULT_ADMIN contains a project token (32 bytes), not a session token (48 bytes) — cleared from .env, falling back to password",
+        `VAULT_ADMIN contains a project token (${KEY_LENGTH.toString()} bytes), not a session token (${SESSION_TOKEN_LENGTH.toString()} bytes) — cleared from .env, falling back to password`,
       );
     } else {
       try {

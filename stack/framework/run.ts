@@ -68,16 +68,6 @@ function loadContext(task: TaskConfig): TaskContext {
   }
 }
 
-function logStepError(error: StepError): void {
-  logger.warn("Failure", {
-    reason: error.reason,
-    step: error.step,
-    ...(error.meta.finalUrl ? { url: error.meta.finalUrl } : {}),
-    ...(error.meta.details ? { details: error.meta.details } : {}),
-    ...(error.meta.context ? { context: error.meta.context } : {}),
-  });
-}
-
 function handleSuccess(taskName: string, result: TaskResultSuccess): void {
   logger.success("TASK SUCCESSFUL!", {
     step: result.step,
@@ -138,7 +128,6 @@ async function runWithRetry(
       return;
     } catch (error) {
       if (error instanceof StepError) {
-        logStepError(error);
         logger.warn("Not successful yet");
       } else {
         throw error;
@@ -183,7 +172,7 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
         break;
       default: {
         const exhaustive: never = task;
-        throw new Error(`Unknown task mode: ${JSON.stringify(exhaustive)}`);
+        throw new Error(`Unknown task mode: ${String(exhaustive)}`);
       }
     }
 
@@ -191,9 +180,6 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
       await blockForever();
     }
   } catch (error) {
-    if (error instanceof StepError) {
-      logStepError(error);
-    }
     if (keepOpen) {
       logger.error("Task failed but browser kept open for inspection", {
         error: getErrorMessage(error),
@@ -216,7 +202,7 @@ async function main(): Promise<void> {
 
   logger.log("Running task", {
     task: task.name,
-    url: task.url,
+    url: task.displayUrl,
     mode: task.mode,
   });
 
@@ -224,7 +210,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
-  logger.error("Fatal error", { error: detail });
+  if (!(error instanceof StepError)) {
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    logger.error("Fatal error", { error: detail });
+  }
   process.exit(1);
 });

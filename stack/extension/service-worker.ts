@@ -1,7 +1,5 @@
 import { connect, sendControlToServer, getCachedStepUpdate } from "./connection.js";
 
-void connect();
-
 chrome.runtime.onStartup.addListener(() => void connect());
 chrome.runtime.onInstalled.addListener(() => void connect());
 

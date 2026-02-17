@@ -1,6 +1,7 @@
 import type { BrowserAPI } from "../../browser/browser.js";
+import { getErrorMessage } from "../../framework/errors.js";
 
-export type SelectorResult = { found: true; selector: string } | { found: false; error?: string };
+export type SelectorResult = { found: true; selector: string } | { found: false; error: string };
 
 /**
  * Race all selectors concurrently within a single timeout window.
@@ -16,7 +17,7 @@ export async function waitForFirst(
       selectors.map(async (selector) => {
         const result = await browser.waitForSelector(selector, timeout);
         if (!result.found) {
-          throw new Error("not found");
+          throw new Error(`not found: ${selector}`);
         }
         return {
           found: true,
@@ -31,12 +32,14 @@ export async function waitForFirst(
         .join("; ");
       return { found: false, error: detail };
     }
-    return { found: false };
+    return { found: false, error: getErrorMessage(error) };
   }
 }
 
 /**
  * Click the first matching selector from a list.
+ * Uses sequential iteration rather than racing concurrently because DOM clicks
+ * have side effects — we try one at a time so we don't trigger multiple clicks.
  * Returns the selector that was clicked, or error if none found.
  */
 export async function clickFirst(
@@ -49,8 +52,7 @@ export async function clickFirst(
       await browser.click(selector);
       return { found: true, selector };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${selector}: ${message}`);
+      errors.push(`${selector}: ${getErrorMessage(error)}`);
     }
   }
   return { found: false, error: errors.join("; ") };
@@ -74,7 +76,6 @@ export async function fillFirst(
     await browser.fill(result.selector, value);
     return result;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { found: false, error: `fill failed for ${result.selector}: ${message}` };
+    return { found: false, error: `fill failed for ${result.selector}: ${getErrorMessage(error)}` };
   }
 }

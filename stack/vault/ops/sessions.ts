@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { KEY_LENGTH, aesEncrypt, decryptFrom, SESSION_COLS } from "../crypto.js";
+import { requireNumber } from "../rows.js";
 
 const SESSION_ID_LENGTH = 16;
-const SESSION_TOKEN_LENGTH = SESSION_ID_LENGTH + KEY_LENGTH;
+export const SESSION_TOKEN_LENGTH = SESSION_ID_LENGTH + KEY_LENGTH;
 export const DEFAULT_SESSION_MINUTES = 30;
 
 function parseSessionToken(token: string): { sessionId: Buffer; sessionKey: Buffer } {
@@ -19,6 +20,10 @@ function parseSessionToken(token: string): { sessionId: Buffer; sessionKey: Buff
   };
 }
 
+function pruneExpiredSessions(db: DatabaseSync): void {
+  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
+}
+
 function createSession(db: DatabaseSync, masterKey: Buffer, durationMinutes?: number): string {
   const minutes = durationMinutes ?? DEFAULT_SESSION_MINUTES;
   const sessionId = randomBytes(SESSION_ID_LENGTH);
@@ -27,7 +32,7 @@ function createSession(db: DatabaseSync, masterKey: Buffer, durationMinutes?: nu
   const wrapped = aesEncrypt(sessionKey, masterKey);
   const expiresAt = Date.now() + minutes * 60 * 1000;
 
-  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
+  pruneExpiredSessions(db);
 
   db.prepare(
     "INSERT INTO sessions (id, iv, auth_tag, ciphertext, expires_at) VALUES (?, ?, ?, ?, ?)",
@@ -44,8 +49,8 @@ function getMasterKeyFromSession(db: DatabaseSync, token: string): Buffer {
     .get(sessionId);
   if (!row) throw new Error("Admin session not found");
 
-  const expiresAt = row.expires_at;
-  if (typeof expiresAt !== "number" || Date.now() > expiresAt) {
+  const expiresAt = requireNumber(row, "expires_at");
+  if (Date.now() > expiresAt) {
     throw new Error("Admin session expired");
   }
 
@@ -80,4 +85,10 @@ function deleteSession(db: DatabaseSync, token: string): void {
   }
 }
 
-export { createSession, getMasterKeyFromSession, getSessionExpiry, deleteSession };
+export {
+  pruneExpiredSessions,
+  createSession,
+  getMasterKeyFromSession,
+  getSessionExpiry,
+  deleteSession,
+};

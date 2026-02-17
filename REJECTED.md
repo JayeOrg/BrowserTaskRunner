@@ -7,7 +7,7 @@ Decisions that have been made and should not be revisited. Check this file befor
 Findings considered during DX reviews and intentionally kept as-is. Don't re-raise these.
 
 - **`clicks.ts` CDP fallback logging**: `cdpClickAt` silently falls back to DOM click when CDP attach fails (lines 39, 59). Logging here would be noisy — CDP attach fails routinely when debugger is already attached, and the fallback is intentional. The caller already logs click results.
-- **`pollUntil` uses `ok` while `SelectorResult`/`TurnstileDetectionResult` use `found`**: These are different semantic concepts. `ok` means "the operation completed successfully" (generic polling). `found` means "the element was located in the DOM" (selector queries). Using `found` for poll results would be misleading when polling non-element conditions (URL changes, text content). Pending further review of whether to standardize.
+- **`pollUntil` uses `ok` while `SelectorResult`/`TurnstileDetectionResult` use `found`**: These are different semantic concepts. `ok` means "the operation completed successfully" (generic polling). `found` means "the element was located in the DOM" (selector queries). Using `found` for poll results would be misleading when polling non-element conditions (URL changes, text content).
 - **`browser.ts` helper type `ClickTextOptions` is not exported**: It's an implementation detail of the BrowserAPI interface, only used as a parameter type. Callers construct it as an object literal — exporting would suggest it's meant to be referenced by name.
 - **Magic numbers in `TIMINGS` constants**: Values like `3000`, `5000`, `10000` in task timing constants are empirical — they were tuned against the real sites. Naming them more descriptively (e.g., `SLOW_PAGE_LOAD`) wouldn't add clarity since the appropriate delay depends on the site's behavior, not on a category.
 - **`vault/core.ts` string template for SQL**: The query strings use template literals with `$paramName` placeholders (not JS interpolation). This is safe — node:sqlite uses parameterized queries. Don't flag as SQL injection risk.
@@ -28,6 +28,13 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **No schema version in vault SQLite**: The vault schema is created by `initSchema()` and has no version column or migration system. The schema is simple (4 tables) and changes infrequently. A version/migration system would add complexity disproportionate to the schema's stability. If a breaking change is needed, a fresh vault can be created.
 - **`resolveAdminAuth` silently clears invalid tokens from `.env`**: When `VAULT_ADMIN` contains a wrong-type token (32-byte project token instead of 48-byte session token) or an expired session, `resolveAdminAuth` removes it from `.env` and falls back to password prompt. This is intentional self-healing — the stderr message explains what happened, and re-prompting is better UX than failing with an opaque error.
 - **Unicode checkmarks in logging output**: `PrefixLogger.success()` uses `✓` and other formatters use Unicode symbols. These display correctly in Docker logs, terminal output, and CI. ASCII alternatives would be less readable.
+- **`send()` dual guard in `browser.ts`**: `send()` has both a `readyState` guard and a `try/catch` — these serve different purposes. The early guard rejects cheaply without registering a pending command. The try/catch handles errors after registration. Both are needed.
+- **`stepRunnerDeps()` arrow-wraps methods**: Standard JS pattern — arrow functions preserve `this`. Commenting it would be like commenting `const x = 1`.
+- **`StepErrorMeta` extends `Record<string, unknown>`**: Flexibility is intentional for task-specific metadata. Narrowing would require updating the type every time a task wants new debug fields.
+- **`resolveToken` naming overlaps with `path.resolve`**: Different contexts (path resolution vs token lookup). No real ambiguity in practice.
+- **All project schemas in one file (`schemas.ts`)**: Only 2 schemas today. Splitting into per-project files is premature until there's actual conflict.
+- **`promptConfirm` auto-approves in non-TTY mode**: Intentional for scripting/automation. The alternative (failing in non-TTY) would make the CLI unusable in pipelines.
+- **`setEnvVar` splits on `\n` without handling `\r\n`**: macOS/Linux only tool. `.env` is created and maintained by this same code, so line endings are always `\n`.
 
 ## Failed Approaches
 

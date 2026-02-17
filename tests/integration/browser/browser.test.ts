@@ -125,15 +125,18 @@ describe("Browser WebSocket protocol", () => {
     const localBrowser = new Browser(port);
     const ext = createQueuedExtension(port);
 
-    const startPromise = localBrowser.start();
-    await ext.connect();
-    await startPromise;
+    try {
+      const startPromise = localBrowser.start();
+      await ext.connect();
+      await startPromise;
 
-    localBrowser.close();
+      localBrowser.close();
 
-    await expect(localBrowser.ping()).rejects.toThrow("Extension not connected");
-
-    ext.close();
+      await expect(localBrowser.ping()).rejects.toThrow("Extension not connected");
+    } finally {
+      ext.close();
+      localBrowser.close();
+    }
   });
 
   it("invalid message does not crash the server", async () => {
@@ -346,19 +349,22 @@ describe("Browser error handling", () => {
 
   it("start() rejects when extension does not connect within timeout", async () => {
     vi.useFakeTimers();
-    const port = nextPort();
-    const browser = new Browser(port);
+    try {
+      const port = nextPort();
+      const browser = new Browser(port);
 
-    const startPromise = browser.start();
-    // Attach rejection handler before advancing timers to avoid unhandled rejection
-    const expectation = expect(startPromise).rejects.toThrow("Extension did not connect");
+      const startPromise = browser.start();
+      // Attach rejection handler before advancing timers to avoid unhandled rejection
+      const expectation = expect(startPromise).rejects.toThrow("Extension did not connect");
 
-    await vi.advanceTimersByTimeAsync(61000);
+      await vi.advanceTimersByTimeAsync(61000);
 
-    await expectation;
+      await expectation;
 
-    browser.close();
-    vi.useRealTimers();
+      browser.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -779,7 +785,7 @@ describe("Scroll command", () => {
 });
 
 describe("Frame support", () => {
-  it("getFrameId() returns unwrapped frameId", async () => {
+  it("getFrameId() returns result object with frameId", async () => {
     setup = await setupBrowser();
 
     const framePromise = setup.browser.getFrameId("iframe.content");
@@ -788,8 +794,8 @@ describe("Frame support", () => {
     expect(cmd.selector).toBe("iframe.content");
 
     setup.ext.sendResponse({ id: cmd.id, type: "getFrameId", found: true, frameId: 42 });
-    const frameId = await framePromise;
-    expect(frameId).toBe(42);
+    const result = await framePromise;
+    expect(result).toEqual({ found: true, frameId: 42 });
   });
 
   it("click() passes frameId through to command", async () => {

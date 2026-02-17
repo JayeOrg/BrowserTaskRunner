@@ -31,7 +31,7 @@ async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResul
 
 export const clickTask: SingleAttemptTask = {
   name: TASK_NAME,
-  url: "http://localhost",
+  displayUrl: "http://localhost",
   project: "test",
   needs: { url: "url" },
   mode: "once",

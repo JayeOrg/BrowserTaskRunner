@@ -4,13 +4,17 @@ import {
   KEY_LENGTH,
   aesEncrypt,
   decryptFrom,
+  exportToken,
   PROJECT_KEY_COLS,
   PROJECT_DEK_COLS,
 } from "../crypto.js";
 import { requireString } from "../rows.js";
 import { withSavepoint } from "../db.js";
 
-function createProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
+function createProject(db: DatabaseSync, masterKey: Buffer, name: string): string {
+  const existing = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(name);
+  if (existing) throw new Error(`Project already exists: "${name}"`);
+
   const projectKey = randomBytes(KEY_LENGTH);
   const wrapped = aesEncrypt(masterKey, projectKey);
 
@@ -18,7 +22,7 @@ function createProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
     "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) VALUES (?, ?, ?, ?)",
   ).run(name, wrapped.iv, wrapped.authTag, wrapped.ciphertext);
 
-  return projectKey;
+  return exportToken(projectKey);
 }
 
 function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
@@ -30,7 +34,9 @@ function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
   try {
     return decryptFrom(masterKey, row, PROJECT_KEY_COLS);
   } catch {
-    throw new Error(`Failed to decrypt project key for "${name}" — wrong master password`);
+    throw new Error(
+      `Failed to decrypt project key for "${name}" — master key mismatch or corrupted data`,
+    );
   }
 }
 
@@ -46,7 +52,7 @@ function removeProject(db: DatabaseSync, name: string): void {
   }
 }
 
-function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
+function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): string {
   const oldProjectKey = getProjectKey(db, masterKey, name);
   const newProjectKey = randomBytes(KEY_LENGTH);
 
@@ -73,7 +79,7 @@ function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
     }
   });
 
-  return newProjectKey;
+  return exportToken(newProjectKey);
 }
 
 function renameProject(db: DatabaseSync, oldName: string, newName: string): void {
@@ -83,6 +89,7 @@ function renameProject(db: DatabaseSync, oldName: string, newName: string): void
   const conflict = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(newName);
   if (conflict) throw new Error(`Project already exists: "${newName}"`);
 
+  /** INSERT new name + DELETE old name rather than UPDATE because the project name is used as part of the encryption key derivation, so the DEK must be re-encrypted under the new name. */
   withSavepoint(db, "rename_project", () => {
     db.prepare(
       "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) SELECT ?, key_iv, key_auth_tag, key_ciphertext FROM projects WHERE name = ?",

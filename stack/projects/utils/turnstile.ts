@@ -41,7 +41,7 @@ export async function clickTurnstile(browser: BrowserAPI): Promise<TurnstileDete
   const detection = await detectTurnstile(browser);
 
   if (detection.found) {
-    await browser.cdpClick(detection.clickX, detection.clickY);
+    await browser.click(detection.selector);
   }
 
   return detection;

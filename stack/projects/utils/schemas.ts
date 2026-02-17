@@ -10,3 +10,6 @@ export const nandosContextSchema = loginContextSchema.extend({
   expectedAddress: z.string().min(1),
   savedCardSuffix: z.string().min(1),
 });
+
+export type LoginContext = z.infer<typeof loginContextSchema>;
+export type NandosContext = z.infer<typeof nandosContextSchema>;

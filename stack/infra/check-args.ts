@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
 export interface CheckOptions {
@@ -67,6 +68,21 @@ export function hasVaultToken(envContents: string): boolean {
 
 export function computeSourceHash(gitOutput: string): string {
   return createHash("sha256").update(gitOutput).digest("hex").slice(0, 12);
+}
+
+const EMPTY_TREE_HASH = "01ba4719c80b";
+
+/** Compute a cache-bust hash from git index. Returns "" when git is unavailable or the tree is empty. */
+export function computeSourceHashFromGit(): string {
+  try {
+    const gitOutput = execSync("git ls-files -s stack/ package.json package-lock.json", {
+      encoding: "utf-8",
+    });
+    const hash = computeSourceHash(gitOutput);
+    return hash === EMPTY_TREE_HASH ? "" : hash;
+  } catch {
+    return "";
+  }
 }
 
 export function buildComposeArgs(opts: CheckOptions, composeFile: string): string[] {

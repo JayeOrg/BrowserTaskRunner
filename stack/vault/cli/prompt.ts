@@ -76,7 +76,7 @@ function promptConfirm(message: string): Promise<boolean> {
 async function getNewPassword(): Promise<string> {
   if (process.stdin.isTTY) {
     const password = await promptHidden("New vault password");
-    const confirm = await promptHidden("Confirm password");
+    const confirm = await promptHidden("Confirm new password");
     if (password !== confirm) {
       throw new Error("Passwords do not match");
     }

@@ -28,6 +28,7 @@ const TIMINGS = {
   afterFill: 500,
   afterModalAction: 2000,
   afterAddItem: 3000,
+  confirmPoll: 3000,
   mfaPoll: 5000,
   mfaTimeout: 300_000,
   menuLoad: 5000,
@@ -109,19 +110,13 @@ async function findAndFillLogin(
   password: string,
 ): Promise<void> {
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.selectorWait);
-  if (!emailResult.found) {
-    log.fail("EMAIL_INPUT_NOT_FOUND", {
-      details: `Selectors tried: ${SELECTORS.email.join(", ")}`,
-    });
-  }
+  if (!emailResult.found)
+    log.fatal("EMAIL_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.email.join(", ")}`);
   await sleep(TIMINGS.afterFill);
 
   const passResult = await fillFirst(browser, SELECTORS.password, password, TIMINGS.selectorWait);
-  if (!passResult.found) {
-    log.fail("PASSWORD_INPUT_NOT_FOUND", {
-      details: `Selectors tried: ${SELECTORS.password.join(", ")}`,
-    });
-  }
+  if (!passResult.found)
+    log.fatal("PASSWORD_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.password.join(", ")}`);
   await sleep(TIMINGS.afterFill);
 
   log.success("Entered credentials");
@@ -129,11 +124,7 @@ async function findAndFillLogin(
 
 async function clickSignIn(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const result = await browser.cdpClickSelector(['button[type="submit"]']);
-  if (!result.found) {
-    log.fail("SIGN_IN_BUTTON_NOT_FOUND", {
-      details: "Could not find submit button",
-    });
-  }
+  if (!result.found) log.fatal("SIGN_IN_BUTTON_NOT_FOUND", "Could not find submit button");
   log.success("Clicked SIGN IN via cdpClick", { selector: result.selector });
   await sleep(TIMINGS.afterClick);
 }
@@ -147,11 +138,11 @@ async function handleMfa(browser: BrowserAPI, log: StepLogger): Promise<void> {
     { timeoutMs: TIMINGS.mfaTimeout, intervalMs: TIMINGS.mfaPoll },
   );
 
-  if (!result.ok) {
-    log.fail("MFA_TIMEOUT", {
-      details: `MFA not completed within ${String(TIMINGS.mfaTimeout / 1000)} seconds`,
-    });
-  }
+  if (!result.ok)
+    log.fatal(
+      "MFA_TIMEOUT",
+      `MFA not completed within ${String(TIMINGS.mfaTimeout / 1000)} seconds`,
+    );
 
   log.success("Login completed, left sign-in page", { url: result.value.url });
 }
@@ -159,7 +150,7 @@ async function handleMfa(browser: BrowserAPI, log: StepLogger): Promise<void> {
 async function verifyLoginAndNavigateToMenu(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const { url } = await browser.getUrl();
   if (url.includes("/sign-in")) {
-    log.fail("STILL_ON_SIGN_IN", { finalUrl: url });
+    log.fatal("STILL_ON_SIGN_IN", { finalUrl: url });
   }
   log.success("Login confirmed, on homepage", { url });
 
@@ -168,7 +159,7 @@ async function verifyLoginAndNavigateToMenu(browser: BrowserAPI, log: StepLogger
 
   const { url: menuUrl } = await browser.getUrl();
   if (!menuUrl.includes("/menu")) {
-    log.fail("MENU_NAV_FAILED", { finalUrl: menuUrl });
+    log.fatal("MENU_NAV_FAILED", { finalUrl: menuUrl });
   }
   log.success("On menu page", { url: menuUrl });
 }
@@ -187,30 +178,42 @@ async function clickSaveAndContinue(browser: BrowserAPI, log: StepLogger): Promi
     cdp: true,
     timeout: 15_000,
   });
-  if (!result.found) {
-    log.fail("SAVE_AND_CONTINUE_NOT_FOUND", {
-      details: "Save and Continue not found on page within 15 seconds",
-    });
-  }
+  if (!result.found)
+    log.fatal(
+      "SAVE_AND_CONTINUE_NOT_FOUND",
+      "Save and Continue not found on page within 15 seconds",
+    );
   log.success("Clicked SAVE AND CONTINUE", { text: result.text });
 
   const closed = await pollUntil(
-    async () => {
-      const body = await browser.getText();
-      if (body.includes("Delivery address")) {
-        await recoverFromChangeAddress(browser, log);
-      }
-      return body;
-    },
+    () => browser.getText(),
     (body) => !body.includes("Order Details") && !body.includes("Delivery address"),
     { timeoutMs: 15_000, intervalMs: TIMINGS.modalWait },
   );
-  if (!closed.ok) {
-    log.fail("MODAL_NOT_CLOSING", {
-      details: "Order Details modal still visible after clicking Save and Continue",
-    });
+  if (closed.ok) {
+    log.success("Modal closed");
+    return;
   }
-  log.success("Modal closed");
+
+  // Modal still visible — check if we landed on the "Delivery address" sub-screen and recover once
+  const body = await browser.getText();
+  if (body.includes("Delivery address")) {
+    await recoverFromChangeAddress(browser, log);
+    const retryClose = await pollUntil(
+      () => browser.getText(),
+      (text) => !text.includes("Order Details") && !text.includes("Delivery address"),
+      { timeoutMs: 15_000, intervalMs: TIMINGS.modalWait },
+    );
+    if (!retryClose.ok)
+      log.fatal("MODAL_NOT_CLOSING", "Order Details modal still visible after recovery");
+    log.success("Modal closed after recovery");
+    return;
+  }
+
+  log.fatal(
+    "MODAL_NOT_CLOSING",
+    "Order Details modal still visible after clicking Save and Continue",
+  );
 }
 
 async function handleDeliveryModal(
@@ -224,11 +227,7 @@ async function handleDeliveryModal(
     'button[value="DELIVERY"]',
     '[data-testid="delivery"]',
   ]);
-  if (!delivResult.found) {
-    log.fail("DELIVERY_OPTION_NOT_FOUND", {
-      details: "Could not find Delivery button",
-    });
-  }
+  if (!delivResult.found) log.fatal("DELIVERY_OPTION_NOT_FOUND", "Could not find Delivery button");
   log.success("Clicked Delivery via cdpClick", {
     selector: delivResult.selector,
   });
@@ -236,19 +235,17 @@ async function handleDeliveryModal(
   await sleep(TIMINGS.modalWait);
 
   const modalPoll = await browser.waitForText(["Order Details"], 5 * TIMINGS.afterModalAction);
-  if (!modalPoll.found) {
-    log.fail("MODAL_NOT_PRESENT", {
-      details: "Expected Order Details modal but not found",
-    });
-  }
+  if (!modalPoll.found)
+    log.fatal("MODAL_NOT_PRESENT", "Expected Order Details modal but not found");
   log.success("Order details modal confirmed present");
 
   const addressPoll = await browser.waitForText([expectedAddress], 10 * TIMINGS.modalWait);
   if (!addressPoll.found) {
     const body = await browser.getText();
-    log.fail("ADDRESS_NOT_VISIBLE", {
-      details: `Expected address containing '${expectedAddress}' not found. Page snippet: ${body.slice(0, 500)}`,
-    });
+    log.fatal(
+      "ADDRESS_NOT_VISIBLE",
+      `Expected address containing '${expectedAddress}' not found. Page snippet: ${body.slice(0, 500)}`,
+    );
   }
   log.success("Address confirmed visible");
 
@@ -257,11 +254,11 @@ async function handleDeliveryModal(
 
 async function navigateToCategory(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const result = await browser.clickText(["Burgers, Wraps & Pitas"], { cdp: true });
-  if (!result.found) {
-    log.fail("CATEGORY_NOT_FOUND", {
-      details: 'Could not find "Burgers, Wraps & Pitas" section via clickText',
-    });
-  }
+  if (!result.found)
+    log.fatal(
+      "CATEGORY_NOT_FOUND",
+      'Could not find "Burgers, Wraps & Pitas" section via clickText',
+    );
   log.success("Navigated to Burgers, Wraps & Pitas", {
     text: result.text,
   });
@@ -281,11 +278,11 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
     cdp: true,
     timeout: 15_000,
   });
-  if (!addResult.found) {
-    log.fail("ADD_ITEM_BUTTON_NOT_FOUND", {
-      details: "Could not find add-to-cart button text on page within 15 seconds",
-    });
-  }
+  if (!addResult.found)
+    log.fatal(
+      "ADD_ITEM_BUTTON_NOT_FOUND",
+      "Could not find add-to-cart button text on page within 15 seconds",
+    );
   log.success("Clicked add-to-cart", { text: addResult.text });
 
   const closed = await pollUntil(
@@ -293,11 +290,11 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
     (body) => !body.toLowerCase().includes("choose your protein"),
     { timeoutMs: 15_000, intervalMs: TIMINGS.afterAddItem },
   );
-  if (!closed.ok) {
-    log.fail("ITEM_MODAL_NOT_CLOSING", {
-      details: "Item modal still visible 15 seconds after clicking add-to-cart",
-    });
-  }
+  if (!closed.ok)
+    log.fatal(
+      "ITEM_MODAL_NOT_CLOSING",
+      "Item modal still visible 15 seconds after clicking add-to-cart",
+    );
   log.success("Item modal closed");
 }
 
@@ -309,19 +306,17 @@ async function addMenuItem(
   // Text labels aren't clickable — target the <img alt="..."> above them
   const imgSelector = `img[alt="${item.name}"]`;
   const imgResult = await browser.cdpClickSelector([imgSelector]);
-  if (!imgResult.found) {
-    log.fail("MENU_ITEM_NOT_FOUND", {
-      details: `Could not find product image with alt="${item.name}"`,
-    });
-  }
+  if (!imgResult.found)
+    log.fatal("MENU_ITEM_NOT_FOUND", `Could not find product image with alt="${item.name}"`);
   log.success(`Clicked ${item.name} image`, { selector: imgResult.selector });
   await sleep(TIMINGS.modalWait);
 
   const modalBody = await browser.getText();
   if (!modalBody.toLowerCase().includes("choose your protein")) {
-    log.fail("ITEM_MODAL_NOT_VISIBLE", {
-      details: `Expected item modal with "choose your protein" heading after clicking ${item.name}`,
-    });
+    log.fatal(
+      "ITEM_MODAL_NOT_VISIBLE",
+      `Expected item modal with "choose your protein" heading after clicking ${item.name}`,
+    );
   }
   log.success("Item modal confirmed open");
 
@@ -370,6 +365,8 @@ async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<
     return;
   }
 
+  log.warn("Cart CSS selectors did not match, trying text fallback");
+
   const textResult = await browser.clickText(["View cart", "Cart"], { cdp: true });
   if (textResult.found) {
     log.success("Clicked cart via text", { text: textResult.text });
@@ -377,9 +374,7 @@ async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<
     return;
   }
 
-  log.fail("CART_NOT_FOUND", {
-    details: "Could not find cart element via CSS or text",
-  });
+  log.fatal("CART_NOT_FOUND", "Could not find cart element via CSS or text");
 }
 
 async function tryDismissSuggestions(browser: BrowserAPI, log: StepLogger): Promise<boolean> {
@@ -426,19 +421,16 @@ async function continueToCheckout(browser: BrowserAPI, log: StepLogger): Promise
     cdp: true,
     timeout: 60_000,
   });
-  if (!checkoutResult.found) {
-    log.fail("CONTINUE_TO_CHECKOUT_NOT_FOUND", {
-      details: "Continue to checkout not found on page within 60 seconds",
-    });
-  }
+  if (!checkoutResult.found)
+    log.fatal(
+      "CONTINUE_TO_CHECKOUT_NOT_FOUND",
+      "Continue to checkout not found on page within 60 seconds",
+    );
   log.success("Clicked Continue to checkout", { text: checkoutResult.text });
 
   const navResult = await browser.waitForUrl("/checkout", 60_000);
-  if (!navResult.found) {
-    log.fail("CHECKOUT_NAV_TIMEOUT", {
-      details: "Did not navigate to /checkout within 60 seconds",
-    });
-  }
+  if (!navResult.found)
+    log.fatal("CHECKOUT_NAV_TIMEOUT", "Did not navigate to /checkout within 60 seconds");
   log.success("Navigated to checkout", { url: navResult.url });
 }
 
@@ -455,34 +447,31 @@ async function selectSavedCard(
     cdp: true,
     timeout: 30_000,
   });
-  if (!cardClick.found) {
-    log.fail("CARD_OPTION_NOT_FOUND", {
-      details: "Credit/Debit card not found on page within 30 seconds",
-    });
-  }
+  if (!cardClick.found)
+    log.fatal("CARD_OPTION_NOT_FOUND", "Credit/Debit card not found on page within 30 seconds");
   log.success("Clicked Credit/Debit card", { text: cardClick.text });
   await sleep(TIMINGS.afterClick);
 
   const expandPoll = await browser.waitForText(["SAVED PAYMENT METHODS", "ending in"], 15_000);
-  if (!expandPoll.found) {
-    log.fail("CARD_SECTION_NOT_EXPANDED", {
-      details: "Clicked Credit/Debit card but saved payment methods section did not appear",
-    });
-  }
+  if (!expandPoll.found)
+    log.fatal(
+      "CARD_SECTION_NOT_EXPANDED",
+      "Clicked Credit/Debit card but saved payment methods section did not appear",
+    );
   log.success("Card section expanded — saved payment methods visible");
 
   const savedResult = await browser.waitForSelector('[data-testid="saved-card"]', 15_000);
-  if (!savedResult.found) {
-    log.fail("SAVED_CARD_NOT_FOUND", {
-      details: `Could not find saved card (ending in ${savedCardSuffix}) within 15 seconds`,
-    });
-  }
+  if (!savedResult.found)
+    log.fatal(
+      "SAVED_CARD_NOT_FOUND",
+      `Could not find saved card (ending in ${savedCardSuffix}) within 15 seconds`,
+    );
   const savedClick = await browser.cdpClickSelector(['[data-testid="saved-card"]']);
-  if (!savedClick.found) {
-    log.fail("SAVED_CARD_CLICK_FAILED", {
-      details: "Saved card element visible but cdpClickSelector could not click it",
-    });
-  }
+  if (!savedClick.found)
+    log.fatal(
+      "SAVED_CARD_CLICK_FAILED",
+      "Saved card element visible but cdpClickSelector could not click it",
+    );
   log.success("Clicked saved card", { selector: savedClick.selector });
   await sleep(TIMINGS.afterClick);
 }
@@ -505,11 +494,8 @@ async function selectPaymentAndConfirm(
     cdp: true,
     timeout: 60_000,
   });
-  if (!placeResult.found) {
-    return log.fail("PLACE_ORDER_NOT_FOUND", {
-      details: "Place Order not found on page within 60 seconds",
-    });
-  }
+  if (!placeResult.found)
+    return log.fatal("PLACE_ORDER_NOT_FOUND", "Place Order not found on page within 60 seconds");
   log.success("Clicked Place Order", { text: placeResult.text });
 
   const confirmed = await pollUntil(
@@ -525,14 +511,14 @@ async function selectPaymentAndConfirm(
       body.includes("thank you") ||
       body.includes("order number") ||
       body.includes("still processing your order"),
-    { timeoutMs: 60_000, intervalMs: TIMINGS.afterNav },
+    { timeoutMs: 60_000, intervalMs: TIMINGS.confirmPoll },
   );
 
-  if (!confirmed.ok) {
-    return log.fail("ORDER_NOT_CONFIRMED", {
-      details: "Clicked Place Order but page did not navigate to confirmation within 60 seconds",
-    });
-  }
+  if (!confirmed.ok)
+    return log.fatal(
+      "ORDER_NOT_CONFIRMED",
+      "Clicked Place Order but page did not navigate to confirmation within 60 seconds",
+    );
   log.success("Order confirmed", { url: confirmed.value.url });
   return confirmed.value.url;
 }
@@ -600,7 +586,7 @@ async function run(
 
 export const task: SingleAttemptTask = {
   name: TASK.name,
-  url: TASK.url,
+  displayUrl: TASK.url,
   project: "nandos",
   needs: needsFromSchema(nandosContextSchema),
   mode: "once",

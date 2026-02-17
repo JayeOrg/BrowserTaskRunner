@@ -3,7 +3,7 @@ import type { BaseResponse } from "../responses/base.js";
 import { getActiveTabId, waitForTabLoad } from "../../tabs.js";
 
 export const navigateSchema = z.object({
-  url: z.string(),
+  url: z.url(),
 });
 
 export type NavigateCommand = z.infer<typeof navigateSchema> & { type: "navigate" };

@@ -8,6 +8,9 @@ function withSavepoint<T>(db: DatabaseSync, name: string, fn: () => T): T {
   db.exec(`SAVEPOINT ${name}`);
   try {
     const result = fn();
+    if (result instanceof Promise) {
+      throw new Error(`Savepoint "${name}" callback must be synchronous — got a Promise`);
+    }
     db.exec(`RELEASE ${name}`);
     return result;
   } catch (error) {

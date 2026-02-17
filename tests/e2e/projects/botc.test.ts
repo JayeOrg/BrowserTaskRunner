@@ -24,7 +24,7 @@ describe("e2e: botcLoginTask", () => {
   it("has correct task metadata", () => {
     expect(botcLoginTask.name).toBe("botcLogin");
     expect(botcLoginTask.mode).toBe("retry");
-    expect(botcLoginTask.project).toBe("monitor-botc");
+    expect(botcLoginTask.project).toBe("monitorBotcLogin");
     expect(botcLoginTask.contextSchema).toBeDefined();
   });
 
@@ -59,8 +59,7 @@ describe("e2e: botcLoginTask", () => {
         title: "Dashboard",
       }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     const result = await botcLoginTask.run(
@@ -80,8 +79,7 @@ describe("e2e: botcLoginTask", () => {
       waitForSelector: () => ({ type: "waitForSelector", found: false }),
       querySelectorRect: () => ({ type: "querySelectorRect", found: false }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(
@@ -106,8 +104,7 @@ describe("e2e: botcLoginTask", () => {
         title: "Login",
       }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(

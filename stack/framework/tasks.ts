@@ -1,5 +1,5 @@
 import type { BrowserAPI } from "../browser/browser.js";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import type { StepRunnerDeps } from "./step-runner.js";
 
 export interface TaskResultSuccess {
@@ -39,9 +39,8 @@ export function normalizeNeeds(needs: TaskNeeds): Record<string, string> {
  * ```
  */
 export function needsFromSchema(schema: ZodType): Record<string, string> {
-  if ("shape" in schema) {
-    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- narrowing ZodObject.shape
-    const shape = (schema as { shape: Record<string, unknown> }).shape;
+  if (schema instanceof z.ZodObject) {
+    const shape: Record<string, unknown> = schema.shape;
     return Object.fromEntries(Object.keys(shape).map((key) => [key, key]));
   }
   return {};
@@ -49,7 +48,8 @@ export function needsFromSchema(schema: ZodType): Record<string, string> {
 
 interface BaseTask {
   name: string;
-  url: string;
+  /** Starting URL — informational metadata logged on task start, not used by the runner. */
+  displayUrl: string;
   project: string;
   needs: TaskNeeds;
   contextSchema?: ZodType;
@@ -63,6 +63,7 @@ export interface SingleAttemptTask extends BaseTask {
 
 export interface RetryingTask extends BaseTask {
   mode: "retry";
+  /** Retry interval in milliseconds. */
   intervalMs: number;
 }
 

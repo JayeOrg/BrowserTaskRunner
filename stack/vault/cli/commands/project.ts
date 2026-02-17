@@ -11,7 +11,7 @@ import { listDetails, setDetail } from "../../ops/details.js";
 import { getProjectNeeds } from "../../../framework/loader.js";
 import { requireArg } from "../args.js";
 import { resolveAdminAuth } from "../auth.js";
-import { setEnvVar, withVault } from "../env.js";
+import { setEnvVar, withVault, withVaultReadOnly } from "../env.js";
 import { promptConfirm, getSecretValue } from "../prompt.js";
 
 function tokenEnvKey(project: string): string {
@@ -41,8 +41,7 @@ async function handleProject(args: string[]): Promise<void> {
       const { name, writeEnv } = parseProjectArgs(subArgs, "project create <name> [--write-env]");
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
-        const projectKey = createProject(db, masterKey, name);
-        const token = exportToken(projectKey);
+        const token = createProject(db, masterKey, name);
         console.error(`Project "${name}" created`);
         if (writeEnv) writeTokenToEnv(name, token);
         else console.log(token);
@@ -61,7 +60,7 @@ async function handleProject(args: string[]): Promise<void> {
       break;
     }
     case "list": {
-      await withVault(async (db) => {
+      await withVaultReadOnly(async (db) => {
         await resolveAdminAuth(db);
         const projects = listProjects(db);
         if (projects.length === 0) {
@@ -140,11 +139,10 @@ async function handleProject(args: string[]): Promise<void> {
       const { name, writeEnv } = parseProjectArgs(subArgs, "project rotate <name> [--write-env]");
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
-        const newKey = rotateProject(db, masterKey, name);
-        const token = exportToken(newKey);
+        const token = rotateProject(db, masterKey, name);
         console.log(`Rotated key for project "${name}"`);
         if (writeEnv) writeTokenToEnv(name, token);
-        else console.log(`Token: ${token}`);
+        else console.log(token);
       });
       break;
     }

@@ -31,12 +31,7 @@ const TIMINGS = {
 const SELECTORS = {
   email: ['input[type="email"]', 'input[name="email"]', "input#email"],
   password: ['input[type="password"]', 'input[name="password"]', "input#password"],
-  submit: [
-    'button[type="submit"]',
-    'button:contains("Log in")',
-    'button:contains("Sign in")',
-    'input[type="submit"]',
-  ],
+  submit: ['button[type="submit"]', 'input[type="submit"]'],
 } as const;
 
 async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
@@ -53,18 +48,12 @@ async function fillLogin(
   password: string,
 ): Promise<void> {
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.waitEmail);
-  if (!emailResult.found) {
-    log.fail("EMAIL_INPUT_NOT_FOUND", {
-      details: `Selectors tried: ${SELECTORS.email.join(", ")}`,
-    });
-  }
+  if (!emailResult.found)
+    log.fatal("EMAIL_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.email.join(", ")}`);
 
   const passResult = await fillFirst(browser, SELECTORS.password, password, TIMINGS.waitPassword);
-  if (!passResult.found) {
-    log.fail("PASSWORD_INPUT_NOT_FOUND", {
-      details: `Selectors tried: ${SELECTORS.password.join(", ")}`,
-    });
-  }
+  if (!passResult.found)
+    log.fatal("PASSWORD_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.password.join(", ")}`);
   log.success("Entered credentials");
 }
 
@@ -73,12 +62,10 @@ async function turnstileBeforeSubmit(browser: BrowserAPI, log: StepLogger): Prom
 
   const result = await clickTurnstile(browser);
   if (result.found) {
-    log.success("Clicked (beforeSubmit)", {
-      selector: result.selector,
-    });
+    log.success("Clicked turnstile", { selector: result.selector });
     await sleep(TIMINGS.afterTurnstile);
   } else {
-    log.success("None found (beforeSubmit)");
+    log.success("No turnstile found");
   }
 }
 
@@ -89,19 +76,20 @@ async function submit(browser: BrowserAPI, log: StepLogger): Promise<void> {
     log.success("Submitted", { selector: result.selector });
     return;
   }
-  log.fail("SUBMIT_NOT_FOUND", {
-    details: `Selectors tried: ${SELECTORS.submit.join(", ")}. Errors: ${result.error ?? "none"}`,
-  });
+  log.fatal(
+    "SUBMIT_NOT_FOUND",
+    `Selectors tried: ${SELECTORS.submit.join(", ")}. Errors: ${result.error}`,
+  );
 }
 
 async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string> {
   const result = await pollUntil(
     () => browser.getUrl(),
-    ({ url }) => !url.toLowerCase().includes("login"),
+    ({ url }) => url.includes("/app") || url.includes("/home") || url.includes("/dashboard"),
     { timeoutMs: 15_000, intervalMs: 2_000 },
   );
   if (!result.ok) {
-    return log.fail("STILL_ON_LOGIN_PAGE");
+    return log.fatal("STILL_ON_LOGIN_PAGE");
   }
   log.success("Login successful", { finalUrl: result.value.url });
   return result.value.url;
@@ -137,8 +125,8 @@ async function run(
 
 export const task: RetryingTask = {
   name: TASK.name,
-  url: TASK.url,
-  project: "monitor-botc",
+  displayUrl: TASK.url,
+  project: "monitorBotcLogin",
   needs: needsFromSchema(loginContextSchema),
   mode: "retry",
   intervalMs: 300_000,

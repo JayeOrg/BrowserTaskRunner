@@ -35,19 +35,19 @@ describe("detectTurnstile", () => {
 });
 
 describe("clickTurnstile", () => {
-  it("calls cdpClick with computed coordinates when found", async () => {
+  it("calls click with matched selector when found", async () => {
     const browser = createMockBrowser();
     mockTurnstileFound(browser);
 
     await clickTurnstile(browser);
-    expect(browser.cdpClick).toHaveBeenCalledWith(130, 230);
+    expect(browser.click).toHaveBeenCalledWith(".cf-turnstile");
   });
 
-  it("does not call cdpClick when not found", async () => {
+  it("does not call click when not found", async () => {
     const browser = createMockBrowser();
 
     await clickTurnstile(browser);
-    expect(browser.cdpClick).not.toHaveBeenCalled();
+    expect(browser.click).not.toHaveBeenCalled();
   });
 
   it("returns detection result", async () => {

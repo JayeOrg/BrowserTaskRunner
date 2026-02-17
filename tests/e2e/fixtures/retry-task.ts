@@ -30,7 +30,7 @@ async function run(browser: BrowserAPI, context: TaskContext): Promise<TaskResul
 
 const retryTask: RetryingTask = {
   name: TASK_NAME,
-  url: "http://localhost",
+  displayUrl: "http://localhost",
   project: "test",
   needs: { failUntil: "fail_until" },
   mode: "retry",

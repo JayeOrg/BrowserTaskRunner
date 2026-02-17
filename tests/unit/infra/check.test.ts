@@ -3,6 +3,7 @@ import {
   parseArgs,
   hasVaultToken,
   computeSourceHash,
+  computeSourceHashFromGit,
   buildComposeArgs,
 } from "../../../stack/infra/check-args.js";
 
@@ -144,6 +145,19 @@ describe("computeSourceHash", () => {
     const hash1 = computeSourceHash("input a");
     const hash2 = computeSourceHash("input b");
     expect(hash1).not.toBe(hash2);
+  });
+});
+
+describe("computeSourceHashFromGit", () => {
+  it("returns a 12-character hex hash in a git repo", () => {
+    const hash = computeSourceHashFromGit();
+    expect(hash).toMatch(/^[\da-f]{12}$/u);
+  });
+
+  it("is deterministic across calls", () => {
+    const hash1 = computeSourceHashFromGit();
+    const hash2 = computeSourceHashFromGit();
+    expect(hash1).toBe(hash2);
   });
 });
 

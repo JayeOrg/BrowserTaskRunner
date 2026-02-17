@@ -14,4 +14,12 @@ function requireString(row: Record<string, unknown>, field: string): string {
   return val;
 }
 
-export { requireBlob, requireString };
+function requireNumber(row: Record<string, unknown>, field: string): number {
+  const val = row[field];
+  if (typeof val !== "number") {
+    throw new Error(`Expected NUMBER for field "${field}"`);
+  }
+  return val;
+}
+
+export { requireBlob, requireString, requireNumber };

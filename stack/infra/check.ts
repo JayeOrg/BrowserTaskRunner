@@ -3,7 +3,7 @@ import { execSync, spawn } from "node:child_process";
 import {
   parseArgs,
   hasVaultToken,
-  computeSourceHash,
+  computeSourceHashFromGit,
   buildComposeArgs,
   type CheckOptions,
 } from "./check-args.js";
@@ -82,21 +82,8 @@ function main(): void {
     process.exit(1);
   }
 
-  // Compute hash from git index (fast — reads blob hashes, not file contents).
-  // Falls back to timestamp when git isn't available (CI artifacts, tarballs).
-  const EMPTY_HASH = "01ba4719c80b";
-  let sourceHash: string;
-  try {
-    const gitOutput = execSync("git ls-files -s stack/ package.json package-lock.json", {
-      encoding: "utf-8",
-    });
-    sourceHash = computeSourceHash(gitOutput);
-  } catch {
-    sourceHash = "";
-  }
-  if (!sourceHash || sourceHash === EMPTY_HASH) {
-    sourceHash = String(Math.floor(Date.now() / 1000));
-  }
+  // Cache-bust hash from git index. Falls back to timestamp outside a git repo.
+  const sourceHash = computeSourceHashFromGit() || String(Math.floor(Date.now() / 1000));
 
   // Set environment variables for docker compose
   process.env["TASK_NAME"] = opts.taskName;

@@ -5,7 +5,7 @@ import {
   deleteSession,
   DEFAULT_SESSION_MINUTES,
 } from "../../ops/sessions.js";
-import { VAULT_PATH, setEnvVar, removeEnvVar, withVault, withVaultReadOnly } from "../env.js";
+import { VAULT_PATH, setEnvVar, removeEnvVar, withVault } from "../env.js";
 import { getPassword, getNewPassword } from "../prompt.js";
 
 async function handleInit(): Promise<void> {
@@ -21,13 +21,11 @@ function parseDuration(args: string[]): number {
   if (idx === -1) return DEFAULT_SESSION_MINUTES;
   const raw = args[idx + 1];
   if (raw === undefined) {
-    console.error("--duration requires a value (minutes)");
-    process.exit(1);
+    throw new Error("--duration requires a value (minutes)");
   }
   const val = Number(raw);
   if (!Number.isFinite(val) || val <= 0) {
-    console.error("--duration must be a positive number of minutes");
-    process.exit(1);
+    throw new Error("--duration must be a positive number of minutes");
   }
   return val;
 }
@@ -67,7 +65,8 @@ async function handleStatus(): Promise<void> {
     console.log("No active session");
     return;
   }
-  await withVaultReadOnly((db) => {
+  // Read-write because expired sessions are pruned (deleted) as a side effect.
+  await withVault((db) => {
     const expiresAt = getSessionExpiry(db, token);
     if (expiresAt === null || Date.now() > expiresAt) {
       try {

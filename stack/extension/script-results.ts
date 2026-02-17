@@ -15,6 +15,7 @@ const ScriptFoundSchema = z.object({
   found: z.boolean(),
   timedOut: z.boolean().optional(),
   selector: z.string().optional(),
+  matchedText: z.string().optional(),
   rect: RectSchema.optional(),
 });
 
@@ -46,6 +47,14 @@ export function extractResult(
 
 export function isScriptFound(value: unknown): value is ScriptFoundResult {
   return ScriptFoundSchema.safeParse(value).success;
+}
+
+/** Stricter guard that also verifies `matchedText` is present (used by clickText). */
+export function isScriptFoundWithText(
+  value: unknown,
+): value is ScriptFoundResult & { found: true; matchedText: string } {
+  const parsed = ScriptFoundSchema.safeParse(value);
+  return parsed.success && parsed.data.found && typeof parsed.data.matchedText === "string";
 }
 
 export function isScriptContent(value: unknown): value is ScriptContentResult {

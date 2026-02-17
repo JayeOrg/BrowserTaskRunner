@@ -77,6 +77,17 @@ function formatData(data?: Record<string, unknown>): string {
   return ` → ${pairs.join(", ")}`;
 }
 
+function advanceStepState(state: StepState, step: string): { stepNum: number; duration: string } {
+  if (step !== state.lastStep) {
+    state.stepNum++;
+    state.lastStep = step;
+  }
+  const now = Date.now();
+  const duration = formatDuration(now - state.lastTime);
+  state.lastTime = now;
+  return { stepNum: state.stepNum, duration };
+}
+
 function formatLogLine(
   state: StepState,
   step: string,
@@ -85,18 +96,9 @@ function formatLogLine(
   level: LogLevel,
   output: LogOutput,
 ): void {
-  if (step !== state.lastStep) {
-    state.stepNum++;
-    state.lastStep = step;
-  }
-
-  const now = Date.now();
-  const duration = formatDuration(now - state.lastTime);
-  state.lastTime = now;
-
+  const { stepNum, duration } = advanceStepState(state, step);
   const { icon, color } = levelStyles[level];
-  const prefix = `[${state.stepNum.toString()} ${step}]`;
-  // Indent task steps (they run under framework's attempt loop)
+  const prefix = `[${stepNum.toString()} ${step}]`;
   const content = `${color}${icon}${colors.reset}    ${prefix} ${msg}${formatData(data)}`;
   output(rightJustify(content, duration));
 }
@@ -106,7 +108,8 @@ export interface StepLogger {
   log: (msg: string, data?: Record<string, unknown>) => void;
   success: (msg: string, data?: Record<string, unknown>) => void;
   warn: (msg: string, data?: Record<string, unknown>) => void;
-  fail: (reason: string, meta?: StepErrorMeta) => never;
+  /** Logs the failure and throws a StepError. Never returns. */
+  fatal: (reason: string, meta?: string | StepErrorMeta) => never;
 }
 
 // Task-level logger — step name required per call (used by framework internals)
@@ -114,7 +117,8 @@ export interface TaskLogger {
   log: (step: string, msg: string, data?: Record<string, unknown>) => void;
   success: (step: string, msg: string, data?: Record<string, unknown>) => void;
   warn: (step: string, msg: string, data?: Record<string, unknown>) => void;
-  fail: (step: string, reason: string, meta?: StepErrorMeta) => never;
+  /** Logs the failure and throws a StepError. Never returns. */
+  fatal: (step: string, reason: string, meta?: string | StepErrorMeta) => never;
   scoped: (step: string) => StepLogger;
 }
 
@@ -127,9 +131,10 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
       formatLogLine(state, step, msg, data, level, output);
     };
 
-  const fail = (step: string, reason: string, meta: StepErrorMeta = {}): never => {
-    formatLogLine(state, step, reason, meta, "error", output);
-    throw new StepError(task, step, reason, meta);
+  const fatal = (step: string, reason: string, meta: string | StepErrorMeta = {}): never => {
+    const resolved = typeof meta === "string" ? { details: meta } : meta;
+    formatLogLine(state, step, reason, resolved, "error", output);
+    throw new StepError(task, step, reason, resolved);
   };
 
   const scoped = (step: string): StepLogger => {
@@ -146,7 +151,7 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
       warn: (msg, data) => {
         warning(step, msg, data);
       },
-      fail: (reason, meta) => fail(step, reason, meta),
+      fatal: (reason, meta = {}) => fatal(step, reason, meta),
     };
   };
 
@@ -154,7 +159,7 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
     log: logAt("info"),
     success: logAt("success"),
     warn: logAt("warn"),
-    fail,
+    fatal,
     scoped,
   };
 }

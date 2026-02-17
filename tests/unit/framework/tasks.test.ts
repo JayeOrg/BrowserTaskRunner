@@ -10,7 +10,7 @@ import {
 function makeTask(name: string): SingleAttemptTask {
   return {
     name,
-    url: "https://example.com",
+    displayUrl: "https://example.com",
     project: "test-project",
     needs: {},
     mode: "once",

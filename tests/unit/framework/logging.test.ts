@@ -65,18 +65,45 @@ describe("createTaskLogger", () => {
 
   it("fail() throws StepError", () => {
     const logger = createTaskLogger("myTask", output);
-    expect(() => logger.fail("login", "timeout")).toThrow(StepError);
+    expect(() => logger.fatal("login", "timeout")).toThrow(StepError);
   });
 
   it("fail() logs before throwing", () => {
     const logger = createTaskLogger("myTask", output);
     try {
-      logger.fail("login", "timeout");
+      logger.fatal("login", "timeout");
     } catch {
       // Expected to throw
     }
     expect(lines).toHaveLength(1);
     expect(stripAnsi(lines[0]!)).toContain("timeout");
+  });
+
+  it("fail() accepts a string shorthand for details", () => {
+    const logger = createTaskLogger("myTask", output);
+    try {
+      logger.fatal("login", "TIMEOUT", "could not reach server");
+    } catch (error) {
+      expect(error).toBeInstanceOf(StepError);
+      if (error instanceof StepError) {
+        expect(error.meta.details).toBe("could not reach server");
+      }
+    }
+    expect(lines).toHaveLength(1);
+    expect(stripAnsi(lines[0]!)).toContain("→ could not reach server");
+  });
+
+  it("scoped fail() accepts a string shorthand for details", () => {
+    const logger = createTaskLogger("myTask", output);
+    const scoped = logger.scoped("login");
+    try {
+      scoped.fatal("TIMEOUT", "could not reach server");
+    } catch (error) {
+      expect(error).toBeInstanceOf(StepError);
+      if (error instanceof StepError) {
+        expect(error.meta.details).toBe("could not reach server");
+      }
+    }
   });
 
   it("includes duration in output", () => {

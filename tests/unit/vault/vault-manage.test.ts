@@ -137,7 +137,7 @@ function readAdminToken(): string {
   return result.groups.token;
 }
 
-const TOKEN = () => ({ adminToken: templateToken, password: "" });
+const tokenOpts = () => ({ adminToken: templateToken, password: "" });
 
 describe("vault CLI", () => {
   it("initializes a new vault", () => {
@@ -147,46 +147,46 @@ describe("vault CLI", () => {
   });
 
   it("sets and gets a detail", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "hello@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "hello@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], tokenOpts());
     expect(result.stdout.trim()).toBe("hello@test.com");
   });
 
   it("lists details with header", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "a-key"], { ...TOKEN(), secretValue: "val1" });
-    run(["detail", "set", "proj", "b-key"], { ...TOKEN(), secretValue: "val2" });
-    const result = run(["detail", "list"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "a-key"], { ...tokenOpts(), secretValue: "val1" });
+    run(["detail", "set", "proj", "b-key"], { ...tokenOpts(), secretValue: "val2" });
+    const result = run(["detail", "list"], tokenOpts());
     expect(result.stdout).toContain("Details:");
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).toContain("b-key");
   });
 
   it("lists details filtered by project omits project name", () => {
-    run(["project", "create", "proj-a"], TOKEN());
-    run(["project", "create", "proj-b"], TOKEN());
-    run(["detail", "set", "proj-a", "a-key"], { ...TOKEN(), secretValue: "val1" });
-    run(["detail", "set", "proj-b", "b-key"], { ...TOKEN(), secretValue: "val2" });
-    const result = run(["detail", "list", "proj-a"], TOKEN());
+    run(["project", "create", "proj-a"], tokenOpts());
+    run(["project", "create", "proj-b"], tokenOpts());
+    run(["detail", "set", "proj-a", "a-key"], { ...tokenOpts(), secretValue: "val1" });
+    run(["detail", "set", "proj-b", "b-key"], { ...tokenOpts(), secretValue: "val2" });
+    const result = run(["detail", "list", "proj-a"], tokenOpts());
     expect(result.stdout).toContain('Details in "proj-a":');
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).not.toContain("b-key");
   });
 
   it("removes a detail", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "doomed"], { ...TOKEN(), secretValue: "val" });
-    run(["detail", "remove", "proj", "doomed"], TOKEN());
-    const result = run(["detail", "list", "proj"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "doomed"], { ...tokenOpts(), secretValue: "val" });
+    run(["detail", "remove", "proj", "doomed"], tokenOpts());
+    const result = run(["detail", "list", "proj"], tokenOpts());
     expect(result.stdout).toContain("No details");
   });
 
   it("overwrites an existing detail", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "old@test.com" });
-    run(["detail", "set", "proj", "my-email"], { ...TOKEN(), secretValue: "new@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "old@test.com" });
+    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "new@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], tokenOpts());
     expect(result.stdout.trim()).toBe("new@test.com");
   });
 
@@ -202,29 +202,29 @@ describe("vault CLI", () => {
   });
 
   it("creates a project and shows token", () => {
-    const result = run(["project", "create", "test-proj"], TOKEN());
+    const result = run(["project", "create", "test-proj"], tokenOpts());
     expect(result.stderr).toContain("test-proj");
     expect(result.stdout.trim()).toMatch(/^[A-Za-z0-9+/=]+$/u);
   });
 
   it("project create --write-env writes token to .env", () => {
-    run(["project", "create", "write-test", "--write-env"], TOKEN());
+    run(["project", "create", "write-test", "--write-env"], tokenOpts());
     const content = readFileSync(envPath, "utf8");
     expect(content).toContain("VAULT_TOKEN_WRITE_TEST=");
   });
 
   it("lists projects with header", () => {
-    run(["project", "create", "alpha"], TOKEN());
-    run(["project", "create", "beta"], TOKEN());
-    const result = run(["project", "list"], TOKEN());
+    run(["project", "create", "alpha"], tokenOpts());
+    run(["project", "create", "beta"], tokenOpts());
+    const result = run(["project", "list"], tokenOpts());
     expect(result.stdout).toContain("Projects:");
     expect(result.stdout).toContain("alpha");
     expect(result.stdout).toContain("beta");
   });
 
   it("fails with wrong password on detail get", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "my-key"], { ...TOKEN(), secretValue: "val" });
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "my-key"], { ...tokenOpts(), secretValue: "val" });
 
     const result = run(["detail", "get", "proj", "my-key"], {
       password: "wrong",
@@ -244,10 +244,10 @@ describe("vault CLI", () => {
   });
 
   it("shows empty state messages", () => {
-    const detailResult = run(["detail", "list"], TOKEN());
+    const detailResult = run(["detail", "list"], tokenOpts());
     expect(detailResult.stdout).toContain("No details");
 
-    const projectResult = run(["project", "list"], TOKEN());
+    const projectResult = run(["project", "list"], tokenOpts());
     expect(projectResult.stdout).toContain("No projects");
   });
 });
@@ -324,16 +324,16 @@ describe("vault login/logout", () => {
 
 describe("detail set value prompting", () => {
   it("reads value from stdin, not CLI args", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "secret-key"], { ...TOKEN(), secretValue: "from-stdin" });
-    const result = run(["detail", "get", "proj", "secret-key"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "secret-key"], { ...tokenOpts(), secretValue: "from-stdin" });
+    const result = run(["detail", "get", "proj", "secret-key"], tokenOpts());
     expect(result.stdout.trim()).toBe("from-stdin");
   });
 
   it("fails when no value is provided on stdin", () => {
-    run(["project", "create", "proj"], TOKEN());
+    run(["project", "create", "proj"], tokenOpts());
     const result = run(["detail", "set", "proj", "k"], {
-      ...TOKEN(),
+      ...tokenOpts(),
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
@@ -343,8 +343,8 @@ describe("detail set value prompting", () => {
 
 describe("change-password", () => {
   it("changes the vault password", () => {
-    run(["project", "create", "proj"], TOKEN());
-    run(["detail", "set", "proj", "k"], { ...TOKEN(), secretValue: "secret-val" });
+    run(["project", "create", "proj"], tokenOpts());
+    run(["detail", "set", "proj", "k"], { ...tokenOpts(), secretValue: "secret-val" });
 
     // Change password: stdin = old, new, confirm
     run(["change-password"], {
@@ -397,22 +397,22 @@ describe("change-password", () => {
 
 describe("project remove", () => {
   it("removes a project and cascades its details", () => {
-    run(["project", "create", "doomed"], TOKEN());
-    run(["detail", "set", "doomed", "secret"], { ...TOKEN(), secretValue: "val" });
+    run(["project", "create", "doomed"], tokenOpts());
+    run(["detail", "set", "doomed", "secret"], { ...tokenOpts(), secretValue: "val" });
 
-    const result = run(["project", "remove", "doomed"], TOKEN());
+    const result = run(["project", "remove", "doomed"], tokenOpts());
     expect(result.stdout).toContain('Removed project "doomed"');
 
-    const list = run(["project", "list"], TOKEN());
+    const list = run(["project", "list"], tokenOpts());
     expect(list.stdout).not.toContain("doomed");
 
-    const details = run(["detail", "list"], TOKEN());
+    const details = run(["detail", "list"], tokenOpts());
     expect(details.stdout).not.toContain("secret");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "remove", "nope"], {
-      ...TOKEN(),
+      ...tokenOpts(),
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
@@ -422,23 +422,23 @@ describe("project remove", () => {
 
 describe("project rename", () => {
   it("renames a project and preserves its details", () => {
-    run(["project", "create", "old-name"], TOKEN());
-    run(["detail", "set", "old-name", "email"], { ...TOKEN(), secretValue: "user@test.com" });
+    run(["project", "create", "old-name"], tokenOpts());
+    run(["detail", "set", "old-name", "email"], { ...tokenOpts(), secretValue: "user@test.com" });
 
-    const result = run(["project", "rename", "old-name", "new-name"], TOKEN());
+    const result = run(["project", "rename", "old-name", "new-name"], tokenOpts());
     expect(result.stdout).toContain('Renamed project "old-name" to "new-name"');
 
-    const list = run(["project", "list"], TOKEN());
+    const list = run(["project", "list"], tokenOpts());
     expect(list.stdout).toContain("new-name");
     expect(list.stdout).not.toContain("old-name");
 
-    const detail = run(["detail", "get", "new-name", "email"], TOKEN());
+    const detail = run(["detail", "get", "new-name", "email"], tokenOpts());
     expect(detail.stdout.trim()).toBe("user@test.com");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "rename", "nope", "new-name"], {
-      ...TOKEN(),
+      ...tokenOpts(),
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
@@ -446,10 +446,10 @@ describe("project rename", () => {
   });
 
   it("fails when target name already exists", () => {
-    run(["project", "create", "proj-a"], TOKEN());
-    run(["project", "create", "proj-b"], TOKEN());
+    run(["project", "create", "proj-a"], tokenOpts());
+    run(["project", "create", "proj-b"], tokenOpts());
     const result = run(["project", "rename", "proj-a", "proj-b"], {
-      ...TOKEN(),
+      ...tokenOpts(),
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);
@@ -459,32 +459,33 @@ describe("project rename", () => {
 
 describe("project rotate", () => {
   it("rotates the project key and outputs a new token", () => {
-    const createResult = run(["project", "create", "rotating"], TOKEN());
+    const createResult = run(["project", "create", "rotating"], tokenOpts());
     const oldToken = createResult.stdout.trim();
     expect(oldToken).toBeTruthy();
 
-    run(["detail", "set", "rotating", "secret"], { ...TOKEN(), secretValue: "my-val" });
+    run(["detail", "set", "rotating", "secret"], { ...tokenOpts(), secretValue: "my-val" });
 
-    const rotateResult = run(["project", "rotate", "rotating"], TOKEN());
+    const rotateResult = run(["project", "rotate", "rotating"], tokenOpts());
     expect(rotateResult.stdout).toContain("Rotated key");
-    const newToken = /Token: (?<token>.+)/u.exec(rotateResult.stdout)?.groups?.token;
+    const outputLines = rotateResult.stdout.trim().split("\n");
+    const newToken = outputLines[outputLines.length - 1]?.trim();
     expect(newToken).toBeTruthy();
     expect(newToken).not.toBe(oldToken);
   });
 
   it("details are still accessible after rotation via admin", () => {
-    run(["project", "create", "rot-proj"], TOKEN());
-    run(["detail", "set", "rot-proj", "email"], { ...TOKEN(), secretValue: "user@test.com" });
+    run(["project", "create", "rot-proj"], tokenOpts());
+    run(["detail", "set", "rot-proj", "email"], { ...tokenOpts(), secretValue: "user@test.com" });
 
-    run(["project", "rotate", "rot-proj"], TOKEN());
+    run(["project", "rotate", "rot-proj"], tokenOpts());
 
-    const result = run(["detail", "get", "rot-proj", "email"], TOKEN());
+    const result = run(["detail", "get", "rot-proj", "email"], tokenOpts());
     expect(result.stdout.trim()).toBe("user@test.com");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "rotate", "nope"], {
-      ...TOKEN(),
+      ...tokenOpts(),
       expectFailure: true,
     });
     expect(result.exitCode).not.toBe(0);

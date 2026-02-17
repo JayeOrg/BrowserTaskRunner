@@ -3,6 +3,6 @@ import { existsSync } from "node:fs";
 
 export function setup(): void {
   if (!existsSync("dist/vault/cli/main.js")) {
-    execSync("npx tsc", { stdio: "pipe" });
+    execSync("npx tsc", { stdio: "inherit" });
   }
 }

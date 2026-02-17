@@ -71,7 +71,7 @@ Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
 **Zero-size rect defense.** `cdpClickSelector` returns `found: false` for elements with zero-width/height bounding rects. Hidden/detached elements (e.g. modals still in DOM) report zero-size rects — clicking their center would land at (0,0), hitting the wrong target.
 
-**iframe support.** Commands that use `executeScript` accept an optional `frameId` parameter for targeting iframes. Use `browser.getFrameId("iframe.selector")` to resolve an iframe element to its frameId, then pass it to other commands: `browser.click("#btn", { frameId })`. The `getScriptTarget(frameId?)` helper in `script-target.ts` builds the correct `executeScript` target object. Commands not supporting frameId: `cdpClick` (viewport-level), `clickText`/`querySelectorRect` (coordinate-based), `navigate`/`getUrl` (tab-level).
+**iframe support.** Commands that use `executeScript` accept an optional `frameId` parameter for targeting iframes. Use `browser.getFrameId("iframe.selector")` to resolve an iframe element to its frameId, then pass it to other commands: `browser.click("#btn", { frameId })`. The `getScriptTarget(frameId?)` helper in `script-target.ts` builds the correct `executeScript` target object. Commands not supporting frameId: `cdpClick` (viewport-level), `clickText` (coordinate-based), `navigate`/`getUrl` (tab-level).
 
 **Keyboard input uses CDP.** The `keyboard` command uses `chrome.debugger` for `Input.insertText` (type action) and `Input.dispatchKeyEvent` (press/down/up actions). Unlike `cdpClick`, keyboard has no DOM fallback — if debugger attach fails, it returns an error. The `type` method focuses the element first via `executeScript`, then uses CDP `Input.insertText` for efficient single-call text insertion.
 
@@ -113,6 +113,8 @@ async function run(browser, context, deps: StepRunnerDeps): Promise<TaskResultSu
 ### Task Design Principle
 
 **Poll for readiness, then act once.** Don't repeatedly click/interact and check if it worked. Instead: poll until the element or condition is present, then perform the action a single time. This keeps steps predictable and logs clean.
+
+**All clicks must be deterministic.** Never put a click (or any DOM-mutating action) inside a `pollUntil` callback. Poll callbacks should be read-only (check page state). If a recovery action is needed after a poll timeout, perform it outside the poll loop and re-poll.
 
 The Browser API has built-in polling for common patterns — prefer these over manual loops:
 
@@ -201,9 +203,9 @@ After using any skill, review the conversation history for confusions, mistakes,
 
 - `node:sqlite` enables `PRAGMA foreign_keys = ON` by default (unlike C SQLite)
 - scrypt `maxmem` defaults to 32MB; cost=131072 needs `maxmem: 256 * 1024 * 1024` explicitly
-- `TaskConfig = SingleAttemptTask | RetryingTask` — discriminated union on `mode: "once" | "retry"`
-- Tasks declare `contextSchema?: ZodMiniType` for optional Zod validation before `run()`
-- Zod is `zod/v4/mini` — `ZodMiniType` has `.safeParse()` method, consistent with `script-results.ts`
+- `TaskConfig = SingleAttemptTask | RetryingTask` — discriminated union on `mode: "once" | "retry"`. `displayUrl` is informational metadata (logged on task start, not used by the runner)
+- Tasks declare `contextSchema?: ZodType` for optional Zod validation before `run()`
+- Zod is `zod` (standard) — `ZodType` has `.safeParse()` method, consistent with `script-results.ts`
 - **Double context parsing is intentional.** Framework calls `safeParse()` as a gate (fail early with a clear error before connecting to browser). Tasks call `contextSchema.parse()` again to get a typed destructured object. Making `run` generic on schema output was rejected: the generic erases at `TaskConfig[]` since TS lacks existentials, and the only payoff would be saving one `.parse()` line per task. Tasks own their own context typing — framework stays type-agnostic about context shape.
 - Framework uses `node:timers/promises` setTimeout for retry delays (avoids importing from tasks layer)
 - Class is `Browser` (in `stack/browser/browser.ts`), tasks receive `browser: BrowserAPI` parameter

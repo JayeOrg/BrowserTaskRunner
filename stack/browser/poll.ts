@@ -1,24 +1,21 @@
-import { sleep } from "./timing.js";
+import { setTimeout as delay } from "node:timers/promises";
 
 /**
  * Poll an async function until a condition is met or timeout occurs.
- * Returns { ok: true, value } with the first passing value, or { ok: false, timeoutMs } on timeout.
+ * Returns { ok: true, value } with the first passing value, or { ok: false } on timeout.
  */
 export async function pollUntil<T>(
   poll: () => Promise<T>,
   check: (value: T) => boolean,
   options: { timeoutMs: number; intervalMs: number },
-): Promise<{ ok: true; value: T } | { ok: false; timeoutMs: number }> {
-  if (options.intervalMs <= 0) {
-    throw new Error("pollUntil: intervalMs must be positive");
-  }
+): Promise<{ ok: true; value: T } | { ok: false }> {
   const deadline = Date.now() + options.timeoutMs;
 
   while (Date.now() < deadline) {
     const value = await poll();
     if (check(value)) return { ok: true, value };
-    await sleep(options.intervalMs);
+    await delay(options.intervalMs);
   }
 
-  return { ok: false, timeoutMs: options.timeoutMs };
+  return { ok: false };
 }

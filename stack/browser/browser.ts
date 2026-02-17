@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { setTimeout as delay } from "node:timers/promises";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
+import { getErrorMessage } from "../framework/errors.js";
 import { logConnectionInstructions } from "./instructions.js";
 import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
 
@@ -68,7 +69,7 @@ interface BrowserQueries {
   ): Promise<ResponseFor<"getContent">>;
   getText(selector?: string): Promise<string>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
-  getFrameId(selector: string): Promise<number>;
+  getFrameId(selector: string): Promise<{ found: true; frameId: number } | { found: false }>;
 }
 
 interface BrowserScrolling {
@@ -165,7 +166,7 @@ export class Browser implements BrowserAPI {
 
       this.server?.on("connection", (incoming: WebSocket) => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.logger.log("Rejecting duplicate connection — extension already connected");
+          this.logger.warn("Rejecting duplicate connection — extension already connected");
           incoming.close(1008, "Already connected");
           return;
         }
@@ -237,8 +238,7 @@ export class Browser implements BrowserAPI {
       }
 
       const id = ++this.commandId;
-      const { type, ...payload } = command;
-      const detail = Object.keys(payload).length > 0 ? ` ${JSON.stringify(payload)}` : "";
+      const { type } = command;
 
       const timeoutId = setTimeout(() => {
         if (this.pendingCommands.has(id)) {
@@ -248,7 +248,7 @@ export class Browser implements BrowserAPI {
             pending: this.pendingCommands.size.toString(),
             wsState: this.ws?.readyState.toString() ?? "null",
           });
-          reject(new Error(`Command timeout: ${type}${detail}`));
+          reject(new Error(`Command timeout: ${type}`));
         }
       }, this.commandTimeoutMs);
 
@@ -265,8 +265,7 @@ export class Browser implements BrowserAPI {
       } catch (error) {
         clearTimeout(timeoutId);
         this.pendingCommands.delete(id);
-        const reason = error instanceof Error ? error.message : String(error);
-        reject(new Error(`Failed to send command: ${reason}`));
+        reject(new Error(`Failed to send command: ${getErrorMessage(error)}`));
       }
     });
   }
@@ -394,12 +393,12 @@ export class Browser implements BrowserAPI {
   scrollBy(x: number, y: number) {
     return this.send({ type: "scroll", mode: "by" as const, x, y });
   }
-  async getFrameId(selector: string): Promise<number> {
+  async getFrameId(selector: string): Promise<{ found: true; frameId: number } | { found: false }> {
     const result = await this.send({ type: "getFrameId", selector });
     if (!result.found) {
-      throw new Error(`Frame not found for selector: ${selector}`);
+      return { found: false };
     }
-    return result.frameId;
+    return { found: true, frameId: result.frameId };
   }
 
   sendStepUpdate(update: StepUpdate): void {
@@ -407,6 +406,7 @@ export class Browser implements BrowserAPI {
     this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
   }
 
+  /** Only one control handler at a time — calling again replaces the previous. */
   onControl(handler: (action: string) => void): void {
     this.controlHandler = handler;
   }
@@ -436,6 +436,11 @@ export class Browser implements BrowserAPI {
   }
 
   close(): void {
+    /*
+     * Reject pending commands first — closing the socket would trigger the
+     * `close` handler, which also calls rejectAllPending, but by that point
+     * the map is already cleared.
+     */
     this.rejectAllPending(new Error("Browser closed"));
 
     if (this.ws) {

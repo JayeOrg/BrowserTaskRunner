@@ -11,6 +11,7 @@ function setDetail(
   key: string,
   value: string,
 ): void {
+  /** Fresh DEK per write — each detail value gets its own randomly-generated encryption key to limit the blast radius of a compromised key. */
   const dek = randomBytes(KEY_LENGTH);
   const valueEnc = aesEncrypt(dek, Buffer.from(value, "utf8"));
   const masterDekWrapped = aesEncrypt(masterKey, dek);

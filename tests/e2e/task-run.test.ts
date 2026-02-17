@@ -21,8 +21,7 @@ afterEach(() => {
 describe("e2e: click-task against local test site", () => {
   it("navigates, clicks button, and verifies /success", async () => {
     const { responder, state } = createDefaultResponder();
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
     state.commands.length = 0; // Clear setup ping
 
     const result = await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);
@@ -35,8 +34,7 @@ describe("e2e: click-task against local test site", () => {
     const { responder, state } = createDefaultResponder({
       waitForSelector: () => ({ type: "waitForSelector", found: false }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
       "BUTTON_NOT_FOUND",
@@ -48,8 +46,7 @@ describe("e2e: click-task against local test site", () => {
       click: () => ({ type: "click", success: true }),
       getUrl: (_cmd, st) => ({ type: "getUrl", url: st.currentUrl, title: "Test Page" }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
       "NOT_ON_SUCCESS_PAGE",
@@ -60,8 +57,7 @@ describe("e2e: click-task against local test site", () => {
     const { responder, state } = createDefaultResponder({
       navigate: () => ({ type: "navigate", url: "", title: "", error: "Tab crashed" }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
       "Tab crashed",
@@ -72,8 +68,7 @@ describe("e2e: click-task against local test site", () => {
     const { responder, state } = createDefaultResponder({
       click: () => ({ type: "click", success: false }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
       "CLICK_FAILED",
@@ -89,8 +84,7 @@ describe("e2e: click-task against local test site", () => {
         title: "Wrong",
       }),
     });
-    setup = await setupTaskTest(responder);
-    state.siteUrl = setup.siteUrl;
+    setup = await setupTaskTest(responder, undefined, state);
 
     try {
       await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);

@@ -1,6 +1,8 @@
 export type StepErrorMeta = Record<string, unknown> & {
   finalUrl?: string;
+  /** Human-readable explanation of what went wrong. */
   details?: string;
+  /** Structured key-value debug data (selectors tried, URLs seen, etc.). */
   context?: Record<string, unknown>;
 };
 

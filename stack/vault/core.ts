@@ -26,8 +26,17 @@ function openVault(path: string): DatabaseSync {
 function openVaultReadOnly(path: string): DatabaseSync {
   try {
     return new DatabaseSync(path, { readOnly: true });
-  } catch {
-    throw new Error("Vault not found. Run 'npm run vault -- init' first.");
+  } catch (cause) {
+    const code =
+      cause !== null && typeof cause === "object" && "code" in cause
+        ? String(cause.code)
+        : undefined;
+    if (code === "ENOENT" || code === "SQLITE_CANTOPEN") {
+      throw new Error(`Vault not found at ${path}. Run 'npm run vault -- init' to create one.`, {
+        cause,
+      });
+    }
+    throw cause;
   }
 }
 
@@ -55,8 +64,8 @@ function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
   let decrypted: Buffer;
   try {
     decrypted = aesDecrypt(masterKey, iv, authTag, ciphertext);
-  } catch {
-    throw new Error("Vault decryption failed — wrong password (GCM auth tag mismatch)");
+  } catch (cause) {
+    throw new Error("Vault decryption failed — wrong password (GCM auth tag mismatch)", { cause });
   }
 
   if (decrypted.toString("utf8") !== PASSWORD_CHECK_MAGIC) {
@@ -66,7 +75,7 @@ function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
 
 function deriveMasterKey(db: DatabaseSync, password: string): Buffer {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
-  if (!saltRow) throw new Error("Vault not initialized. Run 'vault init' first.");
+  if (!saltRow) throw new Error("Vault not initialized. Run 'npm run vault -- init' first.");
   const salt = requireBlob(saltRow, "value");
 
   const masterKey = deriveKey(password, salt);
@@ -76,7 +85,7 @@ function deriveMasterKey(db: DatabaseSync, password: string): Buffer {
 
 function changePassword(db: DatabaseSync, oldPassword: string, newPassword: string): void {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
-  if (!saltRow) throw new Error("Vault not initialized. Run 'vault init' first.");
+  if (!saltRow) throw new Error("Vault not initialized. Run 'npm run vault -- init' first.");
   const oldSalt = requireBlob(saltRow, "value");
   const oldMasterKey = deriveKey(oldPassword, oldSalt);
   verifyPassword(db, oldMasterKey);
@@ -121,6 +130,7 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
       );
     }
 
+    /** Wipe sessions — they are encrypted with the old password-derived key and become undecryptable after password change. */
     db.prepare("DELETE FROM sessions").run();
   });
 }
