@@ -10,7 +10,7 @@ Review the codebase for developer experience and readability. Every finding must
 
 ### 1. Explore (parallel)
 
-Launch **one parallel Explore agent per module** (all `run_in_background: true`), one per module. Each agent reads every file in its module and evaluates:
+Launch **one parallel Explore agent per module** (all `run_in_background: true`). Each agent reads every file in its module and evaluates:
 
 1. **Naming** — Are variables, functions, types, and files named clearly?
 2. **Code flow** — Is control flow easy to follow? Are functions ordered logically?
@@ -30,6 +30,8 @@ Agent prompt template: "Read all files in [module]. For each file note naming, f
 | 4     | Projects       | `stack/projects/**/*.ts`                                                |
 | 5     | Vault          | `stack/vault/**/*.ts`, `stack/vault/README.md`                          |
 | 6     | Tests & Config | `tests/**/*.ts`, `vitest.config.ts`, `eslint.config.ts`, `package.json` |
+
+**Note:** These agents are explore-only — they read and report findings but do not make changes.
 
 ### 2. Poll for completion
 
@@ -57,7 +59,7 @@ After all agents complete, read each output and classify every finding as:
 
 ### 4. Present compiled list for user review
 
-**Do NOT make any code changes yet.** Output the full triage as a compiled list for the user to review and decide on:
+**Do NOT make any code changes yet.** Write the full triage to a file at `.claude/dx-review-plan.md` and also output it to the user. This file persists across sessions so progress is never lost to context compaction.
 
 ```
 # DX Review — <date>
@@ -94,19 +96,45 @@ After all agents complete, read each output and classify every finding as:
 
 **Keep iterating until every item is explicitly sorted into Will or Won't.** If the user asks for clarification on any item, answer the question and wait for their decision. If there are still unresolved Needs Clarification items after the user's response, present the remaining items again. Only proceed to implementation once every finding has been assigned a final disposition.
 
-Do not proceed until the user has responded.
+**Write Won't items to `REJECTED.md` immediately** as the user confirms them (don't batch them until the end). This prevents loss if context compacts mid-session.
+
+Update `.claude/dx-review-plan.md` after each user response to reflect their decisions (mark items as confirmed-Will, confirmed-Won't, or still-pending).
+
+Do not proceed to implementation until the user has responded and all items are resolved.
 
 ### 5. Apply user decisions
 
 After the user responds with their decisions:
-1. Implement all items the user confirmed or moved into **Will**.
-2. Add all items the user confirmed or moved into **Won't** to the `## Won't Fix (DX Review)` section of `REJECTED.md` — these are now user-confirmed decisions.
-3. If the user asked for further clarification on any item, answer their question and wait for their final decision before acting on that item.
-4. Do **not** add anything to `REJECTED.md` that the user hasn't explicitly confirmed as Won't. The won't-fix section is for user-confirmed decisions, not agent recommendations.
+
+1. Won't items should already be in `REJECTED.md` (written immediately in step 4). Verify they're all there.
+2. Do **not** add anything to `REJECTED.md` that the user hasn't explicitly confirmed as Won't.
+
+**Use TodoWrite** to track implementation progress. Create one todo item per confirmed Will item (or group trivially related items). Mark each as completed immediately after applying it. This survives context compaction and keeps the user informed.
+
+**Implementation agents run in dependency order, not fully parallel.** This prevents cross-module type conflicts:
+
+1. **Phase 1 — Framework** (runs first, since other modules import from it):
+   - Launch one agent for `stack/framework/` Will items
+   - Wait for completion before proceeding
+
+2. **Phase 2 — Independent modules** (run in parallel after Framework completes):
+   - Launch agents for Browser, Extension, and Vault Will items in parallel
+   - Tests & Config items can run in this phase too
+
+3. **Phase 3 — Projects** (runs last, imports from framework + browser + extension):
+   - Launch one agent for `stack/projects/` Will items
+
+**Each implementation agent must:**
+- Apply the code changes for its assigned Will items
+- **Update tests that directly test changed code.** If a function's signature, return type, or error message changes, update the corresponding test assertions in `tests/`. Don't leave test updates for later.
+- **Run its module's tests** via `npx vitest run tests/unit/<module>` (not just `tsc --noEmit` and eslint). Report any failures.
+- Read `.claude/dx-review-plan.md` to see the full list of items assigned to it.
+
+Agent prompt template: "Read `.claude/dx-review-plan.md` for context. Apply the following Will items: [list of #numbers and descriptions]. For each change, also update any tests in `tests/` that assert on the changed behavior. After all changes, run `npx vitest run tests/unit/<module>` and report results."
 
 ### 6. Validate
 
-Run `npm run validate` as the final step to confirm all fixes pass lint, build, and tests.
+Run `npm run validate` as the final step to confirm all fixes pass lint, build, and tests. Delete `.claude/dx-review-plan.md` after validation passes.
 
 ## Learnings
 
@@ -116,3 +144,6 @@ Run `npm run validate` as the final step to confirm all fixes pass lint, build, 
 - **ESLint `id-length`**: The project enforces a minimum identifier length of 2. Single-char names like `e` in `.map(e => ...)` will fail lint — use descriptive names like `inner`.
 - **Update tests alongside code**: When changing error messages (e.g., differentiating vault decryption errors) or adding new return fields (e.g., error details in `waitForFirst`), update corresponding test assertions in the same batch. Check tests before running validate to avoid unnecessary iteration.
 - **Read fix targets before applying**: Some fixes that look straightforward on paper (like schema derivation) break due to subtle type system interactions. Always read the target file first and consider the full type context before applying.
+- **Agents must update tests for their changes**: When an agent changes a function's return type, error message, or behavior, it must also update the corresponding test assertions. Leaving test updates for later causes cascading failures at `npm run validate` time that are tedious to debug.
+- **Dependency-ordered implementation prevents type conflicts**: Parallel agents that change shared types (e.g. one agent changes a return type from Buffer to string, another agent imports that function) create conflicts neither agent can see. Running framework first, then independent modules, then downstream modules eliminates this.
+- **Write Won't items to REJECTED.md immediately**: Don't batch them. Context compaction can lose item descriptions if they're only in the conversation history. Writing to disk as items are confirmed preserves them.
