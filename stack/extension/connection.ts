@@ -1,3 +1,4 @@
+import type { ControlAction } from "./control-action.js";
 import { log } from "./logging.js";
 import { handleCommand, isIncomingCommand } from "./messages/index.js";
 import { isStepUpdateMessage, type StepState } from "./step-state.js";
@@ -23,7 +24,7 @@ function getWsPort(): Promise<number> {
         const response = await fetch(configUrl);
         const text = await response.text();
         const port = parseInt(text.trim(), 10);
-        if (Number.isFinite(port)) return port;
+        if (port > 0 && port < 65536) return port;
       } catch {
         // File absent in local dev — use default
       }
@@ -98,7 +99,7 @@ export async function connect(): Promise<void> {
       }
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
-      socket.send(JSON.stringify({ id: messageId, ...result }));
+      socket.send(JSON.stringify({ ...result, id: messageId }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log("Error handling message", { error: message });
@@ -126,7 +127,7 @@ async function forwardStepUpdateToContentScript(update: unknown): Promise<void> 
   }
 }
 
-export function sendControlToServer(action: string): void {
+export function sendControlToServer(action: ControlAction): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "stepControl", action }));
   }

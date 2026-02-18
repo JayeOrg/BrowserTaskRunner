@@ -119,7 +119,6 @@ async function run(
   return {
     step: FINAL_STEP,
     finalUrl,
-    context: { task: TASK.name },
   };
 }
 

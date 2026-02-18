@@ -48,6 +48,12 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **Async guard in `vault/db.ts` is runtime-only; could be compile-time**: TypeScript's `Exclude` on return types is fragile with confusing error messages. Runtime guard gives clear, actionable error (`"callback must be synchronous — got a Promise"`). Intentional defense-in-depth.
 - **`withVault`/`withVaultReadOnly` have duplicated structure in `vault/cli/env.ts`**: Two functions, 8 lines each, differ only in the opener call. A shared helper would save 4 lines but add indirection. Tolerable at this scale.
 
+- **Consolidating `pollUntil` across `browser/poll.ts` and `projects/utils/poll.ts`**: The two implementations are intentionally separate. They serve different modules with different needs: browser's version returns `{ ok: false }` on timeout (simpler, internal use), projects' version returns `{ ok: false, timeoutMs }` (task callers use `timeoutMs` in error messages) and validates `intervalMs > 0`. Different sleep imports (`node:timers/promises` vs `timing.ts`) reflect the module boundary. Consolidating would create a cross-module dependency for no benefit.
+- **Exporting `BrowserAPI` sub-interfaces (`BrowserNavigation`, `BrowserClicking`, etc.)**: Tasks receive `BrowserAPI` and pass the whole thing. No helper functions need a subset. Exporting would add 7 types to the public surface for a hypothetical use case.
+- **Unifying `waitForText` (accepts `string[]`) and `waitForUrl` (accepts `string`)**: Different use cases: text matching needs alternatives ("Order confirmed" vs "Thank you") because sites vary. URL matching is against a known path fragment. Adding array support to `waitForUrl` would be over-engineering.
+- **Adding error field to `CdpClickSelectorResult`**: CDP click recovers by coordinate — it doesn't need error details on failure. `SelectorResult` has `error` because DOM click callers use it for diagnostics. The types serve different callers with different needs.
+- **Extracting `xpathString` from `click-text.ts` injected function**: The function must run in the page context because it constructs XPath expressions that depend on the page's XPath engine. Pre-building XPath strings on the host side would mean building and passing complex strings — more brittle than the current approach. The function handles a well-known XPath quoting edge case (mixed apostrophes and quotes).
+
 ## Failed Approaches
 
 ### Cloudflare Bypass

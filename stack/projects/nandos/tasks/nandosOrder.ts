@@ -28,13 +28,18 @@ const TIMINGS = {
   afterFill: 500,
   afterModalAction: 2000,
   afterAddItem: 3000,
+  addToCartWait: 15_000,
   addressWait: 50_000,
+  cardSectionWait: 15_000,
+  checkoutWait: 60_000,
   confirmPoll: 3000,
   deliveryModalPoll: 10_000,
   mfaPoll: 5000,
   mfaTimeout: 300_000,
   menuLoad: 5000,
   modalWait: 5000,
+  placeOrderWait: 60_000,
+  saveAndContinueWait: 15_000,
   selectorWait: 10000,
   sessionCheck: 5000,
   sessionCheckPoll: 1000,
@@ -150,13 +155,15 @@ async function handleMfa(browser: BrowserAPI, log: StepLogger): Promise<void> {
   log.success("Login completed, left sign-in page", { url: result.value.url });
 }
 
-async function verifyLoginAndNavigateToMenu(browser: BrowserAPI, log: StepLogger): Promise<void> {
+async function verifyLogin(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const { url } = await browser.getUrl();
   if (url.includes("/sign-in")) {
     log.fatal("STILL_ON_SIGN_IN", { finalUrl: url });
   }
   log.success("Login confirmed, on homepage", { url });
+}
 
+async function navigateToMenu(browser: BrowserAPI, log: StepLogger): Promise<void> {
   await browser.navigate(URLS.menu);
   await sleep(TIMINGS.menuLoad);
 
@@ -167,19 +174,11 @@ async function verifyLoginAndNavigateToMenu(browser: BrowserAPI, log: StepLogger
   log.success("On menu page", { url: menuUrl });
 }
 
-async function recoverFromChangeAddress(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  log.warn("Accidentally hit change address — clicking Back to return");
-  const result = await browser.cdpClickSelector(['[data-testid="modal"] button[title="Back"]']);
-  if (result.found) {
-    await sleep(TIMINGS.modalWait);
-  }
-}
-
 async function clickSaveAndContinue(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const result = await browser.clickText(["Save and Continue"], {
     tag: "button",
     cdp: true,
-    timeout: 15_000,
+    timeout: TIMINGS.saveAndContinueWait,
   });
   if (!result.found)
     log.fatal(
@@ -191,32 +190,14 @@ async function clickSaveAndContinue(browser: BrowserAPI, log: StepLogger): Promi
   const closed = await pollUntil(
     () => browser.getText(),
     (body) => !body.includes("Order Details") && !body.includes("Delivery address"),
-    { timeoutMs: 15_000, intervalMs: TIMINGS.modalWait },
+    { timeoutMs: TIMINGS.saveAndContinueWait, intervalMs: TIMINGS.modalWait },
   );
-  if (closed.ok) {
-    log.success("Modal closed");
-    return;
-  }
-
-  // Modal still visible — check if we landed on the "Delivery address" sub-screen and recover once
-  const body = await browser.getText();
-  if (body.includes("Delivery address")) {
-    await recoverFromChangeAddress(browser, log);
-    const retryClose = await pollUntil(
-      () => browser.getText(),
-      (text) => !text.includes("Order Details") && !text.includes("Delivery address"),
-      { timeoutMs: 15_000, intervalMs: TIMINGS.modalWait },
+  if (!closed.ok)
+    log.fatal(
+      "MODAL_NOT_CLOSING",
+      "Order Details modal still visible after clicking Save and Continue",
     );
-    if (!retryClose.ok)
-      log.fatal("MODAL_NOT_CLOSING", "Order Details modal still visible after recovery");
-    log.success("Modal closed after recovery");
-    return;
-  }
-
-  log.fatal(
-    "MODAL_NOT_CLOSING",
-    "Order Details modal still visible after clicking Save and Continue",
-  );
+  log.success("Modal closed");
 }
 
 async function handleDeliveryModal(
@@ -279,7 +260,7 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
   const addResult = await browser.clickText([...ADD_BUTTON_TEXTS], {
     tag: "button",
     cdp: true,
-    timeout: 15_000,
+    timeout: TIMINGS.addToCartWait,
   });
   if (!addResult.found)
     log.fatal(
@@ -291,7 +272,7 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
   const closed = await pollUntil(
     () => browser.getText(),
     (body) => !body.toLowerCase().includes("choose your protein"),
-    { timeoutMs: 15_000, intervalMs: TIMINGS.afterAddItem },
+    { timeoutMs: TIMINGS.addToCartWait, intervalMs: TIMINGS.afterAddItem },
   );
   if (!closed.ok)
     log.fatal(
@@ -422,7 +403,7 @@ async function continueToCheckout(browser: BrowserAPI, log: StepLogger): Promise
   const checkoutResult = await browser.clickText(["Continue to checkout"], {
     tag: "button",
     cdp: true,
-    timeout: 60_000,
+    timeout: TIMINGS.checkoutWait,
   });
   if (!checkoutResult.found)
     log.fatal(
@@ -431,17 +412,13 @@ async function continueToCheckout(browser: BrowserAPI, log: StepLogger): Promise
     );
   log.success("Clicked Continue to checkout", { text: checkoutResult.text });
 
-  const navResult = await browser.waitForUrl("/checkout", 60_000);
+  const navResult = await browser.waitForUrl("/checkout", TIMINGS.checkoutWait);
   if (!navResult.found)
     log.fatal("CHECKOUT_NAV_TIMEOUT", "Did not navigate to /checkout within 60 seconds");
   log.success("Navigated to checkout", { url: navResult.url });
 }
 
-async function selectSavedCard(
-  browser: BrowserAPI,
-  log: StepLogger,
-  savedCardSuffix: string,
-): Promise<void> {
+async function expandCardSection(browser: BrowserAPI, log: StepLogger): Promise<void> {
   await sleep(TIMINGS.afterModalAction);
 
   // Target the <p> text — the card SVG is only 24x24, too small for reliable CDP clicks
@@ -455,15 +432,27 @@ async function selectSavedCard(
   log.success("Clicked Credit/Debit card", { text: cardClick.text });
   await sleep(TIMINGS.afterClick);
 
-  const expandPoll = await browser.waitForText(["SAVED PAYMENT METHODS", "ending in"], 15_000);
+  const expandPoll = await browser.waitForText(
+    ["SAVED PAYMENT METHODS", "ending in"],
+    TIMINGS.cardSectionWait,
+  );
   if (!expandPoll.found)
     log.fatal(
       "CARD_SECTION_NOT_EXPANDED",
       "Clicked Credit/Debit card but saved payment methods section did not appear",
     );
   log.success("Card section expanded — saved payment methods visible");
+}
 
-  const savedResult = await browser.waitForSelector('[data-testid="saved-card"]', 15_000);
+async function selectSavedCard(
+  browser: BrowserAPI,
+  log: StepLogger,
+  savedCardSuffix: string,
+): Promise<void> {
+  const savedResult = await browser.waitForSelector(
+    '[data-testid="saved-card"]',
+    TIMINGS.cardSectionWait,
+  );
   if (!savedResult.found)
     log.fatal(
       "SAVED_CARD_NOT_FOUND",
@@ -479,13 +468,7 @@ async function selectSavedCard(
   await sleep(TIMINGS.afterClick);
 }
 
-async function selectPaymentAndConfirm(
-  browser: BrowserAPI,
-  log: StepLogger,
-  savedCardSuffix: string,
-): Promise<string> {
-  await selectSavedCard(browser, log, savedCardSuffix);
-
+async function selectPaymentAndConfirm(browser: BrowserAPI, log: StepLogger): Promise<string> {
   if (DRY_RUN) {
     const { url } = await browser.getUrl();
     log.success("DRY RUN — skipping Place Order", { url });
@@ -495,7 +478,7 @@ async function selectPaymentAndConfirm(
   const placeResult = await browser.clickText(["Place Order"], {
     tag: "button",
     cdp: true,
-    timeout: 60_000,
+    timeout: TIMINGS.placeOrderWait,
   });
   if (!placeResult.found)
     return log.fatal("PLACE_ORDER_NOT_FOUND", "Place Order not found on page within 60 seconds");
@@ -514,7 +497,7 @@ async function selectPaymentAndConfirm(
       body.includes("thank you") ||
       body.includes("order number") ||
       body.includes("still processing your order"),
-    { timeoutMs: 60_000, intervalMs: TIMINGS.confirmPoll },
+    { timeoutMs: TIMINGS.placeOrderWait, intervalMs: TIMINGS.confirmPoll },
   );
 
   if (!confirmed.ok)
@@ -558,7 +541,10 @@ async function run(
     .step("handleMfa", (log) => handleMfa(browser, log), {
       skip: skipLogin,
     })
-    .step("verifyLoginAndNavigateToMenu", (log) => verifyLoginAndNavigateToMenu(browser, log), {
+    .step("verifyLogin", (log) => verifyLogin(browser, log), {
+      skip: skipLogin,
+    })
+    .step("navigateToMenu", (log) => navigateToMenu(browser, log), {
       skip: skipLogin,
     });
 
@@ -574,8 +560,10 @@ async function run(
     .step("verifyCartAndOpen", (log) => verifyCartAndOpen(browser, log))
     .step("dismissSuggestions", (log) => dismissSuggestions(browser, log))
     .step("continueToCheckout", (log) => continueToCheckout(browser, log))
+    .step("expandCardSection", (log) => expandCardSection(browser, log))
+    .step("selectSavedCard", (log) => selectSavedCard(browser, log, savedCardSuffix))
     .step(FINAL_STEP, async (log) => {
-      finalUrl = await selectPaymentAndConfirm(browser, log, savedCardSuffix);
+      finalUrl = await selectPaymentAndConfirm(browser, log);
     });
 
   await runner.execute();
@@ -583,7 +571,6 @@ async function run(
   return {
     step: FINAL_STEP,
     finalUrl,
-    context: { task: TASK.name },
   };
 }
 

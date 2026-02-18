@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createTaskLogger,
   createPrefixLogger,
-  ANSI_PATTERN,
   type LogOutput,
 } from "../../../stack/framework/logging.js";
 import { StepError } from "../../../stack/framework/errors.js";
+
+// eslint-disable-next-line no-control-regex, sonarjs/no-control-regex
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
 
 function stripAnsi(str: string): string {
   return str.replace(ANSI_PATTERN, "");

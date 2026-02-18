@@ -1,9 +1,10 @@
+import type { ControlAction } from "./control-action.js";
 import { connect, sendControlToServer, getCachedStepUpdate } from "./connection.js";
 
 chrome.runtime.onStartup.addListener(() => void connect());
 chrome.runtime.onInstalled.addListener(() => void connect());
 
-function isControlMessage(value: unknown): value is { type: "stepControl"; action: string } {
+function isControlMessage(value: unknown): value is { type: "stepControl"; action: ControlAction } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -24,6 +25,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   if (sender.id !== chrome.runtime.id) return;
   if (isControlMessage(message)) {
     sendControlToServer(message.action);
+    return;
   }
 
   if (isGetStepState(message)) {

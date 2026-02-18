@@ -141,7 +141,7 @@ async function handleProject(args: string[]): Promise<void> {
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const token = rotateProject(db, masterKey, name);
-        console.log(`Rotated key for project "${name}"`);
+        console.error(`Rotated key for project "${name}"`);
         if (writeEnv) writeTokenToEnv(name, token);
         else console.log(token);
       });

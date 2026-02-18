@@ -159,10 +159,6 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
   try {
     await browser.start();
 
-    logger.log("Testing connection...");
-    await browser.ping();
-    logger.success("Extension connected and ready");
-
     switch (task.mode) {
       case "once":
         await runSingleAttempt(task, browser, context);

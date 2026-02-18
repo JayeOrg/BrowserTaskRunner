@@ -466,9 +466,8 @@ describe("project rotate", () => {
     run(["detail", "set", "rotating", "secret"], { ...tokenOpts(), secretValue: "my-val" });
 
     const rotateResult = run(["project", "rotate", "rotating"], tokenOpts());
-    expect(rotateResult.stdout).toContain("Rotated key");
-    const outputLines = rotateResult.stdout.trim().split("\n");
-    const newToken = outputLines[outputLines.length - 1]?.trim();
+    expect(rotateResult.stderr).toContain("Rotated key");
+    const newToken = rotateResult.stdout.trim();
     expect(newToken).toBeTruthy();
     expect(newToken).not.toBe(oldToken);
   });

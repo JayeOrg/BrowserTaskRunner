@@ -3,7 +3,6 @@ import { pollUntil } from "./poll.js";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { getErrorMessage } from "../framework/errors.js";
-import { logConnectionInstructions } from "./instructions.js";
 import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
 
 export type IframeOption = { frameId?: number };
@@ -17,6 +16,10 @@ type CdpClickSelectorResult = { found: true; selector: string } | { found: false
 type WaitForTextResult = { found: true; text: string } | { found: false };
 
 type WaitForUrlResult = { found: true; url: string } | { found: false };
+
+export type FrameIdResult = { found: true; frameId: number } | { found: false };
+
+type CheckResult = ResponseFor<"check">;
 
 export interface BrowserOptions {
   commandTimeoutMs?: number;
@@ -54,8 +57,8 @@ interface BrowserFormInput {
     values: string[],
     options?: IframeOption,
   ): Promise<ResponseFor<"select">>;
-  check(selector: string, options?: IframeOption): Promise<ResponseFor<"check">>;
-  uncheck(selector: string, options?: IframeOption): Promise<ResponseFor<"check">>;
+  check(selector: string, options?: IframeOption): Promise<CheckResult>;
+  uncheck(selector: string, options?: IframeOption): Promise<CheckResult>;
 }
 
 interface BrowserKeyboard {
@@ -71,7 +74,7 @@ interface BrowserQueries {
   ): Promise<ResponseFor<"getContent">>;
   getText(selector?: string): Promise<string>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
-  getFrameId(selector: string): Promise<{ found: true; frameId: number } | { found: false }>;
+  getFrameId(selector: string): Promise<FrameIdResult>;
 }
 
 interface BrowserScrolling {
@@ -140,7 +143,7 @@ export class Browser implements BrowserAPI {
 
     this.server = new WebSocketServer({ port: this.port });
     this.server.on("listening", () => {
-      logConnectionInstructions(this.logger, this.port);
+      this.logger.log("WebSocket server listening", { port: this.port });
     });
 
     await this.waitForConnection();
@@ -300,7 +303,7 @@ export class Browser implements BrowserAPI {
   }
   async getText(selector?: string): Promise<string> {
     const result = await this.getContent(selector);
-    if (result.kind === "notFound") return "";
+    if (result.kind === "notFound" || result.kind === "error") return "";
     return result.content;
   }
   querySelectorRect(selectors: string[]) {
@@ -352,9 +355,6 @@ export class Browser implements BrowserAPI {
     );
     return result.ok ? { found: true, url: result.value } : { found: false };
   }
-  ping() {
-    return this.send({ type: "ping" });
-  }
   selectOption(selector: string, values: string[], options?: IframeOption) {
     return this.send({ type: "select", selector, values, ...options });
   }
@@ -395,7 +395,7 @@ export class Browser implements BrowserAPI {
   scrollBy(x: number, y: number) {
     return this.send({ type: "scroll", mode: "by" as const, x, y });
   }
-  async getFrameId(selector: string): Promise<{ found: true; frameId: number } | { found: false }> {
+  async getFrameId(selector: string): Promise<FrameIdResult> {
     const result = await this.send({ type: "getFrameId", selector });
     if (!result.found) {
       return { found: false };

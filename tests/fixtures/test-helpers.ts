@@ -64,8 +64,6 @@ export async function setupTaskTest(
   const startPromise = browser.start();
   await ext.connect();
   await startPromise;
-  await browser.ping();
-
   if (state) {
     state.siteUrl = site.url;
   }
@@ -108,8 +106,6 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
     }
 
     switch (cmd.type) {
-      case "ping":
-        return { type: "ping", pong: true };
       case "navigate":
         state.currentUrl = String(cmd.url);
         return { type: "navigate", url: state.currentUrl, title: "Test Page" };

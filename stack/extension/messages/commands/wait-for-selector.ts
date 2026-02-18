@@ -50,7 +50,7 @@ export async function handleWaitForSelector(
     return {
       type: "waitForSelector",
       found: false,
-      ...(result.timedOut ? { timedOut: true } : {}),
+      ...(result.timedOut && { timedOut: true }),
     };
   }
   return {

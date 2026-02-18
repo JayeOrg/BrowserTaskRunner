@@ -5,7 +5,6 @@ import type { StepRunnerDeps } from "./step-runner.js";
 export interface TaskResultSuccess {
   step: string;
   finalUrl?: string;
-  context?: Record<string, unknown>;
 }
 
 export type VaultSecrets = Record<string, string>;

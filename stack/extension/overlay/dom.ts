@@ -11,6 +11,7 @@ import {
   errorLabelStyle,
   hotkeyHintStyle,
 } from "./styles.js";
+import type { ControlAction } from "../control-action.js";
 
 const OVERLAY_ID = "sitecheck-overlay";
 
@@ -28,9 +29,9 @@ export interface OverlayElements {
 
 function createButton(
   label: string,
-  action: string,
+  action: ControlAction,
   titleText: string,
-  onControl: (action: string) => void,
+  onControl: (action: ControlAction) => void,
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.textContent = label;
@@ -48,7 +49,7 @@ function createButton(
   return btn;
 }
 
-export function createOverlay(onControl: (action: string) => void): OverlayElements {
+export function createOverlay(onControl: (action: ControlAction) => void): OverlayElements {
   const existing = document.getElementById(OVERLAY_ID);
   if (existing) {
     existing.remove();

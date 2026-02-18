@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       break;
     default:
       console.error(`Unknown command: ${command}`);
-      usage();
+      process.exit(1);
   }
 }
 

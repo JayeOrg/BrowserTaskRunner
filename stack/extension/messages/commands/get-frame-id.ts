@@ -58,7 +58,18 @@ export async function handleGetFrameId(
     return { type: "getFrameId", found: false, error: "Could not enumerate frames" };
   }
 
-  const match = frames.find((frame) => frame.url === iframeSrc && frame.frameId !== 0);
+  function normalizeUrl(url: string): string {
+    try {
+      return new URL(url).href;
+    } catch {
+      return url;
+    }
+  }
+
+  const normalizedSrc = normalizeUrl(iframeSrc);
+  const match = frames.find(
+    (frame) => normalizeUrl(frame.url) === normalizedSrc && frame.frameId !== 0,
+  );
   if (!match) {
     return {
       type: "getFrameId",

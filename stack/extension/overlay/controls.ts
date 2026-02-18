@@ -1,12 +1,13 @@
 import { stateStyles } from "./styles.js";
 import { createOverlay, type OverlayElements } from "./dom.js";
 import type { StepState } from "../step-state.js";
+import type { ControlAction } from "../control-action.js";
 
 let elements: OverlayElements | null = null;
 let interactive = false;
 let currentState: StepState["state"] = "idle";
 
-function sendControl(action: string): void {
+function sendControl(action: ControlAction): void {
   void chrome.runtime.sendMessage({ type: "stepControl", action });
 }
 

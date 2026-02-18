@@ -22,8 +22,6 @@ describe("e2e: click-task against local test site", () => {
   it("navigates, clicks button, and verifies /success", async () => {
     const { responder, state } = createDefaultResponder();
     setup = await setupTaskTest(responder, undefined, state);
-    state.commands.length = 0; // Clear setup ping
-
     const result = await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);
 
     expect(result.finalUrl).toContain("/success");

@@ -47,18 +47,6 @@ describe("Browser WebSocket protocol", () => {
     expect(result.title).toBe("Example");
   });
 
-  it("ping() round-trip", async () => {
-    setup = await setupBrowser();
-
-    const pingPromise = setup.browser.ping();
-    const cmd = await setup.ext.receiveCommand();
-    expect(cmd.type).toBe("ping");
-
-    setup.ext.sendResponse({ id: cmd.id, type: "ping", pong: true });
-    const result = await pingPromise;
-    expect(result.pong).toBe(true);
-  });
-
   it("click() resolves on success, rejects on error", async () => {
     setup = await setupBrowser();
 
@@ -89,19 +77,19 @@ describe("Browser WebSocket protocol", () => {
   it("concurrent commands resolve independently", async () => {
     setup = await setupBrowser();
 
-    const ping1 = setup.browser.ping();
-    const ping2 = setup.browser.ping();
+    const nav1 = setup.browser.navigate("https://a.com");
+    const nav2 = setup.browser.navigate("https://b.com");
 
     const cmd1 = await setup.ext.receiveCommand();
     const cmd2 = await setup.ext.receiveCommand();
 
     // Respond out of order
-    setup.ext.sendResponse({ id: cmd2.id, type: "ping", pong: true });
-    setup.ext.sendResponse({ id: cmd1.id, type: "ping", pong: true });
+    setup.ext.sendResponse({ id: cmd2.id, type: "navigate", url: "https://b.com", title: "B" });
+    setup.ext.sendResponse({ id: cmd1.id, type: "navigate", url: "https://a.com", title: "A" });
 
-    const [result1, result2] = await Promise.all([ping1, ping2]);
-    expect(result1.pong).toBe(true);
-    expect(result2.pong).toBe(true);
+    const [result1, result2] = await Promise.all([nav1, nav2]);
+    expect(result1.url).toBe("https://a.com");
+    expect(result2.url).toBe("https://b.com");
   });
 
   it("response with error field rejects the promise", async () => {
@@ -132,7 +120,9 @@ describe("Browser WebSocket protocol", () => {
 
       localBrowser.close();
 
-      await expect(localBrowser.ping()).rejects.toThrow("Extension not connected");
+      await expect(localBrowser.navigate("https://example.com")).rejects.toThrow(
+        "Extension not connected",
+      );
     } finally {
       ext.close();
       localBrowser.close();
@@ -146,11 +136,16 @@ describe("Browser WebSocket protocol", () => {
     setup.ext.sendResponse({ garbage: true });
 
     // Browser should still work after invalid message
-    const pingPromise = setup.browser.ping();
+    const navPromise = setup.browser.navigate("https://example.com");
     const cmd = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd.id, type: "ping", pong: true });
-    const result = await pingPromise;
-    expect(result.pong).toBe(true);
+    setup.ext.sendResponse({
+      id: cmd.id,
+      type: "navigate",
+      url: "https://example.com",
+      title: "Example",
+    });
+    const result = await navPromise;
+    expect(result.url).toBe("https://example.com");
   });
 });
 
@@ -261,19 +256,19 @@ describe("Browser close behavior", () => {
   it("close() rejects in-flight commands with 'Browser closed'", async () => {
     setup = await setupBrowser();
 
-    const pingPromise = setup.browser.ping();
+    const navPromise = setup.browser.navigate("https://example.com");
     await setup.ext.receiveCommand();
 
     setup.browser.close();
 
-    await expect(pingPromise).rejects.toThrow("Browser closed");
+    await expect(navPromise).rejects.toThrow("Browser closed");
   });
 
   it("close() rejects multiple in-flight commands", async () => {
     setup = await setupBrowser();
 
-    const p1 = setup.browser.ping();
-    const p2 = setup.browser.navigate("https://example.com");
+    const p1 = setup.browser.navigate("https://a.com");
+    const p2 = setup.browser.navigate("https://b.com");
     await setup.ext.receiveCommand();
     await setup.ext.receiveCommand();
 
@@ -294,7 +289,9 @@ describe("Browser timeout and disconnect", () => {
     await ext.connect();
     await startPromise;
 
-    await expect(localBrowser.ping()).rejects.toThrow("Command timeout: ping");
+    await expect(localBrowser.navigate("https://example.com")).rejects.toThrow(
+      "Command timeout: navigate",
+    );
 
     ext.close();
     localBrowser.close();
@@ -309,10 +306,10 @@ describe("Browser timeout and disconnect", () => {
     await ext.connect();
     await startPromise;
 
-    const pingPromise = localBrowser.ping();
+    const navPromise = localBrowser.navigate("https://example.com");
     ext.close();
 
-    await expect(pingPromise).rejects.toThrow("Extension disconnected");
+    await expect(navPromise).rejects.toThrow("Extension disconnected");
     localBrowser.close();
   });
 });
@@ -340,11 +337,16 @@ describe("Browser error handling", () => {
     setup.ext.sendRaw("not valid json {{{");
 
     // Browser should still work after malformed data
-    const pingPromise = setup.browser.ping();
+    const navPromise = setup.browser.navigate("https://example.com");
     const cmd = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd.id, type: "ping", pong: true });
-    const result = await pingPromise;
-    expect(result.pong).toBe(true);
+    setup.ext.sendResponse({
+      id: cmd.id,
+      type: "navigate",
+      url: "https://example.com",
+      title: "Example",
+    });
+    const result = await navPromise;
+    expect(result.url).toBe("https://example.com");
   });
 
   it("start() rejects when extension does not connect within timeout", async () => {

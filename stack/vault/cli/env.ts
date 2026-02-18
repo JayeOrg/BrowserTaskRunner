@@ -36,7 +36,8 @@ function removeEnvVar(key: string): void {
   }
   const prefix = `${key}=`;
   const lines = content.split("\n").filter((line) => !line.startsWith(prefix));
-  writeFileSync(ENV_PATH, lines.join("\n"), "utf8");
+  const remaining = lines.join("\n").trimEnd();
+  writeFileSync(ENV_PATH, remaining.length > 0 ? `${remaining}\n` : "", "utf8");
 }
 
 async function withVault<T>(fn: (db: DatabaseSync) => T | Promise<T>): Promise<T> {

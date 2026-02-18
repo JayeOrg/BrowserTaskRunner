@@ -39,7 +39,7 @@ function getTermWidth(): number {
 }
 
 // eslint-disable-next-line no-control-regex, sonarjs/no-control-regex
-export const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
 
 function rightJustify(content: string, suffix: string): string {
   const visibleLength = content.replace(ANSI_PATTERN, "").length;
@@ -91,14 +91,14 @@ function formatLogLine(
   data: Record<string, unknown> | undefined,
   level: LogLevel,
   output: LogOutput,
-): void {
+): StepState {
   const next = recordStepTransition(state, step);
-  Object.assign(state, next);
   const { stepNum, duration } = next;
   const { icon, color } = levelStyles[level];
   const prefix = `[${stepNum.toString()} ${step}]`;
   const content = `${color}${icon}${colors.reset}    ${prefix} ${msg}${formatData(data)}`;
   output(rightJustify(content, duration));
+  return next;
 }
 
 // Step-scoped logger — step name is pre-filled by StepRunner
@@ -121,17 +121,17 @@ export interface TaskLogger {
 }
 
 export function createTaskLogger(task: string, output: LogOutput = defaultOutput): TaskLogger {
-  const state = createStepState();
+  let state = createStepState();
 
   const logAt =
     (level: LogLevel) =>
     (step: string, msg: string, data?: Record<string, unknown>): void => {
-      formatLogLine(state, step, msg, data, level, output);
+      state = formatLogLine(state, step, msg, data, level, output);
     };
 
   const fatal = (step: string, reason: string, meta: string | StepErrorMeta = {}): never => {
     const resolved = typeof meta === "string" ? { summary: meta } : meta;
-    formatLogLine(state, step, reason, resolved, "error", output);
+    state = formatLogLine(state, step, reason, resolved, "error", output);
     throw new StepError(task, step, reason, resolved);
   };
 

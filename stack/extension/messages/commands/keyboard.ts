@@ -67,29 +67,36 @@ export async function handleKeyboard(
       await chrome.debugger.sendCommand(debuggee, "Input.insertText", {
         text: input.text,
       });
-    } else if (input.action === "press") {
-      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-        type: "rawKeyDown",
-        key,
-        windowsVirtualKeyCode: charToKeyCode(key),
-      });
-      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-        type: "keyUp",
-        key,
-        windowsVirtualKeyCode: charToKeyCode(key),
-      });
-    } else if (input.action === "down") {
-      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-        type: "rawKeyDown",
-        key,
-        windowsVirtualKeyCode: charToKeyCode(key),
-      });
     } else {
-      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-        type: "keyUp",
-        key,
-        windowsVirtualKeyCode: charToKeyCode(key),
-      });
+      const keyCode = charToKeyCode(key);
+      if (keyCode === null) {
+        return { type: "keyboard", error: `Unsupported key: ${key}` };
+      }
+
+      if (input.action === "press") {
+        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "rawKeyDown",
+          key,
+          windowsVirtualKeyCode: keyCode,
+        });
+        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key,
+          windowsVirtualKeyCode: keyCode,
+        });
+      } else if (input.action === "down") {
+        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "rawKeyDown",
+          key,
+          windowsVirtualKeyCode: keyCode,
+        });
+      } else {
+        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key,
+          windowsVirtualKeyCode: keyCode,
+        });
+      }
     }
   } catch {
     return { type: "keyboard", error: `Failed to dispatch keyboard event: ${input.action}` };
@@ -118,8 +125,8 @@ const KEY_CODES: Record<string, number> = {
   " ": 32,
 };
 
-function charToKeyCode(key: string): number {
+function charToKeyCode(key: string): number | null {
   if (KEY_CODES[key] !== undefined) return KEY_CODES[key];
   if (key.length === 1) return key.toUpperCase().charCodeAt(0);
-  return 0;
+  return null;
 }

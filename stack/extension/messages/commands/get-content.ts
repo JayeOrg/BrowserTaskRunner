@@ -15,6 +15,7 @@ export type GetContentResponse = BaseResponse & { type: "getContent" } & (
     | { kind: "page"; content: string }
     | { kind: "found"; content: string }
     | { kind: "notFound" }
+    | { kind: "error"; error: string }
   );
 
 export async function handleGetContent(
@@ -46,7 +47,7 @@ export async function handleGetContent(
   const selectorLabel = input.selector ?? "body";
   return {
     type: "getContent",
-    kind: "notFound",
+    kind: "error",
     error: `Script execution failed for selector: ${selectorLabel}`,
   };
 }

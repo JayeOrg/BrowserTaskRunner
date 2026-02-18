@@ -52,7 +52,7 @@ After all agents complete, read each output and classify every finding as:
 - **Won't** — There's a good reason to keep the current code. You're recommending this be skipped and documented.
 - **Needs Clarification** — Genuinely ambiguous, depends on user preference, or has significant tradeoffs that could go either way.
 
-**When presenting tradeoffs with multiple options**, list every viable option ranked from best to worst. Each option must include a concrete description of what it involves and its specific gains and losses. Don't just say "could refactor" — describe the refactored shape and what changes. The user should be able to pick an option without reading the source.
+**When presenting tradeoffs with multiple options**, list every viable option ranked from best to worst. Each option must include: (a) a concrete description of what it involves, (b) its specific gains and losses, and (c) **why a user would choose this option over the others** — what situation or priority makes it the right call. Don't just say "could refactor" — describe the refactored shape, what changes, and under what circumstances this approach wins. The user should be able to pick an option without reading the source.
 
 **Important rules:**
 - List **every individual finding** — do not group findings. If two files have the same issue, list them separately with their own line numbers.
@@ -61,9 +61,9 @@ After all agents complete, read each output and classify every finding as:
 
 ### 4. Present compiled list for user review
 
-**Do NOT make any code changes yet.** Write the full triage to a file at `.claude/dx-review-plan.md` and also output it to the user. This file persists across sessions so progress is never lost to context compaction.
+**Do NOT make any code changes yet.** Write the full triage to a file at `.claude/dx-review-plan.md` **and output the identical content to the user in chat**. Do not abbreviate, summarize, or reformat the tables — the chat output must be the same four-column tables as the file. This file persists across sessions so progress is never lost to context compaction.
 
-All three sections use the same four-column format:
+All three sections use the same four-column format (`#`, `File`, `Description`, `Tradeoffs`):
 
 ```
 # DX Review — <date>

@@ -27,3 +27,10 @@ If the task seems hard, use more sub agents to research.
 Claude.md is just for stuff you repeatedly say
 
 Start in plan mode
+
+Research:
+
+- Claude code essentials from Anthropic
+- Using swarms
+- Using specs
+- Github has its own PR AI
