@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getScriptTarget } from "../../script-target.js";
-import { isScriptFound, type Rect } from "../../script-results.js";
+import { isScriptLocate, type Rect } from "../../script-results.js";
 
 export const querySelectorRectSchema = z.object({
   selectors: z.array(z.string()),
@@ -50,7 +50,7 @@ export async function handleQuerySelectorRect(
     args: [input.selectors],
   });
   const result = results[0]?.result;
-  if (isScriptFound(result) && result.found && result.selector) {
+  if (isScriptLocate(result) && result.found && result.selector) {
     return {
       type: "querySelectorRect",
       found: true,
@@ -59,7 +59,7 @@ export async function handleQuerySelectorRect(
     };
   }
   const response: QuerySelectorRectResponse = { type: "querySelectorRect", found: false };
-  if (!isScriptFound(result)) {
+  if (!isScriptLocate(result)) {
     response.error = `Script execution failed for selectors: ${input.selectors.join(", ")}`;
   }
   return response;

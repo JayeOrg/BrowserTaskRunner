@@ -37,7 +37,7 @@ export async function assertUrlChanged(
    ```typescript
    export type SelectorResult =
      | { found: true; selector: string }
-     | { found: false; error?: string };
+     | { found: false; error: Array<{ selector: string; error: string }> };
    ```
 
 4. **Don't log** — utilities shouldn't create loggers. The calling task owns logging and decides what's worth reporting.

@@ -1,29 +1,13 @@
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { normalizeNeeds, type TaskConfig } from "./tasks.js";
+import { normalizeNeeds, taskConfigSchema, type TaskConfig } from "./tasks.js";
 
 function projectsDir(): string {
   return resolve(import.meta.dirname, "../projects");
 }
 
 function isTaskConfig(value: unknown): value is TaskConfig {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "mode" in value &&
-    typeof value.mode === "string" &&
-    (value.mode === "once" || value.mode === "retry") &&
-    (value.mode !== "retry" || ("intervalMs" in value && typeof value.intervalMs === "number")) &&
-    "run" in value &&
-    typeof value.run === "function" &&
-    "displayUrl" in value &&
-    typeof value.displayUrl === "string" &&
-    "project" in value &&
-    typeof value.project === "string" &&
-    "needs" in value
-  );
+  return taskConfigSchema.safeParse(value).success;
 }
 
 function readTaskDir(base: string, projectName: string): string[] {

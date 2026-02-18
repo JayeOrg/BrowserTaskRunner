@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getActiveTabId } from "../../tabs.js";
 import { getScriptTarget } from "../../script-target.js";
-import { isScriptError } from "../../script-results.js";
+import { extractResult } from "../../script-results.js";
 
 export const keyboardSchema = z
   .object({
@@ -49,9 +49,18 @@ export async function handleKeyboard(
       },
       args: [input.selector],
     });
-    const result = results[0]?.result;
-    if (isScriptError(result)) {
-      return { type: "keyboard", error: result.error };
+    const extracted = extractResult(results);
+    if (!extracted.ok) {
+      return { type: "keyboard", error: extracted.error };
+    }
+  }
+
+  // Validate key before attaching debugger
+  let keyCode: number | null = null;
+  if (input.action !== "type") {
+    keyCode = charToKeyCode(key);
+    if (keyCode === null) {
+      return { type: "keyboard", error: `Unsupported key: ${key}` };
     }
   }
 
@@ -67,36 +76,29 @@ export async function handleKeyboard(
       await chrome.debugger.sendCommand(debuggee, "Input.insertText", {
         text: input.text,
       });
+    } else if (input.action === "press") {
+      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "rawKeyDown",
+        key,
+        windowsVirtualKeyCode: keyCode,
+      });
+      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key,
+        windowsVirtualKeyCode: keyCode,
+      });
+    } else if (input.action === "down") {
+      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "rawKeyDown",
+        key,
+        windowsVirtualKeyCode: keyCode,
+      });
     } else {
-      const keyCode = charToKeyCode(key);
-      if (keyCode === null) {
-        return { type: "keyboard", error: `Unsupported key: ${key}` };
-      }
-
-      if (input.action === "press") {
-        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-          type: "rawKeyDown",
-          key,
-          windowsVirtualKeyCode: keyCode,
-        });
-        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-          type: "keyUp",
-          key,
-          windowsVirtualKeyCode: keyCode,
-        });
-      } else if (input.action === "down") {
-        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-          type: "rawKeyDown",
-          key,
-          windowsVirtualKeyCode: keyCode,
-        });
-      } else {
-        await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
-          type: "keyUp",
-          key,
-          windowsVirtualKeyCode: keyCode,
-        });
-      }
+      await chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key,
+        windowsVirtualKeyCode: keyCode,
+      });
     }
   } catch {
     return { type: "keyboard", error: `Failed to dispatch keyboard event: ${input.action}` };

@@ -13,9 +13,13 @@ export const RectSchema = z.object({
 
 export type Rect = z.infer<typeof RectSchema>;
 
-const ScriptFoundSchema = z.object({
+const ScriptWaitSchema = z.object({
   found: z.boolean(),
   timedOut: z.boolean().optional(),
+});
+
+const ScriptLocateSchema = z.object({
+  found: z.boolean(),
   selector: z.string().optional(),
   matchedText: z.string().optional(),
   rect: RectSchema.optional(),
@@ -27,7 +31,8 @@ const ScriptContentSchema = z.object({
 });
 
 export type ScriptErrorResult = z.infer<typeof ScriptErrorSchema>;
-export type ScriptFoundResult = z.infer<typeof ScriptFoundSchema>;
+export type ScriptWaitResult = z.infer<typeof ScriptWaitSchema>;
+export type ScriptLocateResult = z.infer<typeof ScriptLocateSchema>;
 export type ScriptContentResult = z.infer<typeof ScriptContentSchema>;
 
 export function isScriptError(value: unknown): value is ScriptErrorResult {
@@ -47,15 +52,19 @@ export function extractResult(
   return { ok: true, value: result };
 }
 
-export function isScriptFound(value: unknown): value is ScriptFoundResult {
-  return ScriptFoundSchema.safeParse(value).success;
+export function isScriptWait(value: unknown): value is ScriptWaitResult {
+  return ScriptWaitSchema.safeParse(value).success;
+}
+
+export function isScriptLocate(value: unknown): value is ScriptLocateResult {
+  return ScriptLocateSchema.safeParse(value).success;
 }
 
 /** Stricter guard that also verifies `matchedText` is present (used by clickText). */
-export function isScriptFoundWithText(
+export function isScriptLocateWithText(
   value: unknown,
-): value is ScriptFoundResult & { found: true; matchedText: string } {
-  const parsed = ScriptFoundSchema.safeParse(value);
+): value is ScriptLocateResult & { found: true; matchedText: string } {
+  const parsed = ScriptLocateSchema.safeParse(value);
   return parsed.success && parsed.data.found && typeof parsed.data.matchedText === "string";
 }
 

@@ -9,6 +9,7 @@ export interface StepUpdate {
   error?: string;
 }
 
+// Keep in sync with stack/extension/control-action.ts
 type ControlAction = "pause" | "play" | "skipBack" | "skipForward";
 
 interface StepDefinition {

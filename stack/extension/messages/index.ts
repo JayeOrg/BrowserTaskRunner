@@ -51,7 +51,6 @@ import {
   type ClickTextCommand,
   type ClickTextResponse,
 } from "./commands/click-text.js";
-import { pingSchema, handlePing, type PingCommand, type PingResponse } from "./commands/ping.js";
 import {
   selectSchema,
   handleSelect,
@@ -96,7 +95,6 @@ export type CommandMessage =
   | GetContentCommand
   | QuerySelectorRectCommand
   | ClickTextCommand
-  | PingCommand
   | SelectCommand
   | KeyboardCommand
   | CheckCommand
@@ -115,7 +113,6 @@ type ResponseMessage =
   | GetContentResponse
   | QuerySelectorRectResponse
   | ClickTextResponse
-  | PingResponse
   | SelectResponse
   | KeyboardResponse
   | CheckResponse
@@ -174,7 +171,6 @@ const commandHandlers = {
   getContent: createHandler(getContentSchema, handleGetContent),
   querySelectorRect: createHandler(querySelectorRectSchema, handleQuerySelectorRect),
   clickText: createHandler(clickTextSchema, handleClickText),
-  ping: createHandler(pingSchema, handlePing),
   select: createHandler(selectSchema, handleSelect),
   keyboard: createHandler(keyboardSchema, handleKeyboard),
   check: createHandler(checkSchema, handleCheck),

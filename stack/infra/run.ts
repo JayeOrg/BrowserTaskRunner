@@ -162,7 +162,7 @@ function tailFile(path: string, lines: number): string {
   }
 }
 
-function onExit(exitStatus: number): void {
+function handleExit(exitStatus: number): void {
   if (exitStatus !== 0) {
     logError(`Exit with status ${String(exitStatus)}`);
     captureScreenshot();
@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   // Start VNC if enabled
   if (process.env["ENABLE_VNC"] === "true") {
     spawnWithLog("x11vnc", ["-display", `:${DISPLAY_NUM}`, "-forever", "-nopw", "-quiet"], VNC_LOG);
-    logSuccess("VNC server started on port 5900");
+    log("VNC server spawned on port 5900");
   }
 
   // Set Chrome preferences (disable password save prompt, etc.)
@@ -284,13 +284,13 @@ async function main(): Promise<void> {
     });
   });
 
-  onExit(exitCode);
+  handleExit(exitCode);
   process.exit(exitCode);
 }
 
 main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   logError(`Fatal error: ${message}`);
-  onExit(1);
+  handleExit(1);
   process.exit(1);
 });

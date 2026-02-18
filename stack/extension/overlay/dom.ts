@@ -21,10 +21,10 @@ export interface OverlayElements {
   errorLabel: HTMLDivElement;
   hotkeyHint: HTMLDivElement;
   stateBadge: HTMLSpanElement;
-  rewindBtn: HTMLButtonElement;
+  skipBackBtn: HTMLButtonElement;
   pauseBtn: HTMLButtonElement;
   playBtn: HTMLButtonElement;
-  stepBtn: HTMLButtonElement;
+  skipForwardBtn: HTMLButtonElement;
 }
 
 function createButton(
@@ -82,15 +82,15 @@ export function createOverlay(onControl: (action: ControlAction) => void): Overl
   const controls = document.createElement("div");
   Object.assign(controls.style, controlsContainerStyle);
 
-  const rewindBtn = createButton("⏮", "skipBack", "Skip back", onControl);
+  const skipBackBtn = createButton("⏮", "skipBack", "Skip back", onControl);
   const pauseBtn = createButton("⏸", "pause", "Pause", onControl);
   const playBtn = createButton("▶", "play", "Play", onControl);
-  const stepBtn = createButton("⏭", "skipForward", "Skip forward", onControl);
+  const skipForwardBtn = createButton("⏭", "skipForward", "Skip forward", onControl);
 
-  controls.appendChild(rewindBtn);
+  controls.appendChild(skipBackBtn);
   controls.appendChild(pauseBtn);
   controls.appendChild(playBtn);
-  controls.appendChild(stepBtn);
+  controls.appendChild(skipForwardBtn);
 
   // Error message (hidden by default)
   const errorLabel = document.createElement("div");
@@ -114,9 +114,9 @@ export function createOverlay(onControl: (action: ControlAction) => void): Overl
     errorLabel,
     hotkeyHint,
     stateBadge,
-    rewindBtn,
+    skipBackBtn,
     pauseBtn,
     playBtn,
-    stepBtn,
+    skipForwardBtn,
   };
 }

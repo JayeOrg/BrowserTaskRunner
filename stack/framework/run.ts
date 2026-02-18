@@ -156,6 +156,13 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
   const browser = new Browser(WS_PORT);
   const keepOpen = shouldKeepOpen(task);
 
+  const shutdown = (): void => {
+    browser.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
   try {
     await browser.start();
 
@@ -184,6 +191,8 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
     }
     throw error;
   } finally {
+    process.off("SIGINT", shutdown);
+    process.off("SIGTERM", shutdown);
     if (!keepOpen) {
       browser.close();
     }

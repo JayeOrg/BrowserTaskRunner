@@ -1,7 +1,9 @@
 import type { BrowserAPI } from "../../browser/browser.js";
 import { getErrorMessage } from "../../framework/errors.js";
 
-export type SelectorResult = { found: true; selector: string } | { found: false; error: string };
+export type SelectorResult =
+  | { found: true; selector: string }
+  | { found: false; error: Array<{ selector: string; error: string }> };
 
 /**
  * Race all selectors concurrently within a single timeout window.
@@ -27,12 +29,16 @@ export async function waitForFirst(
     );
   } catch (error) {
     if (error instanceof AggregateError) {
-      const detail = error.errors
-        .map((inner: unknown) => (inner instanceof Error ? inner.message : String(inner)))
-        .join("; ");
+      const detail = error.errors.map((inner: unknown, idx: number) => ({
+        selector: selectors[idx] ?? "unknown",
+        error: inner instanceof Error ? inner.message : String(inner),
+      }));
       return { found: false, error: detail };
     }
-    return { found: false, error: getErrorMessage(error) };
+    return {
+      found: false,
+      error: selectors.map((sel) => ({ selector: sel, error: getErrorMessage(error) })),
+    };
   }
 }
 
@@ -46,16 +52,16 @@ export async function clickFirst(
   browser: BrowserAPI,
   selectors: readonly string[],
 ): Promise<SelectorResult> {
-  const errors: string[] = [];
+  const errors: Array<{ selector: string; error: string }> = [];
   for (const selector of selectors) {
     try {
       await browser.click(selector);
       return { found: true, selector };
     } catch (error) {
-      errors.push(`${selector}: ${getErrorMessage(error)}`);
+      errors.push({ selector, error: getErrorMessage(error) });
     }
   }
-  return { found: false, error: errors.join("; ") };
+  return { found: false, error: errors };
 }
 
 /**
@@ -76,6 +82,9 @@ export async function fillFirst(
     await browser.fill(result.selector, value);
     return result;
   } catch (error) {
-    return { found: false, error: `fill failed for ${result.selector}: ${getErrorMessage(error)}` };
+    return {
+      found: false,
+      error: [{ selector: result.selector, error: `fill failed: ${getErrorMessage(error)}` }],
+    };
   }
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getScriptTarget } from "../../script-target.js";
-import { isScriptFound } from "../../script-results.js";
+import { isScriptWait } from "../../script-results.js";
 
 export const waitForSelectorSchema = z.object({
   selector: z.string(),
@@ -43,7 +43,7 @@ export async function handleWaitForSelector(
     args: [input.selector, timeout],
   });
   const result = results[0]?.result;
-  if (isScriptFound(result)) {
+  if (isScriptWait(result)) {
     if (result.found) {
       return { type: "waitForSelector", found: true, selector: input.selector };
     }

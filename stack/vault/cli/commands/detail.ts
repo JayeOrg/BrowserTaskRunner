@@ -11,9 +11,13 @@ async function handleDetailSet(subArgs: string[]): Promise<void> {
   requireArg(key, "detail set <project> <key>");
   await withVault(async (db) => {
     const masterKey = await resolveAdminAuth(db);
+    const existing = db
+      .prepare("SELECT 1 FROM details WHERE project = ? AND key = ?")
+      .get(project, key);
     const value = await getSecretValue();
     setDetail(db, masterKey, project, key, value);
-    console.log(`Set detail "${key}" in project "${project}"`);
+    const verb = existing ? "Updated" : "Created";
+    console.error(`${verb} detail "${key}" in project "${project}"`);
   });
 }
 

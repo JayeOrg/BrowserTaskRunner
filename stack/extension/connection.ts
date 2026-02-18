@@ -86,17 +86,10 @@ export async function connect(): Promise<void> {
         return;
       }
 
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        "id" in parsed &&
-        typeof parsed.id === "number"
-      ) {
-        messageId = parsed.id;
-      }
       if (!isIncomingCommand(parsed)) {
         throw new Error("Invalid command format");
       }
+      messageId = parsed.id;
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
       socket.send(JSON.stringify({ ...result, id: messageId }));
@@ -113,8 +106,9 @@ export async function connect(): Promise<void> {
     scheduleReconnect();
   };
 
-  socket.onerror = () => {
-    log("WebSocket error");
+  socket.onerror = (ev) => {
+    const detail = ev instanceof ErrorEvent ? ev.message : "unknown";
+    log("WebSocket error", { detail });
   };
 }
 

@@ -73,22 +73,25 @@ function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
   }
 }
 
-function deriveMasterKey(db: DatabaseSync, password: string): Buffer {
+function deriveMasterKeyWithSalt(
+  db: DatabaseSync,
+  password: string,
+): { masterKey: Buffer; salt: Buffer } {
   const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
   if (!saltRow) throw new Error("Vault not initialized. Run 'npm run vault -- init' first.");
   const salt = requireBlob(saltRow, "value");
 
   const masterKey = deriveKey(password, salt);
   verifyPassword(db, masterKey);
-  return masterKey;
+  return { masterKey, salt };
+}
+
+function deriveMasterKey(db: DatabaseSync, password: string): Buffer {
+  return deriveMasterKeyWithSalt(db, password).masterKey;
 }
 
 function changePassword(db: DatabaseSync, oldPassword: string, newPassword: string): void {
-  const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
-  if (!saltRow) throw new Error("Vault not initialized. Run 'npm run vault -- init' first.");
-  const oldSalt = requireBlob(saltRow, "value");
-  const oldMasterKey = deriveKey(oldPassword, oldSalt);
-  verifyPassword(db, oldMasterKey);
+  const { masterKey: oldMasterKey } = deriveMasterKeyWithSalt(db, oldPassword);
 
   const newSalt = randomBytes(SALT_LENGTH);
   const newMasterKey = deriveKey(newPassword, newSalt);

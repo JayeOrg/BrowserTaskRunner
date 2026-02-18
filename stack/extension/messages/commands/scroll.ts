@@ -60,30 +60,17 @@ export async function handleScroll(input: z.infer<typeof scrollSchema>): Promise
   }
 
   const { x: scrollX, y: scrollY } = input;
-  if (input.mode === "to") {
-    const results = await chrome.scripting.executeScript({
-      target,
-      func: (px: number, py: number) => {
-        window.scrollTo(px, py);
-        return {};
-      },
-      args: [scrollX, scrollY],
-    });
-    const extracted = extractResult(results);
-    if (!extracted.ok) {
-      return { type: "scroll", error: extracted.error };
-    }
-    return { type: "scroll" };
-  }
-
-  // Mode === "by"
   const results = await chrome.scripting.executeScript({
     target,
-    func: (px: number, py: number) => {
-      window.scrollBy(px, py);
+    func: (px: number, py: number, useScrollTo: boolean) => {
+      if (useScrollTo) {
+        window.scrollTo(px, py);
+      } else {
+        window.scrollBy(px, py);
+      }
       return {};
     },
-    args: [scrollX, scrollY],
+    args: [scrollX, scrollY, input.mode === "to"],
   });
   const extracted = extractResult(results);
   if (!extracted.ok) {

@@ -45,28 +45,37 @@ export function needsFromSchema(schema: ZodType): Record<string, string> {
   return {};
 }
 
-interface BaseTask {
-  name: string;
-  /** Starting URL — informational metadata logged on task start, not used by the runner. */
-  displayUrl: string;
-  project: string;
-  needs: TaskNeeds;
-  contextSchema?: ZodType;
-  run: TaskRun;
-}
+const taskNeedsSchema = z.union([z.array(z.string()), z.record(z.string(), z.string())]);
 
-export interface SingleAttemptTask extends BaseTask {
-  mode: "once";
-  keepBrowserOpen?: boolean;
-}
+const baseTaskFields = {
+  name: z.string(),
+  displayUrl: z.string(),
+  project: z.string(),
+  needs: taskNeedsSchema,
+  contextSchema: z.custom<ZodType>(() => true).optional(),
+  run: z.custom<TaskRun>((val) => typeof val === "function"),
+};
 
-export interface RetryingTask extends BaseTask {
-  mode: "retry";
-  /** Retry interval in milliseconds. */
-  intervalMs: number;
-}
+const singleAttemptTaskSchema = z.object({
+  ...baseTaskFields,
+  mode: z.literal("once"),
+  keepBrowserOpen: z.boolean().optional(),
+});
 
-export type TaskConfig = SingleAttemptTask | RetryingTask;
+const retryingTaskSchema = z.object({
+  ...baseTaskFields,
+  mode: z.literal("retry"),
+  intervalMs: z.number(),
+});
+
+export const taskConfigSchema = z.discriminatedUnion("mode", [
+  singleAttemptTaskSchema,
+  retryingTaskSchema,
+]);
+
+export type SingleAttemptTask = z.infer<typeof singleAttemptTaskSchema>;
+export type RetryingTask = z.infer<typeof retryingTaskSchema>;
+export type TaskConfig = z.infer<typeof taskConfigSchema>;
 
 export function validateContext(task: TaskConfig, context: VaultSecrets): void {
   if (!task.contextSchema) return;

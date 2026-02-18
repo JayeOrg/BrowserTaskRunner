@@ -22,14 +22,7 @@ Launch **one parallel Explore agent per module** (all `run_in_background: true`)
 
 Agent prompt template: "Read all files in [module]. For each file note naming, flow, comments, error handling, API surface, consistency, and gotchas. Give specific line references and concrete suggestions."
 
-| Agent | Module         | Files                                                                   |
-| ----- | -------------- | ----------------------------------------------------------------------- |
-| 1     | Framework      | `stack/framework/*.ts`                                                  |
-| 2     | Browser        | `stack/browser/*.ts`                                                    |
-| 3     | Extension      | `stack/extension/**/*.ts`, `manifest.json`                              |
-| 4     | Projects       | `stack/projects/**/*.ts`                                                |
-| 5     | Vault          | `stack/vault/**/*.ts`, `stack/vault/README.md`                          |
-| 6     | Tests & Config | `tests/**/*.ts`, `vitest.config.ts`, `eslint.config.ts`, `package.json` |
+**Module discovery:** Run `ls -d stack/*/` to discover all immediate children of `stack/`. Launch one Explore agent per discovered directory, plus one additional agent for Tests & Config (`tests/**/*.ts`, `vitest.config.ts`, `eslint.config.ts`, `package.json`). Do not hardcode module names — the list of modules may change over time.
 
 **Note:** These agents are explore-only — they read and report findings but do not make changes.
 
@@ -38,9 +31,9 @@ Agent prompt template: "Read all files in [module]. For each file note naming, f
 After launching all agents, poll their output files in a loop until every agent has finished:
 
 1. Wait ~30 seconds, then use `Bash` with `tail -1` on each agent's output file to check for completion signals.
-2. Report progress to the user after each poll cycle: "3/6 agents complete (Framework, Browser, Vault). Waiting on Extension, Projects, Tests."
+2. Report progress to the user after each poll cycle: "3/N agents complete (Framework, Browser, Vault). Waiting on Extension, Projects, Tests."
 3. Once an agent completes, immediately read its full output (via `Read`) so you can begin triaging its findings while other agents finish.
-4. Repeat until all 6 agents are done.
+4. Repeat until all agents are done.
 
 This keeps the user informed and lets you pipeline triage work with still-running agents.
 
@@ -124,7 +117,7 @@ After the user responds with their decisions:
    - Wait for completion before proceeding
 
 2. **Phase 2 — Independent modules** (run in parallel after Framework completes):
-   - Launch agents for Browser, Extension, and Vault Will items in parallel
+   - Launch agents in parallel for all remaining `stack/` modules that have Will items, except `stack/projects/`
    - Tests & Config items can run in this phase too
 
 3. **Phase 3 — Projects** (runs last, imports from framework + browser + extension):

@@ -46,10 +46,10 @@ function buttonVisibility(state: StepState["state"]): {
 function updateControlButtons(): void {
   if (!elements) return;
   const vis = buttonVisibility(currentState);
-  elements.rewindBtn.style.display = vis.rewind;
+  elements.skipBackBtn.style.display = vis.rewind;
   elements.pauseBtn.style.display = vis.pause;
   elements.playBtn.style.display = vis.play;
-  elements.stepBtn.style.display = vis.step;
+  elements.skipForwardBtn.style.display = vis.step;
 }
 
 function applyInteractive(): void {

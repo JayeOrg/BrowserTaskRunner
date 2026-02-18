@@ -64,7 +64,6 @@ Available commands are defined as types in `messages/index.ts` — that's the so
 | `querySelectorRect` | `querySelectorRect(selectors)` | Get element bounding rect |
 | `clickText` | `clickText(texts, opts?)` | Find and click element by visible text |
 | `getFrameId` | `getFrameId(selector)` | Resolve iframe selector to frameId |
-| `ping` | `ping()` | Health check |
 
 Commands marked `opts?` accept `{ frameId?: number }` for iframe targeting. Use `getFrameId()` to resolve an iframe selector to a frameId first.
 

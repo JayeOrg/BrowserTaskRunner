@@ -46,9 +46,11 @@ Modules with strict separation:
 - **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
 - **Projects**: All site-specific logic lives here. Each project gets its own subdirectory under `stack/projects/`. Shared task utilities live in `stack/projects/utils/`.
 - **Vault**: Local secrets service with project-scoped access control. See `stack/vault/README.md`.
-  - Note: `node:sqlite` enables `PRAGMA foreign_keys = ON` by default (unlike the C library). Don't add it manually — it's already on.
+  - Note: `node:sqlite` enables `PRAGMA foreign_keys = ON` by default (unlike the C library). Don't add it manually — it's already on. This means FK constraints (ON DELETE CASCADE, FK violation errors on INSERT/UPDATE) are always active. Code that works around FK constraints (like the INSERT+DELETE pattern in `renameProject`) is correct and necessary — a direct UPDATE on a FK-referenced PK column would fail.
   - **Defense-in-depth.** Vault code includes type checks and guards that are technically unreachable (SQLite STRICT mode, CLI flow ordering). These are intentional redundancy for direct callers bypassing the CLI.
 - **Browser**: WebSocket server bridging framework and extension.
+
+Each directory under `stack/` is an independent module. Do not add cross-module imports between them (e.g., framework importing from extension). `stack/browser/` is the bridge that imports types from both framework and extension. Where the same type is needed in multiple modules (e.g., `ControlAction`), duplicate it with sync comments rather than creating a shared import.
 
 ### Extension Design Principle
 

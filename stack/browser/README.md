@@ -33,7 +33,6 @@ The `Browser` constructor accepts an optional `BrowserOptions` object:
 ## Files
 
 - `browser.ts` - `Browser` class with WebSocket server and all browser commands
-- `instructions.ts` - Logs connection setup instructions on startup
 
 ## API
 
@@ -65,7 +64,6 @@ Tasks receive a `BrowserAPI` instance and use these methods:
 | `scrollTo(x, y)`                      | Absolute page scroll                           |
 | `scrollBy(x, y)`                      | Relative page scroll                           |
 | `getFrameId(selector)`                | Resolve iframe selector to frameId             |
-| `ping()`                              | Test connection                                |
 
 ## Design Decisions
 

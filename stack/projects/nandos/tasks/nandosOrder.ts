@@ -40,12 +40,13 @@ const TIMINGS = {
   modalWait: 5000,
   placeOrderWait: 60_000,
   saveAndContinueWait: 15_000,
+  cardOptionWait: 30_000,
   selectorWait: 10000,
   sessionCheck: 5000,
   sessionCheckPoll: 1000,
 } as const;
 
-const DRY_RUN = process.env.DRY_RUN === "true";
+const SAFE_MODE = process.env.SAFE_MODE === "true";
 
 const FINAL_STEP = "selectPaymentAndConfirm" as const;
 
@@ -56,6 +57,13 @@ const SELECTORS = {
 } as const;
 
 const PROTEIN_FALLBACKS = ["PERi-PERi Tenders", "Chicken Breast Fillets"] as const;
+
+const ADD_BUTTON_TEXTS = [
+  "ADD ITEM ONLY",
+  "Add item only",
+  "ADD TO ORDER",
+  "Add to order",
+] as const;
 
 const MENU_ITEMS = [
   {
@@ -249,13 +257,6 @@ async function navigateToCategory(browser: BrowserAPI, log: StepLogger): Promise
   await sleep(TIMINGS.menuLoad);
 }
 
-const ADD_BUTTON_TEXTS = [
-  "ADD ITEM ONLY",
-  "Add item only",
-  "ADD TO ORDER",
-  "Add to order",
-] as const;
-
 async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const addResult = await browser.clickText([...ADD_BUTTON_TEXTS], {
     tag: "button",
@@ -299,7 +300,7 @@ async function addMenuItem(
   if (!modalBody.toLowerCase().includes("choose your protein")) {
     log.fatal(
       "ITEM_MODAL_NOT_VISIBLE",
-      `Expected item modal with "choose your protein" heading after clicking ${item.name}`,
+      `Expected item modal with "choose your protein" heading after clicking ${item.name}. Page snippet: ${modalBody.slice(0, 500)}`,
     );
   }
   log.success("Item modal confirmed open");
@@ -425,7 +426,7 @@ async function expandCardSection(browser: BrowserAPI, log: StepLogger): Promise<
   const cardClick = await browser.clickText(["Credit/Debit card"], {
     tag: "p",
     cdp: true,
-    timeout: 30_000,
+    timeout: TIMINGS.cardOptionWait,
   });
   if (!cardClick.found)
     log.fatal("CARD_OPTION_NOT_FOUND", "Credit/Debit card not found on page within 30 seconds");
@@ -469,9 +470,9 @@ async function selectSavedCard(
 }
 
 async function selectPaymentAndConfirm(browser: BrowserAPI, log: StepLogger): Promise<string> {
-  if (DRY_RUN) {
+  if (SAFE_MODE) {
     const { url } = await browser.getUrl();
-    log.success("DRY RUN — skipping Place Order", { url });
+    log.success("SAFE MODE — skipping Place Order", { url });
     return url;
   }
 
@@ -517,7 +518,7 @@ async function run(
   const { email, password, firstName, expectedAddress, savedCardSuffix } =
     nandosContextSchema.parse(context);
   const logger = deps.taskLogger;
-  logger.scoped("config").log(DRY_RUN ? "DRY RUN mode — will not place order" : "LIVE mode");
+  logger.scoped("config").log(SAFE_MODE ? "SAFE MODE — will not place order" : "LIVE mode");
   let finalUrl = "";
   let alreadyLoggedIn = false;
 
@@ -544,6 +545,7 @@ async function run(
     .step("verifyLogin", (log) => verifyLogin(browser, log), {
       skip: skipLogin,
     })
+    // CheckAlreadyLoggedIn already navigates to menu on session hit
     .step("navigateToMenu", (log) => navigateToMenu(browser, log), {
       skip: skipLogin,
     });

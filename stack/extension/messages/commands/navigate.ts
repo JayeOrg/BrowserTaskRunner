@@ -12,6 +12,7 @@ export interface NavigateResponse extends BaseResponse {
   type: "navigate";
   url: string;
   title: string;
+  timedOut?: boolean;
 }
 
 export async function handleNavigate(
@@ -27,7 +28,8 @@ export async function handleNavigate(
       type: "navigate",
       url: updatedTab.url ?? input.url,
       title: updatedTab.title ?? "",
-      error: "Navigation timed out waiting for page load",
+      timedOut: true,
+      error: `Navigation to ${input.url} timed out waiting for page load (30s)`,
     };
   }
   return {

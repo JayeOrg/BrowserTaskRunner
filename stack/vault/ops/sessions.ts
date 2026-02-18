@@ -72,9 +72,11 @@ function getSessionExpiry(db: DatabaseSync, token: string): number | null {
   const row = db.prepare("SELECT expires_at FROM sessions WHERE id = ?").get(sessionId);
   if (!row) return null;
 
-  const expiresAt = row.expires_at;
-  if (typeof expiresAt !== "number") return null;
-  return expiresAt;
+  try {
+    return requireNumber(row, "expires_at");
+  } catch {
+    return null;
+  }
 }
 
 function deleteSession(db: DatabaseSync, token: string): void {

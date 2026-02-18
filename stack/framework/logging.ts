@@ -69,10 +69,6 @@ function formatData(data?: Record<string, unknown>): string {
   if (!data || Object.keys(data).length === 0) {
     return "";
   }
-  const values = Object.values(data);
-  if (values.length === 1) {
-    return ` → ${formatValue(values[0])}`;
-  }
   const pairs = Object.entries(data).map(([key, val]) => `${key}=${formatValue(val)}`);
   return ` → ${pairs.join(", ")}`;
 }

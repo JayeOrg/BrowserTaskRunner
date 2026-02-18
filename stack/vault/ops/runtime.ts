@@ -25,15 +25,19 @@ function loadProjectDetails(
     let dek: Buffer;
     try {
       dek = decryptFrom(projectKey, row, PROJECT_DEK_COLS);
-    } catch {
-      throw new Error(`Failed to decrypt detail "${detailKey}" — invalid project token`);
+    } catch (cause) {
+      throw new Error(`Failed to decrypt detail "${detailKey}" — invalid project token`, {
+        cause,
+      });
     }
 
     let value: Buffer;
     try {
       value = decryptFrom(dek, row, VALUE_COLS);
-    } catch {
-      throw new Error(`Failed to decrypt value for detail "${detailKey}" — corrupted data`);
+    } catch (cause) {
+      throw new Error(`Failed to decrypt value for detail "${detailKey}" — corrupted data`, {
+        cause,
+      });
     }
 
     context[localName] = value.toString("utf8");

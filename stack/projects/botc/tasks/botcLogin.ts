@@ -26,6 +26,7 @@ const TIMINGS = {
   beforeTurnstile: 1000,
   waitEmail: 15000,
   waitPassword: 5000,
+  waitResult: 15_000,
 } as const;
 
 const SELECTORS = {
@@ -76,17 +77,15 @@ async function submit(browser: BrowserAPI, log: StepLogger): Promise<void> {
     log.success("Submitted", { selector: result.selector });
     return;
   }
-  log.fatal(
-    "SUBMIT_NOT_FOUND",
-    `Selectors tried: ${SELECTORS.submit.join(", ")}. Errors: ${result.error}`,
-  );
+  const errorSummary = result.error.map((re) => `${re.selector}: ${re.error}`).join("; ");
+  log.fatal("SUBMIT_NOT_FOUND", `Selectors tried: ${errorSummary}`);
 }
 
 async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string> {
   const result = await pollUntil(
     () => browser.getUrl(),
     ({ url }) => url.includes("/app") || url.includes("/home") || url.includes("/dashboard"),
-    { timeoutMs: 15_000, intervalMs: 2_000 },
+    { timeoutMs: TIMINGS.waitResult, intervalMs: 2_000 },
   );
   if (!result.ok) {
     return log.fatal("STILL_ON_LOGIN_PAGE");

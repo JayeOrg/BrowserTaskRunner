@@ -54,7 +54,7 @@ describe("createTaskLogger", () => {
     const logger = createTaskLogger("task", output);
     logger.log("step", "msg", { url: "https://x.com" });
     const plain = stripAnsi(lines[0]!);
-    expect(plain).toContain("→ https://x.com");
+    expect(plain).toContain("→ url=https://x.com");
   });
 
   it("formats multiple data values as key=value", () => {
@@ -92,7 +92,7 @@ describe("createTaskLogger", () => {
       }
     }
     expect(lines).toHaveLength(1);
-    expect(stripAnsi(lines[0]!)).toContain("→ could not reach server");
+    expect(stripAnsi(lines[0]!)).toContain("→ summary=could not reach server");
   });
 
   it("scoped fatal() accepts a string shorthand for summary", () => {

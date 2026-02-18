@@ -302,10 +302,10 @@ describe("project isolation", () => {
 
     expect(() =>
       loadProjectDetails(db, parseProjectToken(tokenA), "proj-b", { val: "secret" }),
-    ).toThrow();
+    ).toThrow("invalid project token");
     expect(() =>
       loadProjectDetails(db, parseProjectToken(tokenB), "proj-a", { val: "secret" }),
-    ).toThrow();
+    ).toThrow("invalid project token");
   });
 });
 

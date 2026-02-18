@@ -70,6 +70,7 @@ export function computeSourceHash(gitOutput: string): string {
   return createHash("sha256").update(gitOutput).digest("hex").slice(0, 12);
 }
 
+// SHA256("") truncated to 12 chars — returned when git output is empty
 const EMPTY_TREE_HASH = "01ba4719c80b";
 
 /** Compute a cache-bust hash from git index. Returns "" when git is unavailable or the tree is empty. */

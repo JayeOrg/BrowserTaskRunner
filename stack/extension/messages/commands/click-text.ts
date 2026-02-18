@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { BaseResponse } from "../responses/base.js";
 import { getActiveTabId } from "../../tabs.js";
-import { isScriptFoundWithText, isScriptError } from "../../script-results.js";
+import { isScriptLocateWithText, isScriptError } from "../../script-results.js";
 import { domClickAt, cdpClickAt } from "../../clicks.js";
 
 export const clickTextSchema = z.object({
@@ -80,7 +80,7 @@ export async function handleClickText(
   if (result === undefined) {
     return { type: "clickText", found: false, error: "Content script did not execute" };
   }
-  if (!isScriptFoundWithText(result)) {
+  if (!isScriptLocateWithText(result)) {
     return { type: "clickText", found: false };
   }
 

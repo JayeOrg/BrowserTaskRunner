@@ -50,8 +50,11 @@ describe("clickFirst", () => {
     const result = await clickFirst(browser, [".a", ".b"]);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toContain(".a:");
-      expect(result.error).toContain(".b:");
+      expect(result.error).toHaveLength(2);
+      expect(result.error[0]?.selector).toBe(".a");
+      expect(result.error[0]?.error).toContain("nope1");
+      expect(result.error[1]?.selector).toBe(".b");
+      expect(result.error[1]?.error).toContain("nope2");
     }
   });
 
@@ -72,7 +75,9 @@ describe("clickFirst", () => {
     const result = await clickFirst(browser, [".a"]);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toContain("string rejection");
+      expect(result.error).toHaveLength(1);
+      expect(result.error[0]?.selector).toBe(".a");
+      expect(result.error[0]?.error).toContain("string rejection");
     }
   });
 });
@@ -111,7 +116,9 @@ describe("fillFirst", () => {
     const result = await fillFirst(browser, ["#input"], "val", 5000);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toContain("#input");
+      expect(result.error).toHaveLength(1);
+      expect(result.error[0]?.selector).toBe("#input");
+      expect(result.error[0]?.error).toContain("element detached");
     }
   });
 
@@ -127,7 +134,9 @@ describe("fillFirst", () => {
     const result = await fillFirst(browser, ["#input"], "val", 5000);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toContain("string rejection");
+      expect(result.error).toHaveLength(1);
+      expect(result.error[0]?.selector).toBe("#input");
+      expect(result.error[0]?.error).toContain("string rejection");
     }
   });
 });

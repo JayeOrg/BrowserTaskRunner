@@ -33,9 +33,10 @@ function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffe
 
   try {
     return decryptFrom(masterKey, row, PROJECT_KEY_COLS);
-  } catch {
+  } catch (cause) {
     throw new Error(
       `Failed to decrypt project key for "${name}" — master key mismatch or corrupted data`,
+      { cause },
     );
   }
 }
@@ -89,7 +90,8 @@ function renameProject(db: DatabaseSync, oldName: string, newName: string): void
   const conflict = db.prepare("SELECT 1 FROM projects WHERE name = ?").get(newName);
   if (conflict) throw new Error(`Project already exists: "${newName}"`);
 
-  // INSERT+DELETE instead of UPDATE because name is the PK referenced by details.project FK
+  // INSERT+DELETE required — node:sqlite enables PRAGMA foreign_keys by default,
+  // So UPDATE on the PK (referenced by details.project FK) would fail.
   withSavepoint(db, "rename_project", () => {
     db.prepare(
       "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) SELECT ?, key_iv, key_auth_tag, key_ciphertext FROM projects WHERE name = ?",
