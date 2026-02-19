@@ -14,6 +14,16 @@ import { resolveAdminAuth } from "../auth.js";
 import { setEnvVar, withVault, withVaultReadOnly } from "../env.js";
 import { promptConfirm, getSecretValue } from "../prompt.js";
 
+const PROJECT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/u;
+
+function validateProjectName(name: string): void {
+  if (!PROJECT_NAME_PATTERN.test(name)) {
+    throw new Error(
+      `Invalid project name "${name}" — use only letters, digits, hyphens, and underscores`,
+    );
+  }
+}
+
 function tokenEnvKey(project: string): string {
   return `VAULT_TOKEN_${project.toUpperCase().replace(/-/gu, "_")}`;
 }
@@ -43,11 +53,7 @@ async function handleProject(args: string[]): Promise<void> {
   switch (subcommand) {
     case "create": {
       const { name, writeEnv } = parseProjectArgs(subArgs, "project create <name> [--write-env]");
-      if (!/^[a-zA-Z0-9_-]+$/u.test(name)) {
-        throw new Error(
-          `Invalid project name "${name}" — use only letters, digits, hyphens, and underscores`,
-        );
-      }
+      validateProjectName(name);
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const token = createProject(db, masterKey, name);
@@ -60,7 +66,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "export": {
       const { name, writeEnv } = parseProjectArgs(subArgs, "project export <name> [--write-env]");
-      await withVault(async (db) => {
+      await withVaultReadOnly(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const projectKey = getProjectKey(db, masterKey, name);
         const token = exportProjectToken(projectKey);
@@ -104,6 +110,7 @@ async function handleProject(args: string[]): Promise<void> {
       const newName = subArgs[1];
       requireArg(oldName, "project rename <old-name> <new-name>");
       requireArg(newName, "project rename <old-name> <new-name>");
+      validateProjectName(newName);
       await withVault(async (db) => {
         await resolveAdminAuth(db);
         renameProject(db, oldName, newName);
@@ -117,7 +124,7 @@ async function handleProject(args: string[]): Promise<void> {
       const needs = await getProjectNeeds(name);
       if (needs.length === 0) {
         console.error(`No tasks found for project "${name}" (is the project built?)`);
-        return;
+        process.exit(1);
       }
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);

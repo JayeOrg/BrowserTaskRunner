@@ -7,18 +7,27 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
   }
 });
 
-document.addEventListener("keydown", (event) => {
-  if (event.ctrlKey && event.shiftKey && event.key === ".") {
-    event.preventDefault();
-    toggleInteractive();
-  }
-});
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.ctrlKey && event.shiftKey && event.key === ".") {
+      event.preventDefault();
+      toggleInteractive();
+    }
+  },
+  { capture: true },
+);
 
 // Request cached state on load — survives page navigations
-void chrome.runtime.sendMessage({ type: "getStepState" }).then((response: unknown) => {
-  if (isStepUpdateMessage(response)) {
-    updateOverlay(response);
-  } else {
+chrome.runtime
+  .sendMessage({ type: "getStepState" })
+  .then((response: unknown) => {
+    if (isStepUpdateMessage(response)) {
+      updateOverlay(response);
+    } else {
+      showNotConnected();
+    }
+  })
+  .catch(() => {
     showNotConnected();
-  }
-});
+  });

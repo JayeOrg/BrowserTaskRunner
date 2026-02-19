@@ -78,7 +78,7 @@ export const errorLabelStyle = {
   color: "#f87171",
   marginTop: "6px",
   wordBreak: "break-word",
-  maxWidth: "250px",
+  maxWidth: "100%",
 };
 
 export const hotkeyHintStyle = {

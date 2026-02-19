@@ -21,6 +21,9 @@ const WS_PORT = process.env["WS_PORT"] ?? "8765";
 const SCREEN_SIZE = process.env["SCREEN_SIZE"] ?? "1280x720x24";
 const LOG_DIR = process.env["LOG_DIR"] ?? "/app/logs";
 const READINESS_TIMEOUT = Number(process.env["READINESS_TIMEOUT"] ?? "30");
+if (Number.isNaN(READINESS_TIMEOUT)) {
+  throw new Error(`Invalid READINESS_TIMEOUT: "${String(process.env["READINESS_TIMEOUT"])}"`);
+}
 const CHROME_PROFILE_DIR = "/tmp/chrome-profile";
 
 process.env["DISPLAY"] = `:${DISPLAY_NUM}`;
@@ -232,7 +235,7 @@ async function main(): Promise<void> {
   // --no-sandbox is required when running as root in Docker.
   // Docker provides container isolation, making Chrome's sandbox redundant.
   const chromium = spawnWithLog(
-    "chromium",
+    process.env["CHROME_PATH"] ?? "chromium",
     [
       ...CHROMIUM_FLAGS,
       "--load-extension=/app/dist/extension",

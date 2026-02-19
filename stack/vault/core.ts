@@ -59,8 +59,10 @@ function initVault(db: DatabaseSync, password: string): void {
   const encrypted = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
   const checkBlob = packBlob(encrypted);
 
-  db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("salt", salt);
-  db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("password_check", checkBlob);
+  withSavepoint(db, "init_vault", () => {
+    db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("salt", salt);
+    db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("password_check", checkBlob);
+  });
 }
 
 function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {

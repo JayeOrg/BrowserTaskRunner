@@ -15,7 +15,6 @@ services:
             - ENABLE_VNC=${ENABLE_VNC:-true}
             - PERSIST_CHROME_PROFILE=${PERSIST_CHROME_PROFILE:-false}
             - SAFE_MODE=${SAFE_MODE:-false}
-            - DOCKER=true
             # Configurable display/port settings (match run.ts defaults)
             - DISPLAY_NUM=${DISPLAY_NUM:-99}
             - WS_PORT=${WS_PORT:-8765}

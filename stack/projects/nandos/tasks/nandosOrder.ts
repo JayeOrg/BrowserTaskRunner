@@ -454,7 +454,10 @@ async function selectSavedCard(
   log: StepLogger,
   savedCardSuffix: string,
 ): Promise<void> {
-  const savedClick = await browser.cdpClickSelector(['[data-testid="saved-card"]']);
+  const savedClick = await browser.cdpClickSelector([
+    `[data-testid="saved-card"]:has([data-last4="${savedCardSuffix}"])`,
+    `[data-testid="saved-card"]`,
+  ]);
   if (!savedClick.found)
     log.fatal("SAVED_CARD_NOT_FOUND", {
       summary: `Could not find saved card (ending in ${savedCardSuffix})`,

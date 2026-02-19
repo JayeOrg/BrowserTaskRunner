@@ -19,7 +19,7 @@ type WaitForTextResult = { found: true; text: string } | { found: false };
 
 type WaitForUrlResult = { found: true; url: string } | { found: false };
 
-export type FrameIdResult = { found: true; frameId: number } | { found: false };
+export type FrameIdResult = { found: true; frameId: number } | { found: false; error?: string };
 
 type CheckResult = ResponseFor<"check">;
 
@@ -213,7 +213,7 @@ export class Browser implements BrowserAPI {
 
     const pending = this.pendingCommands.get(message.id);
     if (!pending) {
-      console.warn("Unroutable response (unknown id)", message.id);
+      this.logger.log("Unroutable response (unknown id)", { id: message.id });
       return;
     }
 
@@ -334,12 +334,13 @@ export class Browser implements BrowserAPI {
     const result = await pollUntil(
       async () => {
         const body = await this.getText();
-        return texts.find((candidate) => body.includes(candidate)) ?? "";
+        return texts.find((candidate) => body.includes(candidate));
       },
-      (match) => match.length > 0,
+      (match) => match !== undefined,
       { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
     );
-    return result.ok ? { found: true, text: result.value } : { found: false };
+    const text = result.ok ? result.value : undefined;
+    return text !== undefined ? { found: true, text } : { found: false };
   }
   async waitForUrl(pattern: string, timeout = 10000): Promise<WaitForUrlResult> {
     const result = await pollUntil(
@@ -395,7 +396,7 @@ export class Browser implements BrowserAPI {
   async getFrameId(selector: string): Promise<FrameIdResult> {
     const result = await this.send({ type: "getFrameId", selector });
     if (!result.found) {
-      return { found: false };
+      return result.error ? { found: false, error: result.error } : { found: false };
     }
     return { found: true, frameId: result.frameId };
   }

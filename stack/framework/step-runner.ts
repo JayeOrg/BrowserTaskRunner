@@ -190,7 +190,7 @@ export class StepRunner {
 
   private emitErrorUpdate(error: string): void {
     this.sendUpdate({
-      current: this.pointer + 1,
+      current: Math.min(this.pointer + 1, this.steps.length),
       total: this.steps.length,
       name: this.currentStepName(),
       state: "failed",

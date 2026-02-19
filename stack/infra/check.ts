@@ -105,13 +105,17 @@ function main(): void {
 
   if (opts.rebuild) {
     console.log("Forcing fresh build (no cache)...");
-    spawnSync(
+    const buildResult = spawnSync(
       "docker",
       ["compose", "-f", COMPOSE_FILE, "--env-file", ".env", "build", "--no-cache"],
       {
         stdio: "inherit",
       },
     );
+    if (buildResult.status !== 0) {
+      console.error("Docker build failed");
+      process.exit(buildResult.status ?? 1);
+    }
   }
 
   const composeArgs = buildComposeArgs(opts, COMPOSE_FILE);
