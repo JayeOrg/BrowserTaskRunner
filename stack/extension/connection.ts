@@ -1,18 +1,18 @@
 import type { ControlAction } from "./control-action.js";
 import { log } from "./logging.js";
 import { handleCommand, isIncomingCommand } from "./messages/index.js";
-import { isStepUpdateMessage, type StepState } from "./step-state.js";
+import { isStepUpdateMessage, type StepUpdateMessage } from "./step-state.js";
 import { getActiveTabId } from "./tabs.js";
 
 const DEFAULT_WS_PORT = 8765;
 const MAX_RECONNECT_DELAY_MS = 30000;
 const BASE_RECONNECT_DELAY_MS = 1000;
+const READY_TYPE = "ready";
 
 let ws: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 // Caches the latest step update so it survives content script re-injection on page navigation
-type StepUpdateMessage = StepState & { type: "stepUpdate" };
 let cachedStepUpdate: StepUpdateMessage | null = null;
 let portPromise: Promise<number> | null = null;
 
@@ -59,20 +59,21 @@ export async function connect(): Promise<void> {
 
   const wsUrl = `ws://localhost:${String(port)}`;
   log("Connecting", { url: wsUrl });
-  const socket = new WebSocket(wsUrl);
-  ws = socket;
+  // Local ref for closures; ws may be reassigned on reconnect
+  const currentSocket = new WebSocket(wsUrl);
+  ws = currentSocket;
 
-  socket.onopen = () => {
+  currentSocket.onopen = () => {
     log("Connected to server");
     reconnectAttempts = 0;
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
-    socket.send(JSON.stringify({ type: "ready" }));
+    currentSocket.send(JSON.stringify({ type: READY_TYPE }));
   };
 
-  socket.onmessage = async (event: MessageEvent) => {
+  currentSocket.onmessage = async (event: MessageEvent) => {
     let messageId: number | undefined;
     try {
       if (typeof event.data !== "string") {
@@ -92,21 +93,22 @@ export async function connect(): Promise<void> {
       messageId = parsed.id;
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
-      socket.send(JSON.stringify({ ...result, id: messageId }));
+      // Overwrites any handler-set id with the message's correlation id
+      currentSocket.send(JSON.stringify({ ...result, id: messageId }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log("Error handling message", { error: message });
-      socket.send(JSON.stringify({ id: messageId, type: "error", error: message }));
+      currentSocket.send(JSON.stringify({ id: messageId, type: "error", error: message }));
     }
   };
 
-  socket.onclose = () => {
+  currentSocket.onclose = () => {
     log("Disconnected from server");
     ws = null;
     scheduleReconnect();
   };
 
-  socket.onerror = (ev) => {
+  currentSocket.onerror = (ev) => {
     const detail = ev instanceof ErrorEvent ? ev.message : "unknown";
     log("WebSocket error", { detail });
   };

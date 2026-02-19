@@ -3,7 +3,7 @@ import { z, type ZodType } from "zod";
 import type { StepRunnerDeps } from "./step-runner.js";
 
 export interface TaskResultSuccess {
-  step: string;
+  lastCompletedStep: string;
   finalUrl?: string;
 }
 
@@ -11,15 +11,12 @@ export type VaultSecrets = Record<string, string>;
 
 export type TaskRun = (
   browser: BrowserAPI,
-  context: VaultSecrets,
+  secrets: VaultSecrets,
   deps: StepRunnerDeps,
 ) => Promise<TaskResultSuccess>;
 
-/**
- * Maps local context keys to vault detail keys.
- * Array shorthand: `["email", "password"]` — key and vault detail name are the same.
- * Object form: `{ loginEmail: "email" }` — local key differs from vault detail name.
- */
+// Array shorthand: ["email", "password"] — key and vault detail name are the same.
+// Object form: { loginEmail: "email" } — local key differs from vault detail name.
 export type TaskNeeds = string[] | Record<string, string>;
 
 export function normalizeNeeds(needs: TaskNeeds): Record<string, string> {
@@ -29,14 +26,6 @@ export function normalizeNeeds(needs: TaskNeeds): Record<string, string> {
   return needs;
 }
 
-/**
- * Derives a `needs` mapping from a zod schema's top-level keys.
- * Use when the local context keys match vault detail names 1:1.
- *
- * ```ts
- * needs: needsFromSchema(contextSchema),
- * ```
- */
 export function needsFromSchema(schema: ZodType): Record<string, string> {
   if (schema instanceof z.ZodObject) {
     const shape: Record<string, unknown> = schema.shape;
@@ -52,7 +41,9 @@ const baseTaskFields = {
   displayUrl: z.string(),
   project: z.string(),
   needs: taskNeedsSchema,
-  contextSchema: z.custom<ZodType>(() => true).optional(),
+
+  secretsSchema: z.custom<ZodType>(() => true).optional(),
+
   run: z.custom<TaskRun>((val) => typeof val === "function"),
 };
 
@@ -77,11 +68,11 @@ export type SingleAttemptTask = z.infer<typeof singleAttemptTaskSchema>;
 export type RetryingTask = z.infer<typeof retryingTaskSchema>;
 export type TaskConfig = z.infer<typeof taskConfigSchema>;
 
-export function validateContext(task: TaskConfig, context: VaultSecrets): void {
-  if (!task.contextSchema) return;
+export function validateSecrets(task: TaskConfig, secrets: VaultSecrets): void {
+  if (!task.secretsSchema) return;
 
-  const result = task.contextSchema.safeParse(context);
+  const result = task.secretsSchema.safeParse(secrets);
   if (!result.success) {
-    throw new Error(`Context validation failed for "${task.name}": ${result.error.message}`);
+    throw new Error(`Secrets validation failed for "${task.name}": ${result.error.message}`);
   }
 }

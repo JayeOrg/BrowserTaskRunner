@@ -5,7 +5,7 @@ export interface CheckOptions {
   taskName: string;
   help: boolean;
   detach: boolean;
-  dryRun: boolean;
+  safeMode: boolean;
   noVnc: boolean;
   noBuild: boolean;
   rebuild: boolean;
@@ -17,7 +17,7 @@ export function parseArgs(argv: string[]): CheckOptions {
     taskName: "",
     help: false,
     detach: false,
-    dryRun: false,
+    safeMode: false,
     noVnc: false,
     noBuild: false,
     rebuild: false,
@@ -34,8 +34,8 @@ export function parseArgs(argv: string[]): CheckOptions {
       case "-d":
         opts.detach = true;
         break;
-      case "--dry-run":
-        opts.dryRun = true;
+      case "--safemode":
+        opts.safeMode = true;
         break;
       case "--no-vnc":
         opts.noVnc = true;
@@ -55,6 +55,8 @@ export function parseArgs(argv: string[]): CheckOptions {
         }
         if (!opts.taskName) {
           opts.taskName = arg;
+        } else {
+          throw new Error(`Unexpected argument: ${arg}`);
         }
     }
   }
@@ -62,8 +64,10 @@ export function parseArgs(argv: string[]): CheckOptions {
   return opts;
 }
 
+const VAULT_TOKEN_LINE = /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/mu;
+
 export function hasVaultToken(envContents: string): boolean {
-  return /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/mu.test(envContents);
+  return VAULT_TOKEN_LINE.test(envContents);
 }
 
 export function computeSourceHash(gitOutput: string): string {
@@ -73,7 +77,6 @@ export function computeSourceHash(gitOutput: string): string {
 // SHA256("") truncated to 12 chars — returned when git output is empty
 const EMPTY_TREE_HASH = "01ba4719c80b";
 
-/** Compute a cache-bust hash from git index. Returns "" when git is unavailable or the tree is empty. */
 export function computeSourceHashFromGit(): string {
   try {
     const gitOutput = execSync("git ls-files -s stack/ package.json package-lock.json", {
@@ -91,8 +94,8 @@ export function buildComposeArgs(opts: CheckOptions, composeFile: string): strin
 
   args.push("--env-file", ".env", "up");
 
-  // --build by default; skip if --no-build, or if --rebuild already built above
-  if (!opts.noBuild && !opts.rebuild) {
+  const shouldBuild = !opts.noBuild && !opts.rebuild;
+  if (shouldBuild) {
     args.push("--build");
   }
 

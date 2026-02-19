@@ -1,5 +1,5 @@
 import type { PrefixLogger, StepLogger, TaskLogger } from "./logging.js";
-import { getErrorMessage } from "./errors.js";
+import { StepError, toErrorMessage } from "./errors.js";
 
 export interface StepUpdate {
   current: number;
@@ -18,7 +18,6 @@ interface StepDefinition {
   skip?: (() => boolean) | undefined;
 }
 
-/** Synchronization primitive: awaiting `promise` blocks; calling `open()` unblocks. */
 interface Gate {
   promise: Promise<void>;
   open: () => void;
@@ -81,6 +80,7 @@ export class StepRunner {
       return;
     }
 
+    // Reset for re-execution — control actions may have moved the pointer
     this.pointer = 0;
 
     while (this.pointer < this.steps.length) {
@@ -92,6 +92,7 @@ export class StepRunner {
 
       const idx = this.pointer;
       const step = this.steps[idx];
+
       if (!step) break;
 
       if (step.skip?.()) {
@@ -108,9 +109,11 @@ export class StepRunner {
         try {
           await step.fn(this.scopeStep(step.name));
         } catch (error) {
-          if (!this.pauseOnError) throw error;
+          // Only pause on expected task failures (StepError).
+          // Programming errors (TypeError, ReferenceError) always propagate.
+          if (!(error instanceof StepError) || !this.pauseOnError) throw error;
 
-          const msg = getErrorMessage(error);
+          const msg = toErrorMessage(error);
           this.log?.error("Step failed", { step: step.name, error: msg });
           this.emitErrorUpdate(msg);
 
@@ -147,19 +150,21 @@ export class StepRunner {
         this.paused = true;
         if (this.pointer > 0) {
           this.pointer--;
+          this.log?.log("Skip back", { step: this.currentStepName() });
+        } else {
+          this.log?.log("Already at first step", { step: this.currentStepName() });
         }
         this.emitUpdate("paused");
-        this.log?.log("Skip back", { step: this.currentStepName() });
         break;
       case "skipForward":
         this.paused = true;
         if (this.pointer < this.steps.length - 1) {
           this.pointer++;
+          this.log?.log("Skip forward", { step: this.currentStepName() });
+        } else {
+          this.log?.log("Already at last step", { step: this.currentStepName() });
         }
         this.emitUpdate("paused");
-        this.log?.log("Skip forward", { step: this.currentStepName() });
-        break;
-      default:
         break;
     }
   }

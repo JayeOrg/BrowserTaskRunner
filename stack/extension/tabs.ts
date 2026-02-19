@@ -41,6 +41,7 @@ export function waitForTabLoad(tabId: number, timeoutMs = 30000): Promise<TabLoa
   });
 }
 
+// Promisified setTimeout — node:timers/promises is not available in the extension service worker
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);

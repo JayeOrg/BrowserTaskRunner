@@ -17,26 +17,33 @@ import { withSavepoint } from "./db.js";
 import { SCHEMA } from "./schema.js";
 
 function openVault(path: string): DatabaseSync {
-  const db = new DatabaseSync(path);
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(path);
+  } catch (cause) {
+    return wrapVaultOpenError(cause, path);
+  }
   db.exec("PRAGMA journal_mode = WAL");
   db.exec(SCHEMA);
   return db;
+}
+
+function wrapVaultOpenError(cause: unknown, path: string): never {
+  const code =
+    cause !== null && typeof cause === "object" && "code" in cause ? String(cause.code) : undefined;
+  if (code === "ENOENT" || code === "SQLITE_CANTOPEN") {
+    throw new Error(`Vault not found at ${path}. Run 'npm run vault -- init' to create one.`, {
+      cause,
+    });
+  }
+  throw cause;
 }
 
 function openVaultReadOnly(path: string): DatabaseSync {
   try {
     return new DatabaseSync(path, { readOnly: true });
   } catch (cause) {
-    const code =
-      cause !== null && typeof cause === "object" && "code" in cause
-        ? String(cause.code)
-        : undefined;
-    if (code === "ENOENT" || code === "SQLITE_CANTOPEN") {
-      throw new Error(`Vault not found at ${path}. Run 'npm run vault -- init' to create one.`, {
-        cause,
-      });
-    }
-    throw cause;
+    return wrapVaultOpenError(cause, path);
   }
 }
 
@@ -133,9 +140,16 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
       );
     }
 
-    /** Wipe sessions — they are encrypted with the old password-derived key and become undecryptable after password change. */
+    // Sessions are encrypted with the old key — undecryptable after password change.
     db.prepare("DELETE FROM sessions").run();
   });
 }
 
-export { openVault, openVaultReadOnly, initVault, deriveMasterKey, changePassword };
+export {
+  openVault,
+  openVaultReadOnly,
+  wrapVaultOpenError,
+  initVault,
+  deriveMasterKey,
+  changePassword,
+};

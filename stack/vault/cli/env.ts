@@ -16,7 +16,8 @@ function setEnvVar(key: string, value: string): void {
   }
   const lines = content.split("\n");
   const prefix = `${key}=`;
-  const idx = lines.findIndex((line) => line.startsWith(prefix));
+  const isCommentLine = (line: string): boolean => line.trimStart().startsWith("#");
+  const idx = lines.findIndex((line) => !isCommentLine(line) && line.startsWith(prefix));
   if (idx !== -1) {
     lines[idx] = `${prefix}${value}`;
     content = lines.join("\n");
@@ -35,7 +36,10 @@ function removeEnvVar(key: string): void {
     return;
   }
   const prefix = `${key}=`;
-  const lines = content.split("\n").filter((line) => !line.startsWith(prefix));
+  const isCommentLine = (line: string): boolean => line.trimStart().startsWith("#");
+  const lines = content
+    .split("\n")
+    .filter((line) => isCommentLine(line) || !line.startsWith(prefix));
   const remaining = lines.join("\n").trimEnd();
   writeFileSync(ENV_PATH, remaining.length > 0 ? `${remaining}\n` : "", "utf8");
 }

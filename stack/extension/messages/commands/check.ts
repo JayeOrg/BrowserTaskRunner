@@ -48,6 +48,11 @@ export async function handleCheck(input: z.infer<typeof checkSchema>): Promise<C
         element.dispatchEvent(new MouseEvent("click", eventOptions));
         element.dispatchEvent(new Event("change", { bubbles: true }));
       }
+      if (element.checked !== desired) {
+        return {
+          error: `Check state verification failed for ${sel}: expected ${String(desired)}, got ${String(element.checked)}`,
+        };
+      }
       return {};
     },
     args: [input.selector, input.checked],

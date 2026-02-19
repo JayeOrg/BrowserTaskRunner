@@ -26,7 +26,7 @@ async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResu
     throw new StepError(TASK_NAME, "verify", "NOT_ON_SUCCESS_PAGE", { finalUrl });
   }
 
-  return { step: "verify", finalUrl };
+  return { lastCompletedStep: "verify", finalUrl };
 }
 
 export const clickTask: SingleAttemptTask = {

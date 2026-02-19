@@ -25,12 +25,14 @@ export async function handleClick(input: z.infer<typeof clickSchema>): Promise<C
         return { error: `Element not found: ${sel}` };
       }
       element.scrollIntoView({ block: "center", behavior: "instant" });
-      const rect = element.getBoundingClientRect();
+      const domRect = element.getBoundingClientRect();
       return {
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
+        rect: {
+          left: domRect.left,
+          top: domRect.top,
+          width: domRect.width,
+          height: domRect.height,
+        },
       };
     },
     args: [input.selector],
@@ -39,12 +41,12 @@ export async function handleClick(input: z.infer<typeof clickSchema>): Promise<C
   if (!extracted.ok) {
     return { type: "click", error: extracted.error };
   }
-  const parsed = RectSchema.safeParse(extracted.value);
+  const parsed = z.object({ rect: RectSchema }).safeParse(extracted.value);
   if (!parsed.success) {
     return { type: "click", error: "Unexpected script result" };
   }
-  const clickX = parsed.data.left + parsed.data.width / 2;
-  const clickY = parsed.data.top + parsed.data.height / 2;
+  const clickX = parsed.data.rect.left + parsed.data.rect.width / 2;
+  const clickY = parsed.data.rect.top + parsed.data.rect.height / 2;
   await domClickAt(target.tabId, clickX, clickY);
   return { type: "click" };
 }

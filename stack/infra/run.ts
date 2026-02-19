@@ -21,6 +21,7 @@ const WS_PORT = process.env["WS_PORT"] ?? "8765";
 const SCREEN_SIZE = process.env["SCREEN_SIZE"] ?? "1280x720x24";
 const LOG_DIR = process.env["LOG_DIR"] ?? "/app/logs";
 const READINESS_TIMEOUT = Number(process.env["READINESS_TIMEOUT"] ?? "30");
+const CHROME_PROFILE_DIR = "/tmp/chrome-profile";
 
 process.env["DISPLAY"] = `:${DISPLAY_NUM}`;
 
@@ -101,13 +102,33 @@ async function waitForDisplay(timeout: number): Promise<boolean> {
 // =============================================================================
 mkdirSync(LOG_DIR, { recursive: true });
 
+function writeDefaultChromePreferences(profileDir: string): void {
+  const prefsDir = join(profileDir, "Default");
+  mkdirSync(prefsDir, { recursive: true });
+  const prefsPath = join(prefsDir, "Preferences");
+  // Only write defaults if no existing preferences (preserves persisted profile state)
+  if (!existsSync(prefsPath)) {
+    writeFileSync(
+      prefsPath,
+      JSON.stringify(
+        {
+          credentials_enable_service: false,
+          profile: { password_manager_enabled: false },
+        },
+        null,
+        2,
+      ),
+    );
+  }
+}
+
 function resetChromeProfile(): void {
   if (process.env["PERSIST_CHROME_PROFILE"] === "true") {
     log("Chrome profile persistence enabled — preserving existing profile");
-    mkdirSync("/tmp/chrome-profile", { recursive: true });
+    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
   } else {
-    rmSync("/tmp/chrome-profile", { recursive: true, force: true });
-    mkdirSync("/tmp/chrome-profile", { recursive: true });
+    rmSync(CHROME_PROFILE_DIR, { recursive: true, force: true });
+    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
   }
 }
 
@@ -133,16 +154,10 @@ function captureScreenshot(): void {
     return;
   }
 
-  // Fallback to ImageMagick if available
-  const hasImport = spawnSync("command", ["-v", "import"], {
-    stdio: "ignore",
-    shell: true,
-  });
-  if (hasImport.status === 0) {
-    const result = spawnSync("import", ["-window", "root", screenshotPath], { stdio: "ignore" });
-    if (result.status === 0) {
-      log(`Screenshot saved: ${screenshotPath}`);
-    }
+  // Fallback to ImageMagick
+  const result = spawnSync("import", ["-window", "root", screenshotPath], { stdio: "ignore" });
+  if (result.status === 0) {
+    log(`Screenshot saved: ${screenshotPath}`);
   }
 }
 
@@ -169,14 +184,9 @@ function handleExit(exitStatus: number): void {
 
     console.log("\nRecent third-party logs:");
     for (const logfile of LOG_FILES) {
-      try {
-        const stat = statSync(logfile);
-        if (stat.size > 0) {
-          console.log(`--- ${basename(logfile)} ---`);
-          console.log(tailFile(logfile, 20));
-        }
-      } catch {
-        // File doesn't exist, skip
+      if (existsSync(logfile) && statSync(logfile).size > 0) {
+        console.log(`--- ${basename(logfile)} ---`);
+        console.log(tailFile(logfile, 20));
       }
     }
   }
@@ -199,7 +209,6 @@ async function main(): Promise<void> {
   log(`Configuration: display=:${DISPLAY_NUM}, ws_port=${WS_PORT}, screen=${SCREEN_SIZE}`);
   log(`Logs will be written to ${LOG_DIR}`);
 
-  // Start Xvfb with readiness check
   spawnWithLog("Xvfb", [`:${DISPLAY_NUM}`, "-screen", "0", SCREEN_SIZE], XVFB_LOG);
 
   if (!(await waitForDisplay(READINESS_TIMEOUT))) {
@@ -209,35 +218,17 @@ async function main(): Promise<void> {
   }
   logSuccess(`Virtual display :${DISPLAY_NUM} ready`);
 
-  // Start VNC if enabled
   if (process.env["ENABLE_VNC"] === "true") {
     spawnWithLog("x11vnc", ["-display", `:${DISPLAY_NUM}`, "-forever", "-nopw", "-quiet"], VNC_LOG);
     log("VNC server spawned on port 5900");
   }
 
-  // Set Chrome preferences (disable password save prompt, etc.)
-  // Only write defaults if no existing preferences (preserves persisted profile state)
-  const chromePrefsDir = "/tmp/chrome-profile/Default";
-  mkdirSync(chromePrefsDir, { recursive: true });
-  const prefsPath = join(chromePrefsDir, "Preferences");
-  if (!existsSync(prefsPath)) {
-    writeFileSync(
-      prefsPath,
-      JSON.stringify(
-        {
-          credentials_enable_service: false,
-          profile: { password_manager_enabled: false },
-        },
-        null,
-        2,
-      ),
-    );
-  }
+  writeDefaultChromePreferences(CHROME_PROFILE_DIR);
 
-  // Write WS port so the extension can read it at connect time
+  // Write WS port to a file — Chrome extensions can't read env vars,
+  // So the extension reads this file at connect time instead
   writeFileSync("/app/dist/extension/ws-port", WS_PORT);
 
-  // Start Chromium
   // --no-sandbox is required when running as root in Docker.
   // Docker provides container isolation, making Chrome's sandbox redundant.
   const chromium = spawnWithLog(
@@ -245,7 +236,7 @@ async function main(): Promise<void> {
     [
       ...CHROMIUM_FLAGS,
       "--load-extension=/app/dist/extension",
-      "--user-data-dir=/tmp/chrome-profile",
+      `--user-data-dir=${CHROME_PROFILE_DIR}`,
       "about:blank",
     ],
     CHROMIUM_LOG,
@@ -263,7 +254,7 @@ async function main(): Promise<void> {
   // Copy vault to writable location (SQLite WAL mode needs sibling -wal/-shm files)
   copyFileSync("/app/vault.db", "/tmp/vault.db");
   const vaultPath = "/tmp/vault.db";
-  // eslint-disable-next-line require-atomic-updates -- single-threaded, no concurrent access
+  // eslint-disable-next-line require-atomic-updates -- No race: this is a synchronous entrypoint, not concurrent
   process.env["VAULT_PATH"] = vaultPath;
 
   // Run the task — this is the final action; process exits when it completes
@@ -273,7 +264,6 @@ async function main(): Promise<void> {
     env: process.env,
   });
 
-  // Wait for the task process to finish, then exit with its code
   const exitCode = await new Promise<number>((resolve) => {
     task.on("close", (code) => {
       resolve(code ?? 1);

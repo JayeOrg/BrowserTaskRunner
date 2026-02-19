@@ -56,7 +56,7 @@ After all agents complete, read each output and classify every finding as:
 
 **Do NOT make any code changes yet.** Write the full triage to a file at `.claude/dx-review-plan.md` **and output the identical content to the user in chat**. Do not abbreviate, summarize, or reformat the tables — the chat output must be the same four-column tables as the file. This file persists across sessions so progress is never lost to context compaction.
 
-All three sections use the same four-column format (`#`, `File`, `Description`, `Tradeoffs`):
+All three sections use the same per-item format: a problem description, an options table, and a recommendation.
 
 ```
 # DX Review — <date>
@@ -65,31 +65,58 @@ All three sections use the same four-column format (`#`, `File`, `Description`, 
 <3-5 bullet overview>
 
 ## Will
-| # | File | Description | Tradeoffs |
-|---|------|-------------|-----------|
-| 1 | `path.ts:42` | 2-3 sentences: what the current state is and what the proposed change is. Should be self-contained — a reader should understand the issue without opening the file. | 2-3 sentences: any downsides, risks, or complexity cost of making this change. |
+
+### #1 — `path.ts:42`
+
+**Problem:** 2-3 sentences describing the current state and why it's a problem. A reader should understand the issue without opening the file.
+
+| # | Option | Description | Tradeoffs |
+|---|--------|-------------|-----------|
+| A | Short name | 1-2 sentences: what this option involves concretely. | 1-2 sentences: gains and losses. |
+| B | Short name | 1-2 sentences: what this option involves concretely. | 1-2 sentences: gains and losses. |
+
+**Recommendation:** Option X — 1-2 sentences explaining why this is the recommended path.
 
 ## Won't
-| # | File | Description | Tradeoffs |
-|---|------|-------------|-----------|
-| 2 | `path.ts:42` | 2-3 sentences: what was flagged. | 2-3 sentences: why we're recommending keeping the current code. |
+
+### #2 — `path.ts:42`
+
+**Problem:** 2-3 sentences describing what was flagged.
+
+| # | Option | Description | Tradeoffs |
+|---|--------|-------------|-----------|
+| A | Change it | 1-2 sentences: what the change would involve. | 1-2 sentences: gains and losses. |
+| B | Keep as-is | 1-2 sentences: why the current code is fine. | 1-2 sentences: what you preserve by not changing. |
+
+**Recommendation:** Option B — 1-2 sentences explaining why keeping the current code is the right call.
 
 ## Needs Clarification
-| # | File | Description | Tradeoffs |
-|---|------|-------------|-----------|
-| 3 | `path.ts:42` | 2-3 sentences: what was flagged. | 2-3 sentences: the tradeoffs and the specific question the user needs to decide on. |
+
+### #3 — `path.ts:42`
+
+**Problem:** 2-3 sentences describing the current state and why it's a problem.
+
+| # | Option | Description | Tradeoffs |
+|---|--------|-------------|-----------|
+| A | Short name | 1-2 sentences: what this option involves concretely. | 1-2 sentences: gains and losses. |
+| B | Short name | 1-2 sentences: what this option involves concretely. | 1-2 sentences: gains and losses. |
+
+**Recommendation:** Option X — 1-2 sentences explaining why this is recommended over the others.
 ```
 
 **Formatting rules:**
 - Number items **continuously across all three sections** (e.g. if Will ends at #29, Won't starts at #30, Needs Clarification continues from there). This lets the user reference any finding by a single number.
 - Every item gets a file path and line number.
-- Descriptions should be 2-3 full sentences. A reader must understand the issue and the proposed change without viewing the file.
-- Tradeoffs should be 2-3 sentences. For Won't items, this is the rationale for keeping the current code. For Needs Clarification, this includes the question the user needs to answer.
+- Every item has all three parts: problem description (2-3 sentences), options table (2-4 rows), and recommendation with rationale.
+- Options tables always have four columns: `#`, `Option`, `Description`, `Tradeoffs`.
+- The problem description must be self-contained — a reader should understand the issue without opening the source file.
 
 **Then stop and wait for the user's response.** The user will review the list and respond with their decisions:
 - Which **Will** items to implement (confirm, remove, or move to Won't)
 - Which **Won't** items to accept (confirm for REJECTED.md), override (move to Will), or ask about
 - Which **Needs Clarification** items to resolve (move to Will, Won't, or provide further direction)
+
+**Consistent per-item format:** Every time items are presented to the user — whether the initial compiled list, a subsequent batch of Won't items, or re-presented Needs Clarification items — use the **same per-item format**: problem description, options table (`#`, `Option`, `Description`, `Tradeoffs`), and recommendation. Never abbreviate to a flat table or drop the options/tradeoffs. The user needs the full context to make decisions without opening the source files.
 
 **Never assume implicit approval.** Every item in every section requires explicit user confirmation before acting on it. If the user only addresses Will items, ask about Won't and Needs Clarification. If the user says "fix" for Will items but doesn't mention Won't, do NOT treat Won't items as confirmed — ask the user to review them. No category is "approved by default."
 
@@ -147,3 +174,5 @@ Run `npm run validate` as the final step to confirm all fixes pass lint, build, 
 - **Dependency-ordered implementation prevents type conflicts**: Parallel agents that change shared types (e.g. one agent changes a return type from Buffer to string, another agent imports that function) create conflicts neither agent can see. Running framework first, then independent modules, then downstream modules eliminates this.
 - **Write Won't items to REJECTED.md immediately**: Don't batch them. Context compaction can lose item descriptions if they're only in the conversation history. Writing to disk as items are confirmed preserves them.
 - **Never treat silence as approval**: If the user responds to Will items but doesn't mention Won't or Needs Clarification, those categories are **unreviewed**, not approved. Present them again and ask for explicit decisions. The same applies in reverse — confirming Won't items doesn't implicitly approve Will items. Every category, every item, needs an explicit "yes", "no", or "move to X" from the user before acting on it.
+- **Filter REJECTED.md at every presentation, not just triage**: The initial triage (step 3) filters against REJECTED.md, but Won't items are also written to REJECTED.md as the user confirms them during step 4. When presenting subsequent Won't batches to the user (e.g. by module), re-check REJECTED.md and silently omit any items that are now covered — either because they were added earlier in the session, or because a broader entry already subsumes the specific finding. The user should never see an item they've already decided on.
+- **ESLint `capitalized-comments`**: This project enforces that comments begin with an uppercase character. When adding multi-line `//` comments, every continuation line must also start with an uppercase letter (e.g. `// First line.\n// Second line.`), not just the first line. The rule applies per-line, not per-block.

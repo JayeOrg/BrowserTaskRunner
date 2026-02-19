@@ -1,15 +1,15 @@
 import { z } from "zod";
 
-export const loginContextSchema = z.object({
+export const loginSecretsSchema = z.object({
   email: z.string().min(1),
   password: z.string().min(1),
 });
 
-export const nandosContextSchema = loginContextSchema.extend({
+export const nandosSecretsSchema = loginSecretsSchema.extend({
   firstName: z.string().min(1),
   expectedAddress: z.string().min(1),
   savedCardSuffix: z.string().min(1),
 });
 
-export type LoginContext = z.infer<typeof loginContextSchema>;
-export type NandosContext = z.infer<typeof nandosContextSchema>;
+export type LoginSecrets = z.infer<typeof loginSecretsSchema>;
+export type NandosSecrets = z.infer<typeof nandosSecretsSchema>;

@@ -1,8 +1,10 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { pollUntil } from "./poll.js";
+// Bridge module — imports types from extension/ and framework/.
+// This is the one intentional cross-module dependency. See AGENTS.md § Architecture.
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
-import { getErrorMessage } from "../framework/errors.js";
+import { toErrorMessage } from "../framework/errors.js";
 import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
 
 export type IframeOption = { frameId?: number };
@@ -69,8 +71,7 @@ interface BrowserKeyboard {
 
 interface BrowserQueries {
   getContent(
-    selector?: string,
-    options?: { html?: boolean } & IframeOption,
+    options?: { selector?: string; html?: boolean } & IframeOption,
   ): Promise<ResponseFor<"getContent">>;
   getText(selector?: string): Promise<string>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
@@ -137,10 +138,7 @@ export class Browser implements BrowserAPI {
   }
 
   async start(): Promise<void> {
-    if (this.server) {
-      return;
-    }
-
+    if (this.server) throw new Error("Browser.start() called twice — close first");
     this.server = new WebSocketServer({ port: this.port });
     this.server.on("listening", () => {
       this.logger.log("WebSocket server listening", { port: this.port });
@@ -168,11 +166,6 @@ export class Browser implements BrowserAPI {
       this.server?.on("error", onServerError);
 
       this.server?.on("connection", (incoming: WebSocket) => {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.logger.warn("Rejecting duplicate connection — extension already connected");
-          incoming.close(1008, "Already connected");
-          return;
-        }
         this.ws = incoming;
         incoming.on("close", () => {
           this.ws = null;
@@ -219,7 +212,10 @@ export class Browser implements BrowserAPI {
     }
 
     const pending = this.pendingCommands.get(message.id);
-    if (!pending) return;
+    if (!pending) {
+      console.warn("Unroutable response (unknown id)", message.id);
+      return;
+    }
 
     clearTimeout(pending.timeoutId);
     this.pendingCommands.delete(message.id);
@@ -255,7 +251,7 @@ export class Browser implements BrowserAPI {
         }
       }, this.commandTimeoutMs);
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- ResponseFor<T> ⊆ ResponseMessage
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- pendingCommands stores mixed response types as ResponseMessage; callers get the narrow ResponseFor<T> back via the typed Promise
       const typedResolve = resolve as (value: ResponseMessage) => void;
       this.pendingCommands.set(id, {
         resolve: typedResolve,
@@ -268,7 +264,7 @@ export class Browser implements BrowserAPI {
       } catch (error) {
         clearTimeout(timeoutId);
         this.pendingCommands.delete(id);
-        reject(new Error(`Failed to send command: ${getErrorMessage(error)}`));
+        reject(new Error(`Failed to send command: ${toErrorMessage(error)}`));
       }
     });
   }
@@ -298,12 +294,13 @@ export class Browser implements BrowserAPI {
   waitForSelector(selector: string, timeout = 10000, options?: IframeOption) {
     return this.send({ type: "waitForSelector", selector, timeout, ...options });
   }
-  getContent(selector?: string, options: { html?: boolean } & IframeOption = {}) {
-    return this.send({ type: "getContent", ...(selector ? { selector } : {}), ...options });
+  getContent(options: { selector?: string; html?: boolean } & IframeOption = {}) {
+    return this.send({ type: "getContent", ...options });
   }
   async getText(selector?: string): Promise<string> {
-    const result = await this.getContent(selector);
-    if (result.kind === "notFound" || result.kind === "error") return "";
+    const result = await this.getContent(selector ? { selector } : {});
+    if (result.kind === "error") throw new Error(result.error);
+    if (result.kind === "notFound") return "";
     return result.content;
   }
   querySelectorRect(selectors: string[]) {
@@ -408,7 +405,6 @@ export class Browser implements BrowserAPI {
     this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
   }
 
-  /** Only one control handler at a time — calling again replaces the previous. */
   onControl(handler: (action: string) => void): void {
     this.controlHandler = handler;
   }

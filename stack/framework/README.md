@@ -19,7 +19,7 @@ Orchestration layer that runs tasks. Owns retry logic, context loading, validati
 - `loader.ts` - Convention-based task discovery (filename = task name)
 - `step-runner.ts` - `StepRunner` class (pause/play/skip overlay controls)
 - `logging.ts` - `TaskLogger` (scoped, step-based) and `PrefixLogger` (simple prefix)
-- `errors.ts` - `StepError` class and `getErrorMessage` helper
+- `errors.ts` - `StepError` class and `toErrorMessage` helper
 
 ## Task Modes
 

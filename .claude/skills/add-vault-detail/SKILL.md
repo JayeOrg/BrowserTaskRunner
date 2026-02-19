@@ -33,12 +33,12 @@ printf 'secret-value' | npm run vault -- detail set <project> <key>
 
 ## Wiring into a task
 
-Every task declares `needs` explicitly — a mapping from local context keys to vault detail names. Use `needsFromSchema` when keys match 1:1:
+Every task declares `needs` explicitly — a mapping from local secrets keys to vault detail names. Use `needsFromSchema` when keys match 1:1:
 
 ```typescript
 import { needsFromSchema } from "../../../framework/tasks.js";
 
-const contextSchema = z.object({
+const secretsSchema = z.object({
   email: z.string().min(1),
   password: z.string().min(1),
   apiKey: z.string().min(1),
@@ -47,9 +47,9 @@ const contextSchema = z.object({
 export const myTask: RetryingTask = {
   name: "myTask",
   project: "my-project",
-  needs: needsFromSchema(contextSchema),
+  needs: needsFromSchema(secretsSchema),
   // Produces: { email: "email", password: "password", apiKey: "apiKey" }
-  contextSchema,
+  secretsSchema,
   // ...
 };
 
@@ -57,11 +57,11 @@ export const myTask: RetryingTask = {
 needs: { loginEmail: "email", loginPassword: "password", key: "api-key" },
 ```
 
-At runtime, the framework loads each vault key and passes them as `context`:
+At runtime, the framework loads each vault key and passes them as `secrets`:
 
 ```typescript
-async function run(browser: BrowserAPI, context: TaskContext, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
-  const { email, password, apiKey } = context;
+async function run(browser: BrowserAPI, secrets: TaskContext, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
+  const { email, password, apiKey } = secrets;
   // ...
 }
 ```
@@ -81,21 +81,21 @@ All commands require authentication.
 
 `detail set` uses `ON CONFLICT ... DO UPDATE` — setting the same project/key pair overwrites the value. A new DEK is generated each time.
 
-## Context validation
+## Secrets validation
 
-Tasks can validate secrets at startup with an optional `contextSchema`:
+Tasks can validate secrets at startup with an optional `secretsSchema`:
 
 ```typescript
 import { z } from "zod";
 
-const contextSchema = z.object({
+const secretsSchema = z.object({
   email: z.string().min(1),
   password: z.string().min(1),
   apiKey: z.string().min(1),
 });
 ```
 
-The runner calls `contextSchema.safeParse(context)` before `run()` and fails fast if validation fails.
+The runner calls `secretsSchema.safeParse(secrets)` before `run()` and fails fast if validation fails.
 
 ## Vault vs environment variables
 

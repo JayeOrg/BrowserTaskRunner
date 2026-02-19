@@ -10,16 +10,17 @@ export class StepError extends Error {
   constructor(
     public readonly task: string,
     public readonly step: string,
-    public readonly displayReason: string,
+    public readonly reason: string,
     meta: StepErrorMeta = {},
   ) {
-    super(`${task}.${step}: ${displayReason}`);
+    // .message = "task.step: reason" — qualified form for logs/catch blocks
+    super(`${task}.${step}: ${reason}`);
     this.name = "StepError";
     this.meta = meta;
   }
 }
 
-export function getErrorMessage(error: unknown): string {
+export function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }

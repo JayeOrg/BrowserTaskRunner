@@ -30,7 +30,6 @@ export interface KeyboardResponse extends BaseResponse {
 export async function handleKeyboard(
   input: z.infer<typeof keyboardSchema>,
 ): Promise<KeyboardResponse> {
-  const key = input.key ?? "";
   const tabId = await getActiveTabId();
 
   if (input.selector) {
@@ -55,9 +54,11 @@ export async function handleKeyboard(
     }
   }
 
-  // Validate key before attaching debugger
+  // Validate key before attaching debugger — key is only used for non-type actions
+  let key = "";
   let keyCode: number | null = null;
   if (input.action !== "type") {
+    key = input.key ?? "";
     keyCode = charToKeyCode(key);
     if (keyCode === null) {
       return { type: "keyboard", error: `Unsupported key: ${key}` };
@@ -71,6 +72,8 @@ export async function handleKeyboard(
     return { type: "keyboard", error: "Failed to attach debugger for keyboard input" };
   }
 
+  // RawKeyDown/keyUp are the modern CDP key events. The deprecated "keyDown"
+  // Dispatches an extra keypress event that confuses some sites.
   try {
     if (input.action === "type") {
       await chrome.debugger.sendCommand(debuggee, "Input.insertText", {

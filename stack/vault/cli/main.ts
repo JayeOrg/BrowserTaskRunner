@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getErrorMessage } from "../../framework/errors.js";
+import { toErrorMessage } from "../../framework/errors.js";
 import { handleDetail } from "./commands/detail.js";
 import { handleProject } from "./commands/project.js";
 import {
@@ -74,6 +74,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`Error: ${getErrorMessage(error)}`);
+  console.error(`Error: ${toErrorMessage(error)}`);
   process.exit(1);
 });

@@ -25,7 +25,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "incremental": true
   },
   "include": ["stack/framework/**/*", "stack/vault/**/*", "stack/projects/**/*", "stack/extension/**/*", "stack/browser/**/*", "stack/infra/**/*"],
   "exclude": ["node_modules", "dist"]

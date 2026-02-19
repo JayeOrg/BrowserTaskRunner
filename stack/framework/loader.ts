@@ -6,8 +6,30 @@ function projectsDir(): string {
   return resolve(import.meta.dirname, "../projects");
 }
 
-function isTaskConfig(value: unknown): value is TaskConfig {
+export function isTaskConfig(value: unknown): value is TaskConfig {
   return taskConfigSchema.safeParse(value).success;
+}
+
+export function validateLoadedModule(
+  mod: Record<string, unknown>,
+  name: string,
+  filePath: string,
+): TaskConfig {
+  if (!isTaskConfig(mod.task)) {
+    throw new Error(
+      `Task file "${filePath}" must export a valid TaskConfig as "task". ` +
+        `Example: export const task: RetryingTask = { name: "${name}", ... }`,
+    );
+  }
+
+  if (mod.task.name !== name) {
+    throw new Error(
+      `Task name mismatch in "${filePath}": ` +
+        `task.name is "${mod.task.name}" but filename requires "${name}".`,
+    );
+  }
+
+  return mod.task;
 }
 
 function readTaskDir(base: string, projectName: string): string[] {
@@ -23,7 +45,7 @@ function readTaskDir(base: string, projectName: string): string[] {
 function findTaskFile(name: string): string | null {
   const base = projectsDir();
   const target = `${name}.js`;
-  let found: string | null = null;
+  let matchedPath: string | null = null;
 
   const projects = readdirSync(base, { withFileTypes: true }).filter((entry) =>
     entry.isDirectory(),
@@ -33,17 +55,17 @@ function findTaskFile(name: string): string | null {
     const files = readTaskDir(base, entry.name);
 
     if (files.includes(target)) {
-      if (found !== null) {
+      if (matchedPath !== null) {
         throw new Error(
           `Ambiguous task "${name}": found in multiple projects. ` +
             `Remove duplicates so each task name is unique.`,
         );
       }
-      found = resolve(base, entry.name, "tasks", target);
+      matchedPath = resolve(base, entry.name, "tasks", target);
     }
   }
 
-  return found;
+  return matchedPath;
 }
 
 export async function loadTask(name: string): Promise<TaskConfig> {
@@ -60,22 +82,7 @@ export async function loadTask(name: string): Promise<TaskConfig> {
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod: Record<string, unknown> = await import(filePath);
-
-  if (!isTaskConfig(mod.task)) {
-    throw new Error(
-      `Task file "${filePath}" must export a valid TaskConfig as "task". ` +
-        `Example: export const task: RetryingTask = { name: "${name}", ... }`,
-    );
-  }
-
-  if (mod.task.name !== name) {
-    throw new Error(
-      `Task name mismatch in "${filePath}": ` +
-        `task.name is "${mod.task.name}" but filename requires "${name}".`,
-    );
-  }
-
-  return mod.task;
+  return validateLoadedModule(mod, name, filePath);
 }
 
 export function listTaskNames(): string[] {
@@ -98,11 +105,14 @@ export function listTaskNames(): string[] {
   return names.sort((left, right) => left.localeCompare(right));
 }
 
-export async function getProjectNeeds(project: string): Promise<string[]> {
+export async function getProjectNeeds(
+  project: string,
+  loader: (name: string) => Promise<TaskConfig> = loadTask,
+): Promise<string[]> {
   const allNeeds = new Set<string>();
 
   for (const taskName of listTaskNames()) {
-    const task = await loadTask(taskName);
+    const task = await loader(taskName);
     if (task.project === project) {
       const needs = normalizeNeeds(task.needs);
       for (const detailKey of Object.values(needs)) {

@@ -35,9 +35,9 @@ describe("parseArgs", () => {
     expect(opts.detach).toBe(true);
   });
 
-  it("parses --dry-run flag", () => {
-    const opts = parseArgs(["botcLogin", "--dry-run"]);
-    expect(opts.dryRun).toBe(true);
+  it("parses --safemode flag", () => {
+    const opts = parseArgs(["botcLogin", "--safemode"]);
+    expect(opts.safeMode).toBe(true);
   });
 
   it("parses --no-vnc flag", () => {
@@ -61,17 +61,16 @@ describe("parseArgs", () => {
   });
 
   it("parses multiple flags together", () => {
-    const opts = parseArgs(["botcLogin", "--detach", "--no-vnc", "--dry-run"]);
+    const opts = parseArgs(["botcLogin", "--detach", "--no-vnc", "--safemode"]);
     expect(opts.taskName).toBe("botcLogin");
     expect(opts.detach).toBe(true);
     expect(opts.noVnc).toBe(true);
-    expect(opts.dryRun).toBe(true);
+    expect(opts.safeMode).toBe(true);
     expect(opts.rebuild).toBe(false);
   });
 
-  it("uses the first positional arg as task name, ignores subsequent", () => {
-    const opts = parseArgs(["first", "second"]);
-    expect(opts.taskName).toBe("first");
+  it("throws on a second positional argument", () => {
+    expect(() => parseArgs(["first", "second"])).toThrow("Unexpected argument: second");
   });
 
   it("throws on unknown option", () => {
@@ -169,7 +168,7 @@ describe("buildComposeArgs", () => {
       taskName: "test",
       help: false,
       detach: false,
-      dryRun: false,
+      safeMode: false,
       noVnc: false,
       noBuild: false,
       rebuild: false,

@@ -51,7 +51,7 @@ export interface TaskTestSetup {
   site: { server: Server; url: string };
 }
 
-export async function setupTaskTest(
+export async function setupRawTaskTest(
   respond: CommandResponder,
   siteHandler?: HttpRequestHandler,
   state?: ResponderState,
@@ -81,12 +81,6 @@ export interface ResponderState {
   commands: string[];
 }
 
-/**
- * Build a command responder with sensible defaults for every command type.
- * Pass `overrides` to replace individual handlers — each override completely
- * replaces the default for that command type. The returned `state` object is
- * mutated by the responder (tracks `currentUrl`, `commands` history, etc.).
- */
 export function createDefaultResponder(overrides?: Partial<Record<string, CommandOverride>>): {
   responder: CommandResponder;
   state: ResponderState;
@@ -130,10 +124,35 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
         return { type: "scroll" };
       case "getFrameId":
         return { type: "getFrameId", found: true, frameId: 0 };
+      case "querySelectorRect":
+        return { type: "querySelectorRect", found: false };
+      case "clickText":
+        return { type: "clickText", found: false };
       default:
         return { type: cmd.type, error: `Unexpected: ${cmd.type}` };
     }
   };
 
   return { responder, state };
+}
+
+// --- Convenience helpers ---
+
+export function neverResolves<T = never>(): Promise<T> {
+  return new Promise(() => {});
+}
+
+export function teardownTaskTest(setup: TaskTestSetup | null): void {
+  setup?.browser.close();
+  setup?.ext.close();
+  setup?.site.server.close();
+}
+
+export async function setupTaskRunTest(
+  overrides?: Partial<Record<string, CommandOverride>>,
+  siteHandler?: HttpRequestHandler,
+): Promise<TaskTestSetup & { state: ResponderState }> {
+  const { responder, state } = createDefaultResponder(overrides);
+  const setup = await setupRawTaskTest(responder, siteHandler, state);
+  return { ...setup, state };
 }

@@ -52,6 +52,7 @@ function createButton(
 export function createOverlay(onControl: (action: ControlAction) => void): OverlayElements {
   const existing = document.getElementById(OVERLAY_ID);
   if (existing) {
+    console.warn("Removing existing SiteCheck overlay");
     existing.remove();
   }
 
@@ -59,7 +60,6 @@ export function createOverlay(onControl: (action: ControlAction) => void): Overl
   container.id = OVERLAY_ID;
   Object.assign(container.style, containerStyle);
 
-  // Header
   const header = document.createElement("div");
   Object.assign(header.style, headerStyle);
 
@@ -73,12 +73,10 @@ export function createOverlay(onControl: (action: ControlAction) => void): Overl
   header.appendChild(title);
   header.appendChild(stateBadge);
 
-  // Step info
   const stepLabel = document.createElement("div");
   stepLabel.textContent = "Waiting...";
   Object.assign(stepLabel.style, stepLabelStyle);
 
-  // Controls
   const controls = document.createElement("div");
   Object.assign(controls.style, controlsContainerStyle);
 
@@ -92,11 +90,9 @@ export function createOverlay(onControl: (action: ControlAction) => void): Overl
   controls.appendChild(playBtn);
   controls.appendChild(skipForwardBtn);
 
-  // Error message (hidden by default)
   const errorLabel = document.createElement("div");
   Object.assign(errorLabel.style, errorLabelStyle);
 
-  // Hotkey hint
   const hotkeyHint = document.createElement("div");
   hotkeyHint.textContent = "Ctrl+Shift+. to unlock controls";
   Object.assign(hotkeyHint.style, hotkeyHintStyle);

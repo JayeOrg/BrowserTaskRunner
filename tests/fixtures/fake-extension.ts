@@ -33,7 +33,7 @@ async function connectExtension(port: number): Promise<WebSocket> {
   return ws;
 }
 
-// --- Mode 1: Queue-based (for protocol tests) ---
+// --- Queue-based extension (protocol tests) ---
 
 export function createQueuedExtension(port: number) {
   let ws: WebSocket | null = null;
@@ -81,7 +81,7 @@ export function createQueuedExtension(port: number) {
   };
 }
 
-// --- Mode 2: Callback-based (for E2E tests) ---
+// --- Callback-based extension (E2E tests) ---
 
 export type CommandResponder = (cmd: ReceivedCommand) => Record<string, unknown>;
 

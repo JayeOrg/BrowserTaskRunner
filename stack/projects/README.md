@@ -19,7 +19,7 @@ projects/
     timing.ts     # sleep()
     turnstile.ts  # Cloudflare Turnstile detection
     poll.ts       # pollUntil — generic polling
-    schemas.ts    # Shared Zod context schemas
+    schemas.ts    # Shared Zod secrets schemas
     dump.ts       # HTML dumper for debugging
 ```
 
@@ -29,10 +29,10 @@ A task is a `TaskConfig` object with:
 
 - `name` / `url` - Identity and target
 - `project` - Vault project name for secret access
-- `needs` - Maps local context keys to vault detail keys
+- `needs` - Maps local secrets keys to vault detail keys
 - `mode` - `"once"` or `"retry"` (with `intervalMs`)
-- `contextSchema` - Optional Zod schema for context validation
-- `run(browser, context, deps)` - Single-attempt function that uses `Browser` methods to automate the page. `deps: StepRunnerDeps` is passed to `new StepRunner(deps)`
+- `secretsSchema` - Optional Zod schema for secrets validation
+- `run(browser, secrets, deps)` - Single-attempt function that uses `Browser` methods to automate the page. `deps: StepRunnerDeps` is passed to `new StepRunner(deps)`
 
 Tasks throw `StepError` on failure. The framework catches it and either reports or retries depending on mode.
 

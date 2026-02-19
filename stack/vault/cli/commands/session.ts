@@ -37,8 +37,8 @@ async function handleLogin(args: string[]): Promise<void> {
     const masterKey = deriveMasterKey(db, password);
     const token = createSession(db, masterKey, duration);
     setEnvVar("VAULT_ADMIN", token);
-    console.log(`Session active for ${duration.toString()} minutes`);
-    console.log("Token written to .env");
+    console.error(`Session active for ${duration.toString()} minutes`);
+    console.error("Token written to .env");
   });
 }
 
@@ -67,8 +67,22 @@ async function handleStatus(): Promise<void> {
   }
   // Read-write because expired sessions are pruned (deleted) as a side effect.
   await withVault((db) => {
-    const expiresAt = getSessionExpiry(db, token);
-    if (expiresAt === null || Date.now() > expiresAt) {
+    const now = Date.now();
+    const result = getSessionExpiry(db, token);
+
+    if (result.status === "invalid-token") {
+      removeEnvVar("VAULT_ADMIN");
+      console.log("Invalid session token — cleared from .env");
+      return;
+    }
+
+    if (result.status === "not-found") {
+      removeEnvVar("VAULT_ADMIN");
+      console.log("Session not found — cleared from .env");
+      return;
+    }
+
+    if (now > result.expiresAt) {
       try {
         deleteSession(db, token);
       } catch {
@@ -78,7 +92,8 @@ async function handleStatus(): Promise<void> {
       console.log("Session expired — cleared from .env");
       return;
     }
-    const remaining = Math.round((expiresAt - Date.now()) / 1000 / 60);
+
+    const remaining = Math.round((result.expiresAt - now) / 1000 / 60);
     console.log(`Session active — ${remaining.toString()}min remaining (${VAULT_PATH})`);
   });
 }

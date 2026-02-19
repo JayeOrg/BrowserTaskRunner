@@ -1,9 +1,5 @@
 import { sleep } from "./tabs.js";
 
-/**
- * Dispatch mousedown → mouseup → click via chrome.scripting on the element
- * at the given viewport coordinates.
- */
 export async function domClickAt(tabId: number, x: number, y: number): Promise<void> {
   await chrome.scripting.executeScript({
     target: { tabId },
@@ -28,10 +24,6 @@ export async function domClickAt(tabId: number, x: number, y: number): Promise<v
   });
 }
 
-/**
- * Click at viewport coordinates using Chrome DevTools Protocol input events.
- * Falls back to synthetic DOM events if CDP attach or dispatch fails.
- */
 export async function cdpClickAt(tabId: number, x: number, y: number): Promise<void> {
   const debuggee = { tabId };
   try {

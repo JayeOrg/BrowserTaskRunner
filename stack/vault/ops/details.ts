@@ -4,7 +4,7 @@ import { KEY_LENGTH, aesEncrypt, decryptFrom, MASTER_DEK_COLS, VALUE_COLS } from
 import { requireString } from "../rows.js";
 import { getProjectKey } from "./projects.js";
 
-/** Fresh DEK per write — each detail value gets its own randomly-generated encryption key to limit the blast radius of a compromised key. */
+// Fresh DEK per write — limits blast radius of a compromised key.
 function setDetail(
   db: DatabaseSync,
   masterKey: Buffer,
@@ -62,7 +62,6 @@ function getDetail(db: DatabaseSync, masterKey: Buffer, project: string, key: st
     .get(project, key);
   if (!row) throw new Error(`Detail not found: "${project}/${key}"`);
 
-  // Unwrap DEK via master key, then decrypt value
   const dek = decryptFrom(masterKey, row, MASTER_DEK_COLS);
   return decryptFrom(dek, row, VALUE_COLS).toString("utf8");
 }

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { execSync, spawn } from "node:child_process";
+import { execSync, spawn, spawnSync } from "node:child_process";
 import {
   parseArgs,
   hasVaultToken,
@@ -20,7 +20,7 @@ Arguments:
 
 Options:
   --detach, -d      Run in background (detached mode)
-  --dry-run         Stop before final confirmation (e.g., skip Place Order)
+  --safemode        Skip destructive final action (e.g., skip Place Order)
   --no-vnc          Disable VNC server
   --no-build        Skip Docker build step
   --rebuild         Force fresh build (no cache)
@@ -38,7 +38,7 @@ Examples:
   npm run check botcLogin --no-vnc           Run without VNC
   npm run check botcLogin --rebuild          Force fresh Docker build
   npm run check nandosOrder --persist-profile Keep login session across runs
-  npm run check nandosOrder --dry-run        Run without placing final order`);
+  npm run check nandosOrder --safemode        Run without placing final order`);
 }
 
 function main(): void {
@@ -64,7 +64,6 @@ function main(): void {
     process.exit(1);
   }
 
-  // Ensure .env exists
   if (!existsSync(".env")) {
     console.error("Error: .env file not found");
     console.error("Copy .env.example to .env and fill in your credentials:");
@@ -72,7 +71,6 @@ function main(): void {
     process.exit(1);
   }
 
-  // Validate at least one vault token exists in .env
   const envContents = readFileSync(".env", "utf-8");
   if (!hasVaultToken(envContents)) {
     console.error("Error: .env must define at least one vault token");
@@ -85,7 +83,6 @@ function main(): void {
   // Cache-bust hash from git index. Falls back to timestamp outside a git repo.
   const sourceHash = computeSourceHashFromGit() || String(Math.floor(Date.now() / 1000));
 
-  // Set environment variables for docker compose
   process.env["TASK_NAME"] = opts.taskName;
   process.env["SOURCE_HASH"] = sourceHash;
   process.env["HOST_UID"] = execSync("id -u", { encoding: "utf-8" }).trim();
@@ -94,22 +91,29 @@ function main(): void {
   if (opts.noVnc) {
     process.env["ENABLE_VNC"] = "false";
   }
-  if (opts.dryRun) {
-    process.env["DRY_RUN"] = "true";
+  if (opts.safeMode) {
+    process.env["SAFE_MODE"] = "true";
   }
   if (opts.persistProfile) {
     process.env["PERSIST_CHROME_PROFILE"] = "true";
   }
 
-  // Force fresh build if requested
-  if (opts.rebuild) {
-    console.log("Forcing fresh build (no cache)...");
-    execSync(`docker compose -f ${COMPOSE_FILE} --env-file .env build --no-cache`, {
-      stdio: "inherit",
-    });
+  if (opts.rebuild && opts.noBuild) {
+    console.error("--rebuild and --no-build are mutually exclusive");
+    process.exit(1);
   }
 
-  // Build and run compose command
+  if (opts.rebuild) {
+    console.log("Forcing fresh build (no cache)...");
+    spawnSync(
+      "docker",
+      ["compose", "-f", COMPOSE_FILE, "--env-file", ".env", "build", "--no-cache"],
+      {
+        stdio: "inherit",
+      },
+    );
+  }
+
   const composeArgs = buildComposeArgs(opts, COMPOSE_FILE);
 
   if (opts.detach) {

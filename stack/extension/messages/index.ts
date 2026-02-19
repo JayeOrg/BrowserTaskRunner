@@ -121,16 +121,6 @@ type ResponseMessage =
 
 export type { ResponseMessage };
 
-/**
- * Extract the response type corresponding to a command type or command message.
- *
- * @example
- * // By command type string:
- * type NavResp = ResponseFor<"navigate">; // NavigateResponse
- *
- * // By command message type:
- * type ClickResp = ResponseFor<ClickCommand>; // ClickResponse
- */
 export type ResponseFor<T extends CommandMessage["type"] | CommandMessage> = Extract<
   ResponseMessage,
   { type: T extends CommandMessage ? T["type"] : T }
@@ -145,10 +135,11 @@ function createHandler<TInput>(
   return async (message) => {
     const result = schema.safeParse(message);
     if (!result.success) {
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- TypeScript can't verify that { type: message.type } matches a specific ResponseMessage union member at the generic level
       return {
-        type: "error",
+        type: message.type,
         error: `Invalid ${message.type} command: ${result.error.message}`,
-      };
+      } as ResponseMessage;
     }
     return handler(result.data);
   };

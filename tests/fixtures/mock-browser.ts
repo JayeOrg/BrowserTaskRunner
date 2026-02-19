@@ -1,11 +1,7 @@
 import { vi } from "vitest";
 import type { BrowserAPI } from "../../stack/browser/browser.js";
 
-/**
- * Creates a mock BrowserAPI with all methods stubbed via vi.fn().
- * Each method returns a sensible default response matching the real types.
- */
-export function createMockBrowser(): BrowserAPI {
+export function stubBrowserAPI(): BrowserAPI {
   return {
     navigate: vi.fn().mockResolvedValue({ type: "navigate", url: "", title: "" }),
     getUrl: vi.fn().mockResolvedValue({ type: "getUrl", url: "", title: "" }),
@@ -31,5 +27,6 @@ export function createMockBrowser(): BrowserAPI {
     scrollTo: vi.fn().mockResolvedValue({ type: "scroll" }),
     scrollBy: vi.fn().mockResolvedValue({ type: "scroll" }),
     getFrameId: vi.fn().mockResolvedValue({ found: true, frameId: 0 }),
-  };
+    // Compile error here means a new BrowserAPI method needs a mock
+  } satisfies Record<keyof BrowserAPI, ReturnType<typeof vi.fn>>;
 }

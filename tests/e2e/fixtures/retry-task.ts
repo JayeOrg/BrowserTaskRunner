@@ -25,7 +25,7 @@ async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResu
   }
 
   await browser.getUrl();
-  return { step: "verify" };
+  return { lastCompletedStep: "verify" };
 }
 
 const retryTask: RetryingTask = {

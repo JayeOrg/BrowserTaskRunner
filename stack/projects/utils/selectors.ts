@@ -1,14 +1,10 @@
 import type { BrowserAPI } from "../../browser/browser.js";
-import { getErrorMessage } from "../../framework/errors.js";
+import { toErrorMessage } from "../../framework/errors.js";
 
 export type SelectorResult =
   | { found: true; selector: string }
   | { found: false; error: Array<{ selector: string; error: string }> };
 
-/**
- * Race all selectors concurrently within a single timeout window.
- * Returns the first selector that matches, or found: false if none matched.
- */
 export async function waitForFirst(
   browser: BrowserAPI,
   selectors: readonly string[],
@@ -28,26 +24,16 @@ export async function waitForFirst(
       }),
     );
   } catch (error) {
-    if (error instanceof AggregateError) {
-      const detail = error.errors.map((inner: unknown, idx: number) => ({
-        selector: selectors[idx] ?? "unknown",
-        error: inner instanceof Error ? inner.message : String(inner),
-      }));
-      return { found: false, error: detail };
-    }
-    return {
-      found: false,
-      error: selectors.map((sel) => ({ selector: sel, error: getErrorMessage(error) })),
-    };
+    if (!(error instanceof AggregateError)) throw error;
+    const detail = error.errors.map((inner: unknown, idx: number) => ({
+      selector: selectors[idx] ?? "unknown",
+      error: inner instanceof Error ? inner.message : String(inner),
+    }));
+    return { found: false, error: detail };
   }
 }
 
-/**
- * Click the first matching selector from a list.
- * Uses sequential iteration rather than racing concurrently because DOM clicks
- * have side effects — we try one at a time so we don't trigger multiple clicks.
- * Returns the selector that was clicked, or error if none found.
- */
+// Sequential — DOM clicks have side effects, so we try one at a time.
 export async function clickFirst(
   browser: BrowserAPI,
   selectors: readonly string[],
@@ -58,16 +44,18 @@ export async function clickFirst(
       await browser.click(selector);
       return { found: true, selector };
     } catch (error) {
-      errors.push({ selector, error: getErrorMessage(error) });
+      errors.push({ selector, error: toErrorMessage(error) });
     }
   }
   return { found: false, error: errors };
 }
 
-/**
- * Fill the first matching selector from a list.
- * Races all selectors concurrently (via waitForFirst), then fills the winner.
- */
+// Common login selectors shared across tasks
+export const LOGIN_SELECTORS = {
+  email: ['input[type="email"]', 'input[name="email"]', "input#email"] as const,
+  password: ['input[type="password"]', 'input[name="password"]', "input#password"] as const,
+} as const;
+
 export async function fillFirst(
   browser: BrowserAPI,
   selectors: readonly string[],
@@ -84,7 +72,7 @@ export async function fillFirst(
   } catch (error) {
     return {
       found: false,
-      error: [{ selector: result.selector, error: `fill failed: ${getErrorMessage(error)}` }],
+      error: [{ selector: result.selector, error: `fill failed: ${toErrorMessage(error)}` }],
     };
   }
 }

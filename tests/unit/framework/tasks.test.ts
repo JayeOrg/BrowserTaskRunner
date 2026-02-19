@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import {
-  validateContext,
+  validateSecrets,
   normalizeNeeds,
   needsFromSchema,
   type SingleAttemptTask,
@@ -14,68 +14,68 @@ function makeTask(name: string): SingleAttemptTask {
     project: "test-project",
     needs: {},
     mode: "once",
-    run: async () => ({ step: "done" }),
+    run: async () => ({ lastCompletedStep: "done" }),
   };
 }
 
-describe("contextSchema validation", () => {
-  it("valid context passes safeParse", () => {
+describe("secretsSchema validation", () => {
+  it("valid secrets passes safeParse", () => {
     const task: SingleAttemptTask = {
       ...makeTask("schema-test"),
-      contextSchema: z.object({ email: z.string() }),
+      secretsSchema: z.object({ email: z.string() }),
     };
 
-    const result = task.contextSchema?.safeParse({ email: "test@test.com" });
+    const result = task.secretsSchema?.safeParse({ email: "test@test.com" });
     expect(result?.success).toBe(true);
   });
 
-  it("mismatched context fails safeParse", () => {
+  it("mismatched secrets fails safeParse", () => {
     const task: SingleAttemptTask = {
       ...makeTask("schema-test"),
-      contextSchema: z.object({ email: z.string() }),
+      secretsSchema: z.object({ email: z.string() }),
     };
 
-    const result = task.contextSchema?.safeParse({ wrong: 42 });
+    const result = task.secretsSchema?.safeParse({ wrong: 42 });
     expect(result?.success).toBe(false);
   });
 });
 
-describe("validateContext", () => {
-  it("does nothing when task has no contextSchema", () => {
+describe("validateSecrets", () => {
+  it("does nothing when task has no secretsSchema", () => {
     const task = makeTask("no-schema");
     expect(() => {
-      validateContext(task, { anything: "goes" });
+      validateSecrets(task, { anything: "goes" });
     }).not.toThrow();
   });
 
-  it("passes when context matches schema", () => {
+  it("passes when secrets matches schema", () => {
     const task: SingleAttemptTask = {
       ...makeTask("valid"),
-      contextSchema: z.object({ email: z.string() }),
+      secretsSchema: z.object({ email: z.string() }),
     };
     expect(() => {
-      validateContext(task, { email: "user@test.com" });
+      validateSecrets(task, { email: "user@test.com" });
     }).not.toThrow();
   });
 
-  it("throws with task name when context fails validation", () => {
+  it("throws with task name when secrets fails validation", () => {
     const task: SingleAttemptTask = {
       ...makeTask("my-task"),
-      contextSchema: z.object({ email: z.string() }),
+      secretsSchema: z.object({ email: z.string() }),
     };
     expect(() => {
-      validateContext(task, { wrong: "key" });
-    }).toThrow('Context validation failed for "my-task"');
+      validateSecrets(task, { wrong: "key" });
+    }).toThrow('Secrets validation failed for "my-task"');
   });
 
   it("includes Zod error details in the message", () => {
     const task: SingleAttemptTask = {
       ...makeTask("schema-task"),
-      contextSchema: z.object({ count: z.number() }),
+      secretsSchema: z.object({ count: z.number() }),
     };
     expect(() => {
-      validateContext(task, { count: "not-a-number" });
-    }).toThrow("Context validation");
+      validateSecrets(task, { count: "not-a-number" });
+    }).toThrow("Secrets validation");
   });
 });
 

@@ -20,15 +20,15 @@ let envPath: string;
 function run(
   args: string[],
   options?: {
-    password?: string;
-    expectFailure?: boolean;
+    stdinPassword?: string;
+    expectNonZeroExit?: boolean;
     vaultPathOverride?: string;
     adminToken?: string;
-    secretValue?: string;
-    extraLines?: string[];
+    stdinValue?: string;
+    stdinExtra?: string[];
   },
 ): { stdout: string; stderr: string; exitCode: number } {
-  const pw = options?.password ?? PASSWORD;
+  const pw = options?.stdinPassword ?? PASSWORD;
   const env: Record<string, string | undefined> = {
     ...process.env,
     VAULT_PATH: options?.vaultPathOverride ?? vaultPath,
@@ -45,11 +45,11 @@ function run(
   if (pw.length > 0) {
     lines.push(pw);
   }
-  if (options?.secretValue !== undefined) {
-    lines.push(options.secretValue);
+  if (options?.stdinValue !== undefined) {
+    lines.push(options.stdinValue);
   }
-  if (options?.extraLines) {
-    lines.push(...options.extraLines);
+  if (options?.stdinExtra) {
+    lines.push(...options.stdinExtra);
   }
   const input = lines.length > 0 ? lines.map((line) => `${line}\n`).join("") : "";
   const result = spawnSync("node", [CLI_PATH, ...args], {
@@ -57,7 +57,7 @@ function run(
     env,
     input,
   });
-  if (!options?.expectFailure && result.status !== 0) {
+  if (!options?.expectNonZeroExit && result.status !== 0) {
     throw new Error(
       `vault-manage ${args.join(" ")} failed (exit ${String(result.status)}):\n${result.stderr}\n${result.stdout}`,
     );
@@ -68,6 +68,12 @@ function run(
     exitCode: result.status ?? 1,
   };
 }
+
+// Build CLI if needed — this test spawns `node dist/vault/cli/main.js`
+beforeAll(async () => {
+  const { setup: buildCli } = await import("../../setup/build-cli.js");
+  buildCli();
+});
 
 // Create a template vault once (2 scrypt calls) — all tests copy from this
 beforeAll(() => {
@@ -137,56 +143,56 @@ function readAdminToken(): string {
   return result.groups.token;
 }
 
-const tokenOpts = () => ({ adminToken: templateToken, password: "" });
+const adminAuth = () => ({ adminToken: templateToken, stdinPassword: "" });
 
 describe("vault CLI", () => {
   it("initializes a new vault", () => {
     const freshPath = join(tempDir, "fresh.db");
-    const result = run(["init"], { vaultPathOverride: freshPath, extraLines: [PASSWORD] });
+    const result = run(["init"], { vaultPathOverride: freshPath, stdinExtra: [PASSWORD] });
     expect(result.stdout).toContain("initialized");
   });
 
   it("sets and gets a detail", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "hello@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "my-email"], { ...adminAuth(), stdinValue: "hello@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], adminAuth());
     expect(result.stdout.trim()).toBe("hello@test.com");
   });
 
   it("lists details with header", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "a-key"], { ...tokenOpts(), secretValue: "val1" });
-    run(["detail", "set", "proj", "b-key"], { ...tokenOpts(), secretValue: "val2" });
-    const result = run(["detail", "list"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "a-key"], { ...adminAuth(), stdinValue: "val1" });
+    run(["detail", "set", "proj", "b-key"], { ...adminAuth(), stdinValue: "val2" });
+    const result = run(["detail", "list"], adminAuth());
     expect(result.stdout).toContain("Details:");
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).toContain("b-key");
   });
 
   it("lists details filtered by project omits project name", () => {
-    run(["project", "create", "proj-a"], tokenOpts());
-    run(["project", "create", "proj-b"], tokenOpts());
-    run(["detail", "set", "proj-a", "a-key"], { ...tokenOpts(), secretValue: "val1" });
-    run(["detail", "set", "proj-b", "b-key"], { ...tokenOpts(), secretValue: "val2" });
-    const result = run(["detail", "list", "proj-a"], tokenOpts());
+    run(["project", "create", "proj-a"], adminAuth());
+    run(["project", "create", "proj-b"], adminAuth());
+    run(["detail", "set", "proj-a", "a-key"], { ...adminAuth(), stdinValue: "val1" });
+    run(["detail", "set", "proj-b", "b-key"], { ...adminAuth(), stdinValue: "val2" });
+    const result = run(["detail", "list", "proj-a"], adminAuth());
     expect(result.stdout).toContain('Details in "proj-a":');
     expect(result.stdout).toContain("a-key");
     expect(result.stdout).not.toContain("b-key");
   });
 
   it("removes a detail", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "doomed"], { ...tokenOpts(), secretValue: "val" });
-    run(["detail", "remove", "proj", "doomed"], tokenOpts());
-    const result = run(["detail", "list", "proj"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "doomed"], { ...adminAuth(), stdinValue: "val" });
+    run(["detail", "remove", "proj", "doomed"], adminAuth());
+    const result = run(["detail", "list", "proj"], adminAuth());
     expect(result.stdout).toContain("No details");
   });
 
   it("overwrites an existing detail", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "old@test.com" });
-    run(["detail", "set", "proj", "my-email"], { ...tokenOpts(), secretValue: "new@test.com" });
-    const result = run(["detail", "get", "proj", "my-email"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "my-email"], { ...adminAuth(), stdinValue: "old@test.com" });
+    run(["detail", "set", "proj", "my-email"], { ...adminAuth(), stdinValue: "new@test.com" });
+    const result = run(["detail", "get", "proj", "my-email"], adminAuth());
     expect(result.stdout.trim()).toBe("new@test.com");
   });
 
@@ -194,41 +200,41 @@ describe("vault CLI", () => {
     const freshPath = join(tempDir, "mismatch.db");
     const result = run(["init"], {
       vaultPathOverride: freshPath,
-      extraLines: ["wrong-confirm"],
-      expectFailure: true,
+      stdinExtra: ["wrong-confirm"],
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Passwords do not match");
   });
 
   it("creates a project and shows token", () => {
-    const result = run(["project", "create", "test-proj"], tokenOpts());
+    const result = run(["project", "create", "test-proj"], adminAuth());
     expect(result.stderr).toContain("test-proj");
     expect(result.stdout.trim()).toMatch(/^[A-Za-z0-9+/=]+$/u);
   });
 
   it("project create --write-env writes token to .env", () => {
-    run(["project", "create", "write-test", "--write-env"], tokenOpts());
+    run(["project", "create", "write-test", "--write-env"], adminAuth());
     const content = readFileSync(envPath, "utf8");
     expect(content).toContain("VAULT_TOKEN_WRITE_TEST=");
   });
 
   it("lists projects with header", () => {
-    run(["project", "create", "alpha"], tokenOpts());
-    run(["project", "create", "beta"], tokenOpts());
-    const result = run(["project", "list"], tokenOpts());
+    run(["project", "create", "alpha"], adminAuth());
+    run(["project", "create", "beta"], adminAuth());
+    const result = run(["project", "list"], adminAuth());
     expect(result.stdout).toContain("Projects:");
     expect(result.stdout).toContain("alpha");
     expect(result.stdout).toContain("beta");
   });
 
   it("fails with wrong password on detail get", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "my-key"], { ...tokenOpts(), secretValue: "val" });
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "my-key"], { ...adminAuth(), stdinValue: "val" });
 
     const result = run(["detail", "get", "proj", "my-key"], {
-      password: "wrong",
-      expectFailure: true,
+      stdinPassword: "wrong",
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("wrong password");
@@ -236,18 +242,18 @@ describe("vault CLI", () => {
 
   it("fails when no password is provided on stdin", () => {
     const result = run(["detail", "set", "proj", "k"], {
-      password: "",
-      expectFailure: true,
+      stdinPassword: "",
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("No password");
   });
 
   it("shows empty state messages", () => {
-    const detailResult = run(["detail", "list"], tokenOpts());
+    const detailResult = run(["detail", "list"], adminAuth());
     expect(detailResult.stdout).toContain("No details");
 
-    const projectResult = run(["project", "list"], tokenOpts());
+    const projectResult = run(["project", "list"], adminAuth());
     expect(projectResult.stdout).toContain("No projects");
   });
 });
@@ -255,8 +261,8 @@ describe("vault CLI", () => {
 describe("vault login/logout", () => {
   it("login creates a session and writes token to .env", () => {
     const result = run(["login"]);
-    expect(result.stdout).toContain("Session active for 30 minutes");
-    expect(result.stdout).toContain("Token written to .env");
+    expect(result.stderr).toContain("Session active for 30 minutes");
+    expect(result.stderr).toContain("Token written to .env");
 
     const token = readAdminToken();
     expect(token.length).toBeGreaterThan(0);
@@ -264,22 +270,22 @@ describe("vault login/logout", () => {
 
   it("login accepts custom duration", () => {
     const result = run(["login", "--duration", "60"]);
-    expect(result.stdout).toContain("60 minutes");
+    expect(result.stderr).toContain("60 minutes");
   });
 
   it("session token works for admin commands", () => {
     run(["login"]);
     const token = readAdminToken();
 
-    run(["project", "create", "session-proj"], { adminToken: token, password: "" });
+    run(["project", "create", "session-proj"], { adminToken: token, stdinPassword: "" });
     run(["detail", "set", "session-proj", "email"], {
       adminToken: token,
-      password: "",
-      secretValue: "admin@test.com",
+      stdinPassword: "",
+      stdinValue: "admin@test.com",
     });
     const result = run(["detail", "get", "session-proj", "email"], {
       adminToken: token,
-      password: "",
+      stdinPassword: "",
     });
     expect(result.stdout.trim()).toBe("admin@test.com");
   });
@@ -288,7 +294,7 @@ describe("vault login/logout", () => {
     run(["login"]);
     const token = readAdminToken();
 
-    run(["logout"], { adminToken: token, password: "" });
+    run(["logout"], { adminToken: token, stdinPassword: "" });
 
     // Env file should no longer contain VAULT_ADMIN
     const content = readFileSync(envPath, "utf8");
@@ -297,44 +303,44 @@ describe("vault login/logout", () => {
     // Old token should fail on a protected command
     const protectedResult = run(["project", "create", "after-logout"], {
       adminToken: token,
-      password: "",
-      expectFailure: true,
+      stdinPassword: "",
+      expectNonZeroExit: true,
     });
     expect(protectedResult.exitCode).not.toBe(0);
   });
 
   it("logout with no active session prints message", () => {
-    const result = run(["logout"], { password: "" });
+    const result = run(["logout"], { stdinPassword: "" });
     expect(result.stdout).toContain("No active session");
   });
 
   it("status shows active session with time remaining", () => {
     run(["login"]);
     const token = readAdminToken();
-    const result = run(["status"], { adminToken: token, password: "" });
+    const result = run(["status"], { adminToken: token, stdinPassword: "" });
     expect(result.stdout).toContain("Session active");
     expect(result.stdout).toContain("min remaining");
   });
 
   it("status shows no session when not logged in", () => {
-    const result = run(["status"], { password: "" });
+    const result = run(["status"], { stdinPassword: "" });
     expect(result.stdout).toContain("No active session");
   });
 });
 
 describe("detail set value prompting", () => {
   it("reads value from stdin, not CLI args", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "secret-key"], { ...tokenOpts(), secretValue: "from-stdin" });
-    const result = run(["detail", "get", "proj", "secret-key"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "secret-key"], { ...adminAuth(), stdinValue: "from-stdin" });
+    const result = run(["detail", "get", "proj", "secret-key"], adminAuth());
     expect(result.stdout.trim()).toBe("from-stdin");
   });
 
   it("fails when no value is provided on stdin", () => {
-    run(["project", "create", "proj"], tokenOpts());
+    run(["project", "create", "proj"], adminAuth());
     const result = run(["detail", "set", "proj", "k"], {
-      ...tokenOpts(),
-      expectFailure: true,
+      ...adminAuth(),
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("No value");
@@ -343,34 +349,34 @@ describe("detail set value prompting", () => {
 
 describe("change-password", () => {
   it("changes the vault password", () => {
-    run(["project", "create", "proj"], tokenOpts());
-    run(["detail", "set", "proj", "k"], { ...tokenOpts(), secretValue: "secret-val" });
+    run(["project", "create", "proj"], adminAuth());
+    run(["detail", "set", "proj", "k"], { ...adminAuth(), stdinValue: "secret-val" });
 
     // Change password: stdin = old, new, confirm
     run(["change-password"], {
-      password: PASSWORD,
-      secretValue: "new-password-123",
-      extraLines: ["new-password-123"],
+      stdinPassword: PASSWORD,
+      stdinValue: "new-password-123",
+      stdinExtra: ["new-password-123"],
     });
 
     // Old password fails
     const fail = run(["detail", "get", "proj", "k"], {
-      password: PASSWORD,
-      expectFailure: true,
+      stdinPassword: PASSWORD,
+      expectNonZeroExit: true,
     });
     expect(fail.exitCode).not.toBe(0);
 
     // New password works
-    const ok = run(["detail", "get", "proj", "k"], { password: "new-password-123" });
+    const ok = run(["detail", "get", "proj", "k"], { stdinPassword: "new-password-123" });
     expect(ok.stdout.trim()).toBe("secret-val");
   });
 
   it("rejects mismatched confirmation in pipe mode", () => {
     const result = run(["change-password"], {
-      password: PASSWORD,
-      secretValue: "new-pw",
-      extraLines: ["wrong-confirm"],
-      expectFailure: true,
+      stdinPassword: PASSWORD,
+      stdinValue: "new-pw",
+      stdinExtra: ["wrong-confirm"],
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Passwords do not match");
@@ -381,15 +387,15 @@ describe("change-password", () => {
     const token = readAdminToken();
 
     run(["change-password"], {
-      password: PASSWORD,
-      secretValue: "new-pw",
-      extraLines: ["new-pw"],
+      stdinPassword: PASSWORD,
+      stdinValue: "new-pw",
+      stdinExtra: ["new-pw"],
     });
 
     const result = run(["project", "create", "after-change"], {
       adminToken: token,
-      password: "",
-      expectFailure: true,
+      stdinPassword: "",
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
   });
@@ -397,23 +403,23 @@ describe("change-password", () => {
 
 describe("project remove", () => {
   it("removes a project and cascades its details", () => {
-    run(["project", "create", "doomed"], tokenOpts());
-    run(["detail", "set", "doomed", "secret"], { ...tokenOpts(), secretValue: "val" });
+    run(["project", "create", "doomed"], adminAuth());
+    run(["detail", "set", "doomed", "secret"], { ...adminAuth(), stdinValue: "val" });
 
-    const result = run(["project", "remove", "doomed"], tokenOpts());
+    const result = run(["project", "remove", "doomed"], adminAuth());
     expect(result.stdout).toContain('Removed project "doomed"');
 
-    const list = run(["project", "list"], tokenOpts());
+    const list = run(["project", "list"], adminAuth());
     expect(list.stdout).not.toContain("doomed");
 
-    const details = run(["detail", "list"], tokenOpts());
+    const details = run(["detail", "list"], adminAuth());
     expect(details.stdout).not.toContain("secret");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "remove", "nope"], {
-      ...tokenOpts(),
-      expectFailure: true,
+      ...adminAuth(),
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("nope");
@@ -422,35 +428,35 @@ describe("project remove", () => {
 
 describe("project rename", () => {
   it("renames a project and preserves its details", () => {
-    run(["project", "create", "old-name"], tokenOpts());
-    run(["detail", "set", "old-name", "email"], { ...tokenOpts(), secretValue: "user@test.com" });
+    run(["project", "create", "old-name"], adminAuth());
+    run(["detail", "set", "old-name", "email"], { ...adminAuth(), stdinValue: "user@test.com" });
 
-    const result = run(["project", "rename", "old-name", "new-name"], tokenOpts());
+    const result = run(["project", "rename", "old-name", "new-name"], adminAuth());
     expect(result.stdout).toContain('Renamed project "old-name" to "new-name"');
 
-    const list = run(["project", "list"], tokenOpts());
+    const list = run(["project", "list"], adminAuth());
     expect(list.stdout).toContain("new-name");
     expect(list.stdout).not.toContain("old-name");
 
-    const detail = run(["detail", "get", "new-name", "email"], tokenOpts());
+    const detail = run(["detail", "get", "new-name", "email"], adminAuth());
     expect(detail.stdout.trim()).toBe("user@test.com");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "rename", "nope", "new-name"], {
-      ...tokenOpts(),
-      expectFailure: true,
+      ...adminAuth(),
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("nope");
   });
 
   it("fails when target name already exists", () => {
-    run(["project", "create", "proj-a"], tokenOpts());
-    run(["project", "create", "proj-b"], tokenOpts());
+    run(["project", "create", "proj-a"], adminAuth());
+    run(["project", "create", "proj-b"], adminAuth());
     const result = run(["project", "rename", "proj-a", "proj-b"], {
-      ...tokenOpts(),
-      expectFailure: true,
+      ...adminAuth(),
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("already exists");
@@ -459,13 +465,13 @@ describe("project rename", () => {
 
 describe("project rotate", () => {
   it("rotates the project key and outputs a new token", () => {
-    const createResult = run(["project", "create", "rotating"], tokenOpts());
+    const createResult = run(["project", "create", "rotating"], adminAuth());
     const oldToken = createResult.stdout.trim();
     expect(oldToken).toBeTruthy();
 
-    run(["detail", "set", "rotating", "secret"], { ...tokenOpts(), secretValue: "my-val" });
+    run(["detail", "set", "rotating", "secret"], { ...adminAuth(), stdinValue: "my-val" });
 
-    const rotateResult = run(["project", "rotate", "rotating"], tokenOpts());
+    const rotateResult = run(["project", "rotate", "rotating"], adminAuth());
     expect(rotateResult.stderr).toContain("Rotated key");
     const newToken = rotateResult.stdout.trim();
     expect(newToken).toBeTruthy();
@@ -473,19 +479,19 @@ describe("project rotate", () => {
   });
 
   it("details are still accessible after rotation via admin", () => {
-    run(["project", "create", "rot-proj"], tokenOpts());
-    run(["detail", "set", "rot-proj", "email"], { ...tokenOpts(), secretValue: "user@test.com" });
+    run(["project", "create", "rot-proj"], adminAuth());
+    run(["detail", "set", "rot-proj", "email"], { ...adminAuth(), stdinValue: "user@test.com" });
 
-    run(["project", "rotate", "rot-proj"], tokenOpts());
+    run(["project", "rotate", "rot-proj"], adminAuth());
 
-    const result = run(["detail", "get", "rot-proj", "email"], tokenOpts());
+    const result = run(["detail", "get", "rot-proj", "email"], adminAuth());
     expect(result.stdout.trim()).toBe("user@test.com");
   });
 
   it("fails for nonexistent project", () => {
     const result = run(["project", "rotate", "nope"], {
-      ...tokenOpts(),
-      expectFailure: true,
+      ...adminAuth(),
+      expectNonZeroExit: true,
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("nope");

@@ -39,6 +39,8 @@ export function isScriptError(value: unknown): value is ScriptErrorResult {
   return ScriptErrorSchema.safeParse(value).success;
 }
 
+// Undefined result means either: script didn't run (no matching frame),
+// Or page navigated mid-execution (terminates the injected script).
 export function extractResult(
   results: { result?: unknown }[],
 ): { ok: true; value: unknown } | { ok: false; error: string } {
@@ -60,7 +62,6 @@ export function isScriptLocate(value: unknown): value is ScriptLocateResult {
   return ScriptLocateSchema.safeParse(value).success;
 }
 
-/** Stricter guard that also verifies `matchedText` is present (used by clickText). */
 export function isScriptLocateWithText(
   value: unknown,
 ): value is ScriptLocateResult & { found: true; matchedText: string } {

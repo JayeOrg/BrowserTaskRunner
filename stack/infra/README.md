@@ -1,6 +1,6 @@
 # Docker Infrastructure
 
-Runs Chrome with the extension inside a Docker container with a virtual display.
+Runs Chrome with the extension inside a Docker container with a virtual display. This is the only way to run tasks — there is no local-dev-without-Docker path.
 
 ## Requirements
 
@@ -64,8 +64,8 @@ npm run check botcLogin --no-vnc
 
 1. Container starts Xvfb (virtual display)
 2. Chrome launches with the extension pre-loaded
-3. Node.js WebSocket server starts
-4. Extension connects and receives commands
+3. Task runner (`run.js`) starts, which creates a WebSocket server internally
+4. Extension connects to the WebSocket server and receives commands
 5. Task executes and reports result
 
 ## Architecture
@@ -97,8 +97,9 @@ Logs are written to `logs/` in the project root:
 - `xvfb.log` - Virtual display logs
 - `chromium.log` - Chrome browser logs
 - `vnc.log` - VNC server logs
+- `task-<taskName>.log` - Framework + task logs (ANSI codes stripped)
 
-On success, an alert file is written to the project root: `alert-<taskName>.txt`
+On success, an alert file is written to `logs/alert-<taskName>.txt`.
 
 ## Other Commands
 

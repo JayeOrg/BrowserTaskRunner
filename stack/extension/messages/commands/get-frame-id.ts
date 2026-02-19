@@ -66,6 +66,8 @@ export async function handleGetFrameId(
     }
   }
 
+  // Exact URL match — query param or hash differences will miss.
+  // Consider comparing origin + pathname only if fuzzy matching is needed.
   const normalizedSrc = normalizeUrl(iframeSrc);
   const match = frames.find(
     (frame) => normalizeUrl(frame.url) === normalizedSrc && frame.frameId !== 0,

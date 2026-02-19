@@ -61,22 +61,23 @@ function getMasterKeyFromSession(db: DatabaseSync, token: string): Buffer {
   }
 }
 
-function getSessionExpiry(db: DatabaseSync, token: string): number | null {
+type SessionExpiryResult =
+  | { status: "valid"; expiresAt: number }
+  | { status: "invalid-token" }
+  | { status: "not-found" };
+
+function getSessionExpiry(db: DatabaseSync, token: string): SessionExpiryResult {
   let sessionId: Buffer;
   try {
     ({ sessionId } = parseSessionToken(token));
   } catch {
-    return null;
+    return { status: "invalid-token" };
   }
 
   const row = db.prepare("SELECT expires_at FROM sessions WHERE id = ?").get(sessionId);
-  if (!row) return null;
+  if (!row) return { status: "not-found" };
 
-  try {
-    return requireNumber(row, "expires_at");
-  } catch {
-    return null;
-  }
+  return { status: "valid", expiresAt: requireNumber(row, "expires_at") };
 }
 
 function deleteSession(db: DatabaseSync, token: string): void {
@@ -88,6 +89,7 @@ function deleteSession(db: DatabaseSync, token: string): void {
 }
 
 export {
+  type SessionExpiryResult,
   pruneExpiredSessions,
   createSession,
   getMasterKeyFromSession,

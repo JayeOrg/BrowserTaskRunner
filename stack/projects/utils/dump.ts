@@ -1,27 +1,22 @@
-import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
 import type { BrowserAPI } from "../../browser/browser.js";
-import type { TaskLogger } from "../../framework/logging.js";
+import type { StepLogger } from "../../framework/logging.js";
 
-/**
- * Dump the current page HTML to /tmp for debugging.
- * Drop into any task with a one-liner:
- *
- *   import { dumpHtml } from "../../utils/dump.js";
- *
- * Then call anywhere:
- *
- *   await dumpHtml(browser, logger, "after-login");
- */
+const LOGS_DIR = resolve(import.meta.dirname, "../../../logs");
+
+// In Docker, logs/ is a mounted volume — dumps are accessible on the host.
 export async function dumpHtml(
   browser: BrowserAPI,
-  logger: TaskLogger,
+  logger: StepLogger,
   label: string,
 ): Promise<string> {
-  const result = await browser.getContent(undefined, { html: true });
+  await mkdir(LOGS_DIR, { recursive: true });
+  const result = await browser.getContent({ html: true });
   const content = result.kind === "notFound" || result.kind === "error" ? "" : result.content;
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
-  const path = `/tmp/sitecheck-dump-${label}-${timestamp}.html`;
+  const path = resolve(LOGS_DIR, `dump-${label}-${timestamp}.html`);
   await writeFile(path, content, "utf-8");
-  logger.log("dumpHtml", `Wrote ${String(content.length)} chars to ${path}`);
+  logger.log(`Wrote ${String(content.length)} chars to ${path}`);
   return path;
 }

@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
-    globalSetup: ["tests/setup/build-cli.ts"],
+    // Build-cli setup moved to vault-manage.test.ts beforeAll — only vault CLI tests need it.
     coverage: {
       provider: "v8",
       // Coverage scope: modules testable in Node.
@@ -20,22 +20,13 @@ export default defineConfig({
       ],
       exclude: [
         "tests/**",
-        // Orchestrator — process.exit, env vars, Docker. Tested indirectly via sub-modules.
+        // Orchestrator — process.exit, env vars, signal handlers. Tested indirectly via sub-modules.
         "stack/framework/run.ts",
-        // CLI entry point — tested via child process in vault-manage.test.ts.
-        // v8 coverage can't instrument code in spawned processes.
-        "stack/vault/vault-manage.ts",
         // CLI modules — tested via child process in vault-manage.test.ts.
         // v8 coverage can't instrument code in spawned processes.
         "stack/vault/cli/**",
-        // Static task list, no logic to test.
-        "stack/framework/loader.ts",
-        // Trivial setTimeout wrapper. Testing adds noise, not confidence.
+        // Trivial re-export: `export const sleep = setTimeout;`
         "stack/projects/utils/timing.ts",
-        // Debug-only HTML dumper. Trivial I/O wrapper, no logic to test.
-        "stack/projects/utils/dump.ts",
-        // Display-only: logs connection instructions, checks process.env.
-        "stack/browser/instructions.ts",
       ],
       reporter: ["text", "html"],
       reportsDirectory: "coverage",

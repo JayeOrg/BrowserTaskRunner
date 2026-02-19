@@ -39,7 +39,7 @@ function getTermWidth(): number {
 }
 
 // eslint-disable-next-line no-control-regex, sonarjs/no-control-regex
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
+export const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
 
 function rightJustify(content: string, suffix: string): string {
   const visibleLength = content.replace(ANSI_PATTERN, "").length;
@@ -102,8 +102,7 @@ export interface StepLogger {
   log: (msg: string, data?: Record<string, unknown>) => void;
   success: (msg: string, data?: Record<string, unknown>) => void;
   warn: (msg: string, data?: Record<string, unknown>) => void;
-  /** Logs the failure and throws a StepError. Never returns. */
-  fatal: (reason: string, meta?: string | StepErrorMeta) => never;
+  fatal: (reason: string, meta?: StepErrorMeta) => never;
 }
 
 // Task-level logger — step name required per call (used by framework internals)
@@ -111,8 +110,7 @@ export interface TaskLogger {
   log: (step: string, msg: string, data?: Record<string, unknown>) => void;
   success: (step: string, msg: string, data?: Record<string, unknown>) => void;
   warn: (step: string, msg: string, data?: Record<string, unknown>) => void;
-  /** Logs the failure and throws a StepError. Never returns. */
-  fatal: (step: string, reason: string, meta?: string | StepErrorMeta) => never;
+  fatal: (step: string, reason: string, meta?: StepErrorMeta) => never;
   scoped: (step: string) => StepLogger;
 }
 
@@ -125,16 +123,15 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
       state = formatLogLine(state, step, msg, data, level, output);
     };
 
-  const fatal = (step: string, reason: string, meta: string | StepErrorMeta = {}): never => {
-    const resolved = typeof meta === "string" ? { summary: meta } : meta;
-    state = formatLogLine(state, step, reason, resolved, "error", output);
-    throw new StepError(task, step, reason, resolved);
+  const fatal = (step: string, reason: string, meta: StepErrorMeta = {}): never => {
+    state = formatLogLine(state, step, reason, meta, "error", output);
+    throw new StepError(task, step, reason, meta);
   };
 
   const scoped = (step: string): StepLogger => {
     const info = logAt("info");
     const success = logAt("success");
-    const warning = logAt("warn");
+    const warn = logAt("warn");
     return {
       log: (msg, data) => {
         info(step, msg, data);
@@ -143,7 +140,7 @@ export function createTaskLogger(task: string, output: LogOutput = defaultOutput
         success(step, msg, data);
       },
       warn: (msg, data) => {
-        warning(step, msg, data);
+        warn(step, msg, data);
       },
       fatal: (reason, meta = {}) => fatal(step, reason, meta),
     };

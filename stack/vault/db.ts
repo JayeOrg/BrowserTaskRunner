@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 
-/** Fn must be synchronous — async callbacks will corrupt the savepoint boundary. */
 function withSavepoint<T>(db: DatabaseSync, name: string, fn: () => T): T {
   if (!/^\w+$/u.test(name)) {
     throw new Error(`Invalid savepoint name: "${name}"`);

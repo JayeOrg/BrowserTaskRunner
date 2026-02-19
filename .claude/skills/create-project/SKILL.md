@@ -56,17 +56,17 @@ See `/add-task` for the full pattern. Name the file `{taskName}.ts` (e.g., `acme
 // File: stack/projects/acme/tasks/acmeLogin.ts
 export const task: RetryingTask = {
   name: "acmeLogin",              // must match filename
-  url: "https://acme.example.com/login",
+  displayUrl: "https://acme.example.com/login",
   project: "monitor-acme",        // must match vault project name
-  needs: needsFromSchema(contextSchema),
+  needs: needsFromSchema(secretsSchema),
   mode: "retry",
   intervalMs: 300_000,
-  contextSchema,
+  secretsSchema,
   run,
 };
 ```
 
-Use `needsFromSchema(contextSchema)` when vault keys match schema keys. If the vault detail names differ from the local context keys, use an explicit mapping:
+Use `needsFromSchema(secretsSchema)` when vault keys match schema keys. If the vault detail names differ from the local secrets keys, use an explicit mapping:
 
 ```typescript
 needs: { loginEmail: "email", loginPassword: "password" },

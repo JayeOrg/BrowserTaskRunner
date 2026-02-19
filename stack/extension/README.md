@@ -31,14 +31,16 @@ npm run check botcLogin
 
 This runs the task in Docker. The extension connects automatically inside the container.
 
-## First-Time Chrome Setup
+## First-Time Chrome Setup (Local Debugging Only)
+
+> This section is for local debugging without Docker. When running tasks via `npm run check`, the extension loads automatically inside the container.
 
 1. Open Chrome and go to `chrome://extensions`
 2. Enable "Developer mode" (toggle in top right)
 3. Click "Load unpacked" and select the `dist/extension/` folder
 4. Open a new tab (extension needs an active tab)
 
-The server will detect the connection and start automating. In Docker (`npm run check <task>`), this happens automatically.
+The server will detect the connection and start automating.
 
 ## Code Layout
 
@@ -62,7 +64,7 @@ Available commands are defined as types in `messages/index.ts` — that's the so
 | `waitForSelector` | `waitForSelector(selector, timeout?, opts?)` | Poll for element existence |
 | `getContent` | `getContent(sel?, opts?)`, `getText(sel?)` | Get text or HTML content |
 | `querySelectorRect` | `querySelectorRect(selectors)` | Get element bounding rect |
-| `clickText` | `clickText(texts, opts?)` | Find and click element by visible text |
+| `clickText` | `clickText(texts, opts?)` | Find and click element by visible text. Does not support `frameId` — uses coordinate-based clicking which can't target iframes |
 | `getFrameId` | `getFrameId(selector)` | Resolve iframe selector to frameId |
 
 Commands marked `opts?` accept `{ frameId?: number }` for iframe targeting. Use `getFrameId()` to resolve an iframe selector to a frameId first.

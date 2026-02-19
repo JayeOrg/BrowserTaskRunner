@@ -5,9 +5,9 @@ function loadProjectDetails(
   db: DatabaseSync,
   projectKey: Buffer,
   project: string,
-  needs: Record<string, string>,
+  localToDetailKey: Record<string, string>,
 ): Record<string, string> {
-  const context: Record<string, string> = {};
+  const secrets: Record<string, string> = {};
 
   const stmt = db.prepare(`
     SELECT project_dek_iv, project_dek_auth_tag, project_dek_ciphertext,
@@ -16,7 +16,7 @@ function loadProjectDetails(
     WHERE project = ? AND key = ?
   `);
 
-  for (const [localName, detailKey] of Object.entries(needs)) {
+  for (const [localName, detailKey] of Object.entries(localToDetailKey)) {
     const row = stmt.get(project, detailKey);
     if (!row) {
       throw new Error(`Detail "${detailKey}" not found in project "${project}"`);
@@ -40,10 +40,10 @@ function loadProjectDetails(
       });
     }
 
-    context[localName] = value.toString("utf8");
+    secrets[localName] = value.toString("utf8");
   }
 
-  return context;
+  return secrets;
 }
 
 export { loadProjectDetails };

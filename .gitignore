@@ -3,6 +3,7 @@ node_modules/
 .claude/settings.local.json
 .vscode
 dist/
+*.tsbuildinfo
 vault.enc
 vault.db
 vault.db-wal

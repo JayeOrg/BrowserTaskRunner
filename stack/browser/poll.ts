@@ -1,14 +1,13 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-/**
- * Poll an async function until a condition is met or timeout occurs.
- * Returns { ok: true, value } with the first passing value, or { ok: false } on timeout.
- */
 export async function pollUntil<T>(
   poll: () => Promise<T>,
   check: (value: T) => boolean,
   options: { timeoutMs: number; intervalMs: number },
 ): Promise<{ ok: true; value: T } | { ok: false }> {
+  if (options.intervalMs <= 0) {
+    throw new Error("pollUntil: intervalMs must be positive");
+  }
   const deadline = Date.now() + options.timeoutMs;
 
   while (Date.now() < deadline) {

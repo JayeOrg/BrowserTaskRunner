@@ -18,14 +18,14 @@ export interface ScheduledTask {
   needs: TaskNeeds;
   mode: "scheduled";
   cronExpr: string; // mode-specific fields go here
-  contextSchema?: ZodType;
+  secretsSchema?: ZodType;
   run: TaskRun;
 }
 
 export type TaskConfig = SingleAttemptTask | RetryingTask | ScheduledTask;
 ```
 
-Every mode shares `name`, `url`, `project`, `needs`, `mode`, `contextSchema?`, and `run`. The `mode` field is the discriminant — TypeScript narrows the type via `task.mode === "scheduled"`. Use `needsFromSchema(contextSchema)` when vault keys match schema keys 1:1.
+Every mode shares `name`, `url`, `project`, `needs`, `mode`, `secretsSchema?`, and `run`. The `mode` field is the discriminant — TypeScript narrows the type via `task.mode === "scheduled"`. Use `needsFromSchema(secretsSchema)` when vault keys match schema keys 1:1.
 
 ## 2. Add the execution strategy in `stack/framework/run.ts`
 
@@ -35,13 +35,13 @@ Add a runner function and wire it into `runTask()`:
 async function runScheduled(
   task: ScheduledTask,
   browser: Browser,
-  context: TaskContext,
+  secrets: TaskContext,
 ): Promise<void> {
   // Implementation here — the runner owns orchestration,
   // the task's run() implements a single attempt
   const taskLogger = createTaskLogger(task.name);
   const deps = { ...browser.stepRunnerDeps(), taskLogger };
-  await task.run(browser, context, deps);
+  await task.run(browser, secrets, deps);
   logger.success("TASK SUCCESSFUL!");
   writeAlert(task.name);
 }
@@ -50,7 +50,7 @@ async function runScheduled(
 Then add the branch to `runTask()`:
 
 ```typescript
-async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
+async function runTask(task: TaskConfig, secrets: TaskContext): Promise<void> {
   const browser = new Browser(WS_PORT);
 
   try {
@@ -59,13 +59,13 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
 
     switch (task.mode) {
       case "once":
-        await runSingleAttempt(task, browser, context);
+        await runSingleAttempt(task, browser, secrets);
         break;
       case "retry":
-        await runWithRetry(task, browser, context);
+        await runWithRetry(task, browser, secrets);
         break;
       case "scheduled":
-        await runScheduled(task, browser, context);
+        await runScheduled(task, browser, secrets);
         break;
       default:
         // exhaustiveness check — TypeScript errors if a mode is unhandled
@@ -80,6 +80,6 @@ async function runTask(task: TaskConfig, context: TaskContext): Promise<void> {
 ## Design rules
 
 - The **runner** owns orchestration (loops, timing, retries, cleanup). Tasks implement a **single attempt**.
-- Tasks throw `StepError` (via `logger.fail()`) on failure, return `TaskResultSuccess` on success.
+- Tasks throw `StepError` (via `logger.fatal()`) on failure, return `TaskResultSuccess` on success.
 - Use `node:timers/promises` `setTimeout` for delays — don't import from the tasks layer.
 - Add the new mode to `TaskConfig` union so the type system enforces exhaustive handling.

@@ -20,10 +20,13 @@ Logs into Nando's Australia and places a favourite order for delivery.
 
 ## Vault Details
 
-| Detail key | Description    |
-|------------|----------------|
-| `email`    | Login email    |
-| `password` | Login password |
+| Detail key        | Description                                         |
+|-------------------|-----------------------------------------------------|
+| `email`           | Login email                                         |
+| `password`        | Login password                                      |
+| `firstName`       | First name shown on account (used for verification) |
+| `expectedAddress` | Delivery address (matched during address confirm)   |
+| `savedCardSuffix` | Last 4 digits of saved payment card                 |
 
 Vault project: `nandos`
 
@@ -33,6 +36,9 @@ Vault project: `nandos`
 npm run vault -- project create nandos
 npm run vault -- detail set nandos email
 npm run vault -- detail set nandos password
+npm run vault -- detail set nandos firstName
+npm run vault -- detail set nandos expectedAddress
+npm run vault -- detail set nandos savedCardSuffix
 ```
 
 ## Run
@@ -43,6 +49,12 @@ npm run check nandosOrder --persist-profile
 
 The `--persist-profile` flag keeps Chrome's login session across Docker runs, so you only need to complete MFA once. Subsequent runs detect the existing session and skip straight to the menu.
 
+To run without placing a real order (safe mode):
+
+```bash
+npm run check nandosOrder --safemode
+```
+
 To clear the persisted profile:
 
 ```bash
@@ -52,8 +64,8 @@ docker volume rm sitecheck_chrome-profile
 ## Task Config
 
 - **Mode**: `once` (single attempt, requires manual MFA)
-- **Context schema**: Validates `email` and `password` are non-empty strings
+- **Context schema**: Validates `email`, `password`, `firstName`, `expectedAddress`, and `savedCardSuffix` are non-empty strings
 - **MFA**: Polls for up to 5 minutes for manual mobile verification
 - **Business hours**: Outside Nando's business hours, the task will get stuck at `dismissSuggestionsAndCheckout` because the menu/ordering system is unavailable
 - **Menu items**: 3 items from Burgers, Wraps & Pitas with protein/heat/style customisations
-- **Clicks**: All clicks on this site must use `cdpClick` (real mouse events via CDP coordinates). Synthetic `.click()` dispatched by the extension does not trigger form submissions or button handlers on this site. Use `querySelectorRect` to get coordinates, then `cdpClick`.
+- **Clicks**: This site requires `cdpClick` (real mouse events via CDP coordinates) for most interactions — synthetic `.click()` dispatched by the extension does not trigger form submissions or button handlers. Use `querySelectorRect` to get coordinates, then `cdpClick`.

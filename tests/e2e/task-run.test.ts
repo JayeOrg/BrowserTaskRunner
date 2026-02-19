@@ -3,8 +3,10 @@ import { StepError } from "../../stack/framework/errors.js";
 import { clickTask } from "./fixtures/click-task.js";
 import { retryTask, resetAttempts } from "./fixtures/retry-task.js";
 import {
-  setupTaskTest,
+  setupRawTaskTest,
+  setupTaskRunTest,
   createDefaultResponder,
+  teardownTaskTest,
   noopLogger,
   type TaskTestSetup,
 } from "../fixtures/test-helpers.js";
@@ -12,69 +14,67 @@ import {
 let setup: TaskTestSetup | null = null;
 
 afterEach(() => {
-  setup?.browser.close();
-  setup?.ext.close();
-  setup?.site.server.close();
+  teardownTaskTest(setup);
   setup = null;
 });
 
 describe("e2e: click-task against local test site", () => {
   it("navigates, clicks button, and verifies /success", async () => {
-    const { responder, state } = createDefaultResponder();
-    setup = await setupTaskTest(responder, undefined, state);
-    const result = await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);
+    const ctx = await setupTaskRunTest();
+    setup = ctx;
+    const result = await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger);
 
     expect(result.finalUrl).toContain("/success");
-    expect(state.commands).toEqual(["navigate", "waitForSelector", "click", "getUrl"]);
+    expect(ctx.state.commands).toEqual(["navigate", "waitForSelector", "click", "getUrl"]);
   });
 
   it("fails when button is not found on page", async () => {
-    const { responder, state } = createDefaultResponder({
+    const ctx = await setupTaskRunTest({
       waitForSelector: () => ({ type: "waitForSelector", found: false }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
       "BUTTON_NOT_FOUND",
     );
   });
 
   it("fails when click does not navigate away", async () => {
-    const { responder, state } = createDefaultResponder({
+    const ctx = await setupTaskRunTest({
       click: () => ({ type: "click", success: true }),
       getUrl: (_cmd, current) => ({ type: "getUrl", url: current.currentUrl, title: "Test Page" }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
       "NOT_ON_SUCCESS_PAGE",
     );
   });
 
   it("propagates extension errors to the task", async () => {
-    const { responder, state } = createDefaultResponder({
+    const ctx = await setupTaskRunTest({
       navigate: () => ({ type: "navigate", url: "", title: "", error: "Tab crashed" }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
       "Tab crashed",
     );
   });
 
   it("fails when click returns failure", async () => {
-    const { responder, state } = createDefaultResponder({
+    const ctx = await setupTaskRunTest({
       click: () => ({ type: "click", success: false }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    await expect(clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
       "CLICK_FAILED",
     );
   });
 
   it("StepError includes finalUrl metadata on verify failure", async () => {
-    const { responder, state } = createDefaultResponder({
+    const ctx = await setupTaskRunTest({
       click: () => ({ type: "click", success: true }),
       getUrl: (_cmd, current) => ({
         type: "getUrl",
@@ -82,10 +82,10 @@ describe("e2e: click-task against local test site", () => {
         title: "Wrong",
       }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
     try {
-      await clickTask.run(setup.browser, { url: setup.siteUrl }, noopLogger);
+      await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger);
       expect.unreachable("Should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
@@ -102,7 +102,7 @@ describe("e2e: retry-task behavior", () => {
 
   it("fails on first attempts, succeeds on later attempt", async () => {
     const { responder } = createDefaultResponder();
-    setup = await setupTaskTest(responder);
+    setup = await setupRawTaskTest(responder);
 
     // First call: should fail (attempt 1 <= failUntil 2)
     await expect(retryTask.run(setup.browser, { failUntil: "2" }, noopLogger)).rejects.toThrow(
@@ -125,7 +125,7 @@ describe("e2e: retry-task behavior", () => {
 
   it("StepError from retry-task includes summary metadata", async () => {
     const { responder } = createDefaultResponder();
-    setup = await setupTaskTest(responder);
+    setup = await setupRawTaskTest(responder);
 
     try {
       await retryTask.run(setup.browser, { failUntil: "1" }, noopLogger);

@@ -1,5 +1,5 @@
 import { isStepUpdateMessage } from "../step-state.js";
-import { updateOverlay, toggleInteractive } from "./controls.js";
+import { updateOverlay, toggleInteractive, showNotConnected } from "./controls.js";
 
 chrome.runtime.onMessage.addListener((message: unknown) => {
   if (isStepUpdateMessage(message)) {
@@ -18,5 +18,7 @@ document.addEventListener("keydown", (event) => {
 void chrome.runtime.sendMessage({ type: "getStepState" }).then((response: unknown) => {
   if (isStepUpdateMessage(response)) {
     updateOverlay(response);
+  } else {
+    showNotConnected();
   }
 });

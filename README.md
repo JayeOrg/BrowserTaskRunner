@@ -46,11 +46,9 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 | `botcLogin`   | https://botc.app/                   | Login flow for botc.app              |
 | `nandosOrder` | https://www.nandos.com.au/sign-in   | Login + order for Nando's Australia  |
 
-## Running Modes
+## Running
 
-### Docker (Headless)
-
-Runs Chrome + extension inside a Docker container with virtual display.
+Tasks run inside Docker — there is no local-dev-without-Docker path. Docker provides the full stack: Xvfb (virtual display), Chrome with the extension pre-loaded, the WebSocket bridge, and the framework.
 
 ```bash
 npm run check <taskName>
@@ -69,9 +67,15 @@ To disable VNC:
 npm run check botcLogin --no-vnc
 ```
 
-[Full documentation](./stack/infra/README.md)
+[Full documentation](./stack/infra/README.md) | [Extension documentation](./stack/extension/README.md) | [Developer guide & conventions](./AGENTS.md)
 
-[Extension documentation](./stack/extension/README.md)
+## Development
+
+Quick check (lint + build + tests):
+
+```bash
+npm run validate
+```
 
 ## Adding New Tasks
 
@@ -79,23 +83,31 @@ npm run check botcLogin --no-vnc
 
     ```typescript
     // stack/projects/yoursite/tasks/yourSite.ts
-    import type { RetryingTask, TaskContext } from "../../../framework/tasks.js";
+    import type { RetryingTask, VaultSecrets } from "../../../framework/tasks.js";
+    import { needsFromSchema } from "../../../framework/tasks.js";
     import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
+    import { loginSecretsSchema } from "../../utils/schemas.js";
+
+    const TASK = {
+        name: "yourSite",
+        displayUrl: "https://yoursite.com/login",
+    } as const;
 
     export const task: RetryingTask = {
-        name: "yourSite",
-        url: "https://yoursite.com/login",
+        ...TASK,
         project: "monitor-yoursite",
-        needs: ["email", "password"],
+        needs: needsFromSchema(loginSecretsSchema),
         mode: "retry",
         intervalMs: 300_000,
-        run: async (browser, context, deps) => {
+        secretsSchema: loginSecretsSchema,
+        run: async (browser, secrets, deps) => {
+            const { email, password } = loginSecretsSchema.parse(secrets);
             const runner = new StepRunner(deps);
             runner
                 .step("navigate", (log) => { /* ... */ })
                 .step("verify", (log) => { /* ... */ });
             await runner.execute();
-            return { step: "verify", finalUrl: "" };
+            return { lastCompletedStep: "verify", finalUrl: "" };
         },
     };
     ```
@@ -140,4 +152,4 @@ stack/
 
 ## Alerts
 
-On success, an alert file `alert-<taskName>.txt` is written to the project root and the terminal bell is triggered as an audible notification.
+On success, an alert file `alert-<taskName>.txt` is written to `logs/` and the terminal bell is triggered as an audible notification. All framework and task logs are also written to `logs/task-<taskName>.log`.

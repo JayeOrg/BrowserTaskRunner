@@ -44,7 +44,7 @@ export async function handleGetContent(
     }
     return { type: "getContent", kind: "page", content: result.content };
   }
-  const selectorLabel = input.selector ?? "body";
+  const selectorLabel = input.selector ?? "(page)";
   return {
     type: "getContent",
     kind: "error",

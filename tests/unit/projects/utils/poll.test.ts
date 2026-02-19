@@ -67,4 +67,22 @@ describe("pollUntil", () => {
       ),
     ).rejects.toThrow("poll exploded");
   });
+
+  it("throws when intervalMs is zero or negative", async () => {
+    await expect(
+      pollUntil(
+        async () => 1,
+        () => true,
+        { timeoutMs: 1000, intervalMs: 0 },
+      ),
+    ).rejects.toThrow("intervalMs must be positive");
+
+    await expect(
+      pollUntil(
+        async () => 1,
+        () => true,
+        { timeoutMs: 1000, intervalMs: -10 },
+      ),
+    ).rejects.toThrow("intervalMs must be positive");
+  });
 });

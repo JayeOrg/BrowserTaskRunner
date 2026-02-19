@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { detectTurnstile, clickTurnstile } from "../../../../stack/projects/utils/turnstile.js";
-import { createMockBrowser } from "../../../fixtures/mock-browser.js";
+import {
+  detectTurnstile,
+  detectAndClickTurnstile,
+} from "../../../../stack/projects/utils/turnstile.js";
+import { stubBrowserAPI } from "../../../fixtures/mock-browser.js";
 
-function mockTurnstileFound(browser: ReturnType<typeof createMockBrowser>) {
+function mockTurnstileFound(browser: ReturnType<typeof stubBrowserAPI>) {
   vi.mocked(browser.querySelectorRect).mockResolvedValue({
     type: "querySelectorRect",
     found: true,
@@ -13,7 +16,7 @@ function mockTurnstileFound(browser: ReturnType<typeof createMockBrowser>) {
 
 describe("detectTurnstile", () => {
   it("returns matched selector when found", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     mockTurnstileFound(browser);
 
     const result = await detectTurnstile(browser);
@@ -24,7 +27,7 @@ describe("detectTurnstile", () => {
   });
 
   it("returns found:false when no selector matches", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     // Default mock returns found: false
 
     const result = await detectTurnstile(browser);
@@ -32,27 +35,27 @@ describe("detectTurnstile", () => {
   });
 });
 
-describe("clickTurnstile", () => {
+describe("detectAndClickTurnstile", () => {
   it("calls click with matched selector when found", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     mockTurnstileFound(browser);
 
-    await clickTurnstile(browser);
+    await detectAndClickTurnstile(browser);
     expect(browser.click).toHaveBeenCalledWith(".cf-turnstile");
   });
 
   it("does not call click when not found", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
 
-    await clickTurnstile(browser);
+    await detectAndClickTurnstile(browser);
     expect(browser.click).not.toHaveBeenCalled();
   });
 
   it("returns detection result", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     mockTurnstileFound(browser);
 
-    const result = await clickTurnstile(browser);
+    const result = await detectAndClickTurnstile(browser);
     expect(result.found).toBe(true);
   });
 });

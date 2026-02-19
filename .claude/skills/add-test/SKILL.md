@@ -21,15 +21,15 @@ The extension (`stack/extension/`) runs in Chrome and can't be tested in Node.
 
 ## Mock browser
 
-Import from `tests/unit/projects/utils/testing.ts`:
+Import from `tests/fixtures/mock-browser.ts`. Returns a stub implementing all `BrowserAPI` methods as `vi.fn()` with sensible defaults:
 
 ```typescript
-import { createMockBrowser } from "../../../unit/projects/utils/testing.js";
+import { stubBrowserAPI } from "../../../fixtures/mock-browser.js";
 
-const browser = createMockBrowser();
+const browser = stubBrowserAPI();
 ```
 
-All methods are `vi.fn()` with sensible defaults. Override per test:
+Override per test:
 
 ```typescript
 vi.mocked(browser.waitForSelector).mockResolvedValue({
@@ -39,7 +39,7 @@ vi.mocked(browser.waitForSelector).mockResolvedValue({
 });
 ```
 
-When adding a new extension command, add a matching mock to `createMockBrowser()`.
+The stub uses `satisfies Record<keyof BrowserAPI, ...>` — adding a new `BrowserAPI` method without a matching mock is a compile error.
 
 ## Fake extension (integration tests)
 

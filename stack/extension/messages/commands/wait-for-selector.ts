@@ -42,6 +42,7 @@ export async function handleWaitForSelector(
     },
     args: [input.selector, timeout],
   });
+  // If the page navigates, the injected script is terminated and result is undefined
   const result = results[0]?.result;
   if (isScriptWait(result)) {
     if (result.found) {

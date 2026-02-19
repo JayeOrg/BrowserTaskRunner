@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { Browser } from "../../../stack/browser/browser.js";
 import { createQueuedExtension } from "../../fixtures/fake-extension.js";
-import { setupBrowser, type BrowserTestSetup } from "../../fixtures/browser-helpers.js";
+import {
+  setupBrowser,
+  withLocalBrowser,
+  type BrowserTestSetup,
+} from "../../fixtures/browser-helpers.js";
 import { nextPort } from "../../fixtures/port.js";
 
 let setup: BrowserTestSetup | null = null;
@@ -109,24 +113,13 @@ describe("Browser WebSocket protocol", () => {
   });
 
   it("throws after close when sending a command", async () => {
-    const port = nextPort();
-    const localBrowser = new Browser(port);
-    const ext = createQueuedExtension(port);
+    await withLocalBrowser(async (browser) => {
+      browser.close();
 
-    try {
-      const startPromise = localBrowser.start();
-      await ext.connect();
-      await startPromise;
-
-      localBrowser.close();
-
-      await expect(localBrowser.navigate("https://example.com")).rejects.toThrow(
+      await expect(browser.navigate("https://example.com")).rejects.toThrow(
         "Extension not connected",
       );
-    } finally {
-      ext.close();
-      localBrowser.close();
-    }
+    });
   });
 
   it("invalid message does not crash the server", async () => {
@@ -185,7 +178,7 @@ describe("Browser command coverage", () => {
   it("getContent() sends command without selector", async () => {
     setup = await setupBrowser();
 
-    const contentPromise = setup.browser.getContent();
+    const contentPromise = setup.browser.getContent({});
     const cmd = await setup.ext.receiveCommand();
     expect(cmd.type).toBe("getContent");
     expect(cmd).not.toHaveProperty("selector");
@@ -198,7 +191,7 @@ describe("Browser command coverage", () => {
   it("getContent() sends command with selector", async () => {
     setup = await setupBrowser();
 
-    const contentPromise = setup.browser.getContent("#main");
+    const contentPromise = setup.browser.getContent({ selector: "#main" });
     const cmd = await setup.ext.receiveCommand();
     expect(cmd.type).toBe("getContent");
     expect(cmd.selector).toBe("#main");
@@ -281,36 +274,26 @@ describe("Browser close behavior", () => {
 
 describe("Browser timeout and disconnect", () => {
   it("command rejects after timeout when extension does not respond", async () => {
-    const port = nextPort();
-    const localBrowser = new Browser(port, { commandTimeoutMs: 50 });
-    const ext = createQueuedExtension(port);
-
-    const startPromise = localBrowser.start();
-    await ext.connect();
-    await startPromise;
-
-    await expect(localBrowser.navigate("https://example.com")).rejects.toThrow(
-      "Command timeout: navigate",
+    await withLocalBrowser(
+      async (browser) => {
+        await expect(browser.navigate("https://example.com")).rejects.toThrow(
+          "Command timeout: navigate",
+        );
+      },
+      { commandTimeoutMs: 50 },
     );
-
-    ext.close();
-    localBrowser.close();
   });
 
   it("pending command rejects when extension disconnects", async () => {
-    const port = nextPort();
-    const localBrowser = new Browser(port, { commandTimeoutMs: 5000 });
-    const ext = createQueuedExtension(port);
+    await withLocalBrowser(
+      async (browser, ext) => {
+        const navPromise = browser.navigate("https://example.com");
+        ext.close();
 
-    const startPromise = localBrowser.start();
-    await ext.connect();
-    await startPromise;
-
-    const navPromise = localBrowser.navigate("https://example.com");
-    ext.close();
-
-    await expect(navPromise).rejects.toThrow("Extension disconnected");
-    localBrowser.close();
+        await expect(navPromise).rejects.toThrow("Extension disconnected");
+      },
+      { commandTimeoutMs: 5000 },
+    );
   });
 });
 
@@ -329,6 +312,25 @@ describe("Browser error handling", () => {
       blocker.close();
       browser.close();
     }
+  });
+
+  it("response without id is silently ignored", async () => {
+    setup = await setupBrowser();
+
+    // Send a response with no id — handleResponse should drop it
+    setup.ext.sendResponse({ type: "navigate", url: "https://x.com", title: "X" });
+
+    // Browser should still work after unroutable response
+    const navPromise = setup.browser.navigate("https://example.com");
+    const cmd = await setup.ext.receiveCommand();
+    setup.ext.sendResponse({
+      id: cmd.id,
+      type: "navigate",
+      url: "https://example.com",
+      title: "Example",
+    });
+    const result = await navPromise;
+    expect(result.url).toBe("https://example.com");
   });
 
   it("non-JSON WebSocket data does not crash the server", async () => {
@@ -598,9 +600,10 @@ describe("Browser step control", () => {
 
     setup.ext.sendResponse({ type: "stepControl", action: "pause" });
 
-    // Give message time to arrive
+    // Give WebSocket message time to arrive via event loop
+    const WS_MESSAGE_DELAY_MS = 50;
     await new Promise<void>((resolve) => {
-      setTimeout(resolve, 50);
+      setTimeout(resolve, WS_MESSAGE_DELAY_MS);
     });
 
     expect(actions).toEqual(["pause"]);
@@ -612,6 +615,38 @@ describe("Browser step control", () => {
     const deps = setup.browser.stepRunnerDeps();
     expect(deps.sendStepUpdate).toBeTypeOf("function");
     expect(deps.onControl).toBeTypeOf("function");
+  });
+});
+
+describe("getFrameId found:false", () => {
+  it("getFrameId() returns found:false when iframe is not found", async () => {
+    setup = await setupBrowser();
+
+    const framePromise = setup.browser.getFrameId("iframe.missing");
+    const cmd = await setup.ext.receiveCommand();
+    expect(cmd.type).toBe("getFrameId");
+
+    setup.ext.sendResponse({ id: cmd.id, type: "getFrameId", found: false, frameId: 0 });
+    const result = await framePromise;
+    expect(result).toEqual({ found: false });
+  });
+});
+
+describe("offControl", () => {
+  it("offControl() clears the control handler", async () => {
+    setup = await setupBrowser();
+
+    const actions: string[] = [];
+    setup.browser.onControl((action) => actions.push(action));
+    setup.browser.offControl();
+
+    setup.ext.sendResponse({ type: "stepControl", action: "pause" });
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    expect(actions).toEqual([]);
   });
 });
 
@@ -840,7 +875,7 @@ describe("Frame support", () => {
   it("getContent() passes frameId through to command", async () => {
     setup = await setupBrowser();
 
-    const contentPromise = setup.browser.getContent("#main", { frameId: 12 });
+    const contentPromise = setup.browser.getContent({ selector: "#main", frameId: 12 });
     const cmd = await setup.ext.receiveCommand();
     expect(cmd.type).toBe("getContent");
     expect(cmd.frameId).toBe(12);

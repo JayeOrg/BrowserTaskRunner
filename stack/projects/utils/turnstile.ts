@@ -10,9 +10,6 @@ const TURNSTILE_SELECTORS = [
 
 export type TurnstileDetectionResult = { found: true; selector: string } | { found: false };
 
-/**
- * Detects Turnstile on the page and returns the matched selector if found.
- */
 export async function detectTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
   const response = await browser.querySelectorRect(TURNSTILE_SELECTORS);
 
@@ -23,11 +20,9 @@ export async function detectTurnstile(browser: BrowserAPI): Promise<TurnstileDet
   return { found: false };
 }
 
-/**
- * Detects and clicks Turnstile if present on the page.
- * Returns whether a Turnstile was found and clicked.
- */
-export async function clickTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
+export async function detectAndClickTurnstile(
+  browser: BrowserAPI,
+): Promise<TurnstileDetectionResult> {
   const detection = await detectTurnstile(browser);
 
   if (detection.found) {

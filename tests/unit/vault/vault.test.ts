@@ -6,10 +6,13 @@ import type { DatabaseSync } from "node:sqlite";
 import { exportProjectToken, parseProjectToken, aesEncrypt } from "../../../stack/vault/crypto.js";
 import {
   openVault,
+  openVaultReadOnly,
+  wrapVaultOpenError,
   initVault,
   deriveMasterKey,
   changePassword,
 } from "../../../stack/vault/core.js";
+import { withSavepoint } from "../../../stack/vault/db.js";
 import {
   createProject,
   getProjectKey,
@@ -31,7 +34,7 @@ import {
   deleteSession,
 } from "../../../stack/vault/ops/sessions.js";
 import { loadProjectDetails } from "../../../stack/vault/ops/runtime.js";
-import { requireBlob, requireString } from "../../../stack/vault/rows.js";
+import { requireBlob, requireString, requireNumber } from "../../../stack/vault/rows.js";
 
 const PASSWORD = "test-password-123";
 
@@ -428,10 +431,10 @@ describe("sessions", () => {
   it("throws on tampered token", () => {
     const token = createSession(db, masterKey);
     const buf = Buffer.from(token, "base64");
-    // Corrupt the last byte in the session key portion
-    buf[buf.length - 1] = 0;
+    // Guarantee corruption: shift the last byte so it's always different
+    buf[buf.length - 1] = (buf[buf.length - 1]! + 1) % 256;
     const tampered = buf.toString("base64");
-    expect(() => getMasterKeyFromSession(db, tampered)).toThrow();
+    expect(() => getMasterKeyFromSession(db, tampered)).toThrow("Admin session decryption failed");
   });
 
   it("throws when session does not exist", () => {
@@ -457,25 +460,29 @@ describe("sessions", () => {
 describe("getSessionExpiry", () => {
   it("returns expiry timestamp for a valid session", () => {
     const token = createSession(db, masterKey, 30);
-    const expiry = getSessionExpiry(db, token);
-    expect(expiry).toBeTypeOf("number");
-    expect(expiry).toBeGreaterThan(Date.now());
+    const result = getSessionExpiry(db, token);
+    expect(result.status).toBe("valid");
+    if (result.status === "valid") {
+      expect(result.expiresAt).toBeGreaterThan(Date.now());
+    }
   });
 
-  it("returns null for invalid token length", () => {
-    expect(getSessionExpiry(db, "dG9vc2hvcnQ=")).toBeNull();
+  it("returns invalid-token for bad token length", () => {
+    expect(getSessionExpiry(db, "dG9vc2hvcnQ=")).toEqual({ status: "invalid-token" });
   });
 
-  it("returns null for nonexistent session", () => {
+  it("returns not-found for nonexistent session", () => {
     const fake = Buffer.alloc(48, 0).toString("base64");
-    expect(getSessionExpiry(db, fake)).toBeNull();
+    expect(getSessionExpiry(db, fake)).toEqual({ status: "not-found" });
   });
 
   it("returns expiry even when session is expired", () => {
     const token = createSession(db, masterKey, -1);
-    const expiry = getSessionExpiry(db, token);
-    expect(expiry).toBeTypeOf("number");
-    expect(expiry).toBeLessThan(Date.now());
+    const result = getSessionExpiry(db, token);
+    expect(result.status).toBe("valid");
+    if (result.status === "valid") {
+      expect(result.expiresAt).toBeLessThan(Date.now());
+    }
   });
 });
 
@@ -487,7 +494,7 @@ describe("session housekeeping", () => {
     createSession(db, masterKey, 30);
 
     // The expired session should have been purged
-    expect(getSessionExpiry(db, expiredToken)).toBeNull();
+    expect(getSessionExpiry(db, expiredToken)).toEqual({ status: "not-found" });
   });
 });
 
@@ -517,6 +524,27 @@ describe("requireString", () => {
     expect(() => requireString({ name: 42 }, "name")).toThrow('Expected TEXT for field "name"');
     expect(() => requireString({ name: null }, "name")).toThrow('Expected TEXT for field "name"');
     expect(() => requireString({}, "name")).toThrow('Expected TEXT for field "name"');
+  });
+});
+
+describe("requireNumber", () => {
+  it("returns number values", () => {
+    expect(requireNumber({ age: 42 }, "age")).toBe(42);
+  });
+
+  it("throws for non-number values", () => {
+    expect(() => requireNumber({ age: "42" }, "age")).toThrow('Expected INTEGER for field "age"');
+    expect(() => requireNumber({ age: null }, "age")).toThrow('Expected INTEGER for field "age"');
+    expect(() => requireNumber({}, "age")).toThrow('Expected INTEGER for field "age"');
+  });
+});
+
+describe("createProject duplicate", () => {
+  it("throws when creating a project with a name that already exists", () => {
+    createProject(db, masterKey, "dup-test");
+    expect(() => createProject(db, masterKey, "dup-test")).toThrow(
+      'Project already exists: "dup-test"',
+    );
   });
 });
 
@@ -595,5 +623,51 @@ describe("vault corruption defenses", () => {
     expect(() => {
       deleteSession(db, "dG9vc2hvcnQ=");
     }).toThrow("Invalid session token");
+  });
+});
+
+describe("withSavepoint", () => {
+  it("rejects invalid savepoint names", () => {
+    expect(() => withSavepoint(db, "bad name!", () => 1)).toThrow("Invalid savepoint name");
+  });
+
+  it("rejects async callbacks", () => {
+    expect(() => withSavepoint(db, "sp", () => Promise.resolve(1))).toThrow(
+      "callback must be synchronous",
+    );
+  });
+});
+
+describe("wrapVaultOpenError", () => {
+  it("wraps ENOENT into user-friendly message", () => {
+    const cause = Object.assign(new Error("not found"), { code: "ENOENT" });
+    expect(() => wrapVaultOpenError(cause, "/tmp/vault.db")).toThrow(
+      "Vault not found at /tmp/vault.db",
+    );
+  });
+
+  it("wraps SQLITE_CANTOPEN into user-friendly message", () => {
+    const cause = Object.assign(new Error("cant open"), { code: "SQLITE_CANTOPEN" });
+    expect(() => wrapVaultOpenError(cause, "/tmp/vault.db")).toThrow(
+      "Vault not found at /tmp/vault.db",
+    );
+  });
+
+  it("re-throws unknown errors unchanged", () => {
+    const cause = new Error("disk on fire");
+    expect(() => wrapVaultOpenError(cause, "/tmp/vault.db")).toThrow("disk on fire");
+  });
+
+  it("re-throws non-object errors", () => {
+    expect(() => wrapVaultOpenError("string error", "/tmp/vault.db")).toThrow("string error");
+  });
+});
+
+describe("openVaultReadOnly", () => {
+  it("opens an existing vault in read-only mode", () => {
+    const readOnly = openVaultReadOnly(vaultPath);
+    const row = readOnly.prepare("SELECT value FROM config WHERE key = ?").get("salt");
+    expect(row).toBeDefined();
+    readOnly.close();
   });
 });

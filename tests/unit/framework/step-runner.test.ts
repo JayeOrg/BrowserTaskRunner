@@ -4,6 +4,7 @@ import {
   type StepUpdate,
   type StepRunnerDeps,
 } from "../../../stack/framework/step-runner.js";
+import { StepError } from "../../../stack/framework/errors.js";
 import { createTaskLogger } from "../../../stack/framework/logging.js";
 
 function createDeps(overrides?: Partial<StepRunnerDeps>): {
@@ -261,7 +262,7 @@ describe("StepRunner skipBack/skipForward", () => {
     await tick();
     expect(order).toEqual(["a"]);
 
-    // Pointer 1 -> 2 (skip "b")
+    // Step index 1 -> 2 (skip "b")
     sendControl("skipForward");
     sendControl("play");
     await done;
@@ -294,7 +295,7 @@ describe("StepRunner skipBack/skipForward", () => {
     await tick();
     expect(order).toEqual(["a", "b"]);
 
-    // Pointer 2 -> 1
+    // Step index 2 -> 1
     sendControl("skipBack");
     sendControl("play");
     await done;
@@ -313,7 +314,7 @@ describe("StepRunner skipBack/skipForward", () => {
     const done = runner.execute();
     await tick();
 
-    // Pointer 1 -> 0
+    // Step index 1 -> 0
     sendControl("skipBack");
     // Already at 0, stays
     sendControl("skipBack");
@@ -340,7 +341,7 @@ describe("StepRunner skipBack/skipForward", () => {
     const done = runner.execute();
     await tick();
 
-    // Pointer 1 -> 1 (already at last step)
+    // Step index 1 -> 1 (already at last step)
     sendControl("skipForward");
 
     const lastPaused = updates.filter((entry) => entry.state === "paused").pop();
@@ -352,14 +353,14 @@ describe("StepRunner skipBack/skipForward", () => {
 });
 
 describe("StepRunner pauseOnError", () => {
-  it("pauses on error and re-runs step after play", async () => {
+  it("pauses on StepError and re-runs step after play", async () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
     let calls = 0;
 
     runner.step("flaky", async () => {
       calls++;
-      if (calls === 1) throw new Error("first try fails");
+      if (calls === 1) throw new StepError("test", "flaky", "first try fails");
     });
 
     const done = runner.execute();
@@ -367,7 +368,7 @@ describe("StepRunner pauseOnError", () => {
 
     const failedUpdate = updates.find((entry) => entry.state === "failed");
     expect(failedUpdate).toBeDefined();
-    expect(failedUpdate?.error).toBe("first try fails");
+    expect(failedUpdate?.error).toBe("test.flaky: first try fails");
 
     // Resume — pointer didn't advance, so the step re-runs
     sendControl("play");
@@ -381,9 +382,20 @@ describe("StepRunner pauseOnError", () => {
     const runner = new StepRunner(deps);
 
     runner.step("fail", async () => {
-      throw new Error("immediate");
+      throw new StepError("test", "fail", "immediate");
     });
 
     await expect(runner.execute()).rejects.toThrow("immediate");
+  });
+
+  it("rethrows non-StepError even when pauseOnError is true", async () => {
+    const { deps } = createDeps({ pauseOnError: true });
+    const runner = new StepRunner(deps);
+
+    runner.step("buggy", async () => {
+      throw new TypeError("Cannot read properties of undefined");
+    });
+
+    await expect(runner.execute()).rejects.toThrow("Cannot read properties of undefined");
   });
 });

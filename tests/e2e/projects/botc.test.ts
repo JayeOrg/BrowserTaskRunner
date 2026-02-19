@@ -1,22 +1,25 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { task as botcLoginTask } from "../../../stack/projects/botc/tasks/botcLogin.js";
 import {
-  setupTaskTest,
-  createDefaultResponder,
+  setupTaskRunTest,
+  teardownTaskTest,
   noopLogger,
   type TaskTestSetup,
 } from "../../fixtures/test-helpers.js";
-
 vi.mock("../../../stack/projects/utils/timing.js", () => ({
   sleep: () => Promise.resolve(),
+}));
+
+// vi.mock factory is hoisted above imports, so we inline the mock here.
+// Implementation lives in tests/fixtures/poll-mock.ts for non-hoisted contexts.
+vi.mock("../../../stack/projects/utils/poll.js", async () => ({
+  pollUntil: (await import("../../fixtures/poll-mock.js")).fastPollUntil,
 }));
 
 let setup: TaskTestSetup | null = null;
 
 afterEach(() => {
-  setup?.browser.close();
-  setup?.ext.close();
-  setup?.site.server.close();
+  teardownTaskTest(setup);
   setup = null;
 });
 
@@ -24,12 +27,12 @@ describe("e2e: botcLoginTask", () => {
   it("has correct task metadata", () => {
     expect(botcLoginTask.name).toBe("botcLogin");
     expect(botcLoginTask.mode).toBe("retry");
-    expect(botcLoginTask.project).toBe("monitorBotcLogin");
-    expect(botcLoginTask.contextSchema).toBeDefined();
+    expect(botcLoginTask.project).toBe("monitor-botc");
+    expect(botcLoginTask.secretsSchema).toBeDefined();
   });
 
-  it("validates context schema requires email and password", () => {
-    const schema = botcLoginTask.contextSchema;
+  it("validates secrets schema requires email and password", () => {
+    const schema = botcLoginTask.secretsSchema;
     expect(schema).toBeDefined();
 
     const valid = schema?.safeParse({ email: "user@test.com", password: "pass123" });
@@ -42,9 +45,8 @@ describe("e2e: botcLoginTask", () => {
     expect(missingPassword?.success).toBe(false);
   });
 
-  // CheckAlreadyLoggedIn polls getText for 5s before proceeding with login
-  it("navigates and fills login form on happy path", { timeout: 10_000 }, async () => {
-    const { responder, state } = createDefaultResponder({
+  it("navigates and fills login form on happy path", async () => {
+    const ctx = await setupTaskRunTest({
       waitForSelector: (cmd) => ({
         type: "waitForSelector",
         found: true,
@@ -59,11 +61,11 @@ describe("e2e: botcLoginTask", () => {
         title: "Dashboard",
       }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
+    const deps = { ...ctx.browser.stepRunnerDeps(), taskLogger: noopLogger };
     const result = await botcLoginTask.run(
-      setup.browser,
+      ctx.browser,
       {
         email: "user@test.com",
         password: "pass123",
@@ -74,22 +76,21 @@ describe("e2e: botcLoginTask", () => {
     expect(result.finalUrl).toContain("dashboard");
   });
 
-  it("fails when email input is not found", { timeout: 10_000 }, async () => {
-    const { responder, state } = createDefaultResponder({
+  it("fails when email input is not found", async () => {
+    const ctx = await setupTaskRunTest({
       waitForSelector: () => ({ type: "waitForSelector", found: false }),
       querySelectorRect: () => ({ type: "querySelectorRect", found: false }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
+    const deps = { ...ctx.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(
-      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, deps),
+      botcLoginTask.run(ctx.browser, { email: "user@test.com", password: "pass123" }, deps),
     ).rejects.toThrow("EMAIL_INPUT_NOT_FOUND");
   });
 
-  // CheckAlreadyLoggedIn (5s) + checkResult (15s) polling against real Date.now()
-  it("fails when still on login page after submit", { timeout: 25_000 }, async () => {
-    const { responder, state } = createDefaultResponder({
+  it("fails when still on login page after submit", async () => {
+    const ctx = await setupTaskRunTest({
       waitForSelector: (cmd) => ({
         type: "waitForSelector",
         found: true,
@@ -104,11 +105,11 @@ describe("e2e: botcLoginTask", () => {
         title: "Login",
       }),
     });
-    setup = await setupTaskTest(responder, undefined, state);
+    setup = ctx;
 
-    const deps = { ...setup.browser.stepRunnerDeps(), taskLogger: noopLogger };
+    const deps = { ...ctx.browser.stepRunnerDeps(), taskLogger: noopLogger };
     await expect(
-      botcLoginTask.run(setup.browser, { email: "user@test.com", password: "pass123" }, deps),
+      botcLoginTask.run(ctx.browser, { email: "user@test.com", password: "pass123" }, deps),
     ).rejects.toThrow("STILL_ON_LOGIN_PAGE");
   });
 });

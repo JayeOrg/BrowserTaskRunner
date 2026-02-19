@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { waitForFirst, clickFirst, fillFirst } from "../../../../stack/projects/utils/selectors.js";
-import { createMockBrowser } from "../../../fixtures/mock-browser.js";
+import { stubBrowserAPI } from "../../../fixtures/mock-browser.js";
+import { neverResolves } from "../../../fixtures/test-helpers.js";
 
 describe("waitForFirst", () => {
   it("returns first matching selector", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.waitForSelector).mockImplementation(async (selector) => {
       if (selector === ".match") {
         return { type: "waitForSelector", found: true, selector: ".match" };
       }
-      // Simulate timeout by never resolving for non-matching selectors
-      return new Promise(() => {});
+      return neverResolves();
     });
 
     const result = await waitForFirst(browser, [".nope", ".match"], 5000);
@@ -18,7 +18,7 @@ describe("waitForFirst", () => {
   });
 
   it("returns found:false when all selectors timeout", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.waitForSelector).mockResolvedValue({
       type: "waitForSelector",
       found: false,
@@ -28,11 +28,25 @@ describe("waitForFirst", () => {
     expect(result.found).toBe(false);
     expect(result).toHaveProperty("error");
   });
+
+  it("maps synchronous throw into AggregateError detail", async () => {
+    const browser = stubBrowserAPI();
+    vi.mocked(browser.waitForSelector).mockImplementation(() => {
+      throw new TypeError("unexpected");
+    });
+
+    const result = await waitForFirst(browser, [".a"], 100);
+    expect(result.found).toBe(false);
+    if (!result.found) {
+      expect(result.error).toHaveLength(1);
+      expect(result.error[0]?.error).toContain("unexpected");
+    }
+  });
 });
 
 describe("clickFirst", () => {
   it("returns first successfully clicked selector", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.click)
       .mockRejectedValueOnce(new Error("not found"))
       .mockResolvedValueOnce({ type: "click" });
@@ -42,7 +56,7 @@ describe("clickFirst", () => {
   });
 
   it("returns error when none succeed", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.click)
       .mockRejectedValueOnce(new Error("nope1"))
       .mockRejectedValueOnce(new Error("nope2"));
@@ -59,7 +73,7 @@ describe("clickFirst", () => {
   });
 
   it("catches thrown errors and continues", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.click)
       .mockRejectedValueOnce(new Error("network error"))
       .mockResolvedValueOnce({ type: "click" });
@@ -69,7 +83,7 @@ describe("clickFirst", () => {
   });
 
   it("handles non-Error thrown values", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.click).mockRejectedValueOnce("string rejection");
 
     const result = await clickFirst(browser, [".a"]);
@@ -84,7 +98,7 @@ describe("clickFirst", () => {
 
 describe("fillFirst", () => {
   it("waits for selector then fills", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.waitForSelector).mockResolvedValue({
       type: "waitForSelector",
       found: true,
@@ -98,14 +112,14 @@ describe("fillFirst", () => {
   });
 
   it("returns found:false when no selector found", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
 
     const result = await fillFirst(browser, [".x"], "val", 100);
     expect(result.found).toBe(false);
   });
 
   it("returns error when fill fails after finding selector", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.waitForSelector).mockResolvedValue({
       type: "waitForSelector",
       found: true,
@@ -123,7 +137,7 @@ describe("fillFirst", () => {
   });
 
   it("handles non-Error thrown values from fill", async () => {
-    const browser = createMockBrowser();
+    const browser = stubBrowserAPI();
     vi.mocked(browser.waitForSelector).mockResolvedValue({
       type: "waitForSelector",
       found: true,

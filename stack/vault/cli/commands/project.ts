@@ -20,8 +20,12 @@ function tokenEnvKey(project: string): string {
 
 function parseProjectArgs(subArgs: string[], usage: string): { name: string; writeEnv: boolean } {
   const writeEnv = subArgs.includes("--write-env");
-  const positional = subArgs.filter((arg) => arg !== "--write-env");
-  const name = positional[0];
+  const remaining = subArgs.filter((arg) => arg !== "--write-env");
+  const unknownFlags = remaining.filter((arg) => arg.startsWith("--"));
+  if (unknownFlags.length > 0) {
+    throw new Error(`Unknown flag: ${unknownFlags[0] ?? ""}`);
+  }
+  const name = remaining[0];
   requireArg(name, usage);
   return { name, writeEnv };
 }
@@ -39,6 +43,11 @@ async function handleProject(args: string[]): Promise<void> {
   switch (subcommand) {
     case "create": {
       const { name, writeEnv } = parseProjectArgs(subArgs, "project create <name> [--write-env]");
+      if (!/^[a-zA-Z0-9_-]+$/u.test(name)) {
+        throw new Error(
+          `Invalid project name "${name}" — use only letters, digits, hyphens, and underscores`,
+        );
+      }
       await withVault(async (db) => {
         const masterKey = await resolveAdminAuth(db);
         const token = createProject(db, masterKey, name);
@@ -107,7 +116,7 @@ async function handleProject(args: string[]): Promise<void> {
       requireArg(name, "project setup <name>");
       const needs = await getProjectNeeds(name);
       if (needs.length === 0) {
-        console.log(`No tasks found for project "${name}" (is the project built?)`);
+        console.error(`No tasks found for project "${name}" (is the project built?)`);
         return;
       }
       await withVault(async (db) => {
@@ -115,24 +124,24 @@ async function handleProject(args: string[]): Promise<void> {
         const existing = new Set(listDetails(db, name).map((detail) => detail.key));
         const missing = needs.filter((key) => !existing.has(key));
 
-        console.log(`Project "${name}" needs: ${needs.join(", ")}`);
+        console.error(`Project "${name}" needs: ${needs.join(", ")}`);
         for (const key of needs) {
-          console.log(`  ${key} ${existing.has(key) ? "✓" : "✗"}`);
+          console.error(`  ${key} ${existing.has(key) ? "✓" : "✗"}`);
         }
 
         if (missing.length === 0) {
-          console.log("All details present");
+          console.error("All details present");
           return;
         }
 
-        console.log(`\nMissing ${String(missing.length)} detail(s):`);
+        console.error(`\nMissing ${String(missing.length)} detail(s):`);
         for (const key of missing) {
-          console.log(`\nEnter value for "${key}":`);
+          console.error(`\nEnter value for "${key}":`);
           const value = await getSecretValue();
           setDetail(db, masterKey, name, key, value);
-          console.log(`  Set "${key}"`);
+          console.error(`  Set "${key}"`);
         }
-        console.log("\nSetup complete");
+        console.error("\nSetup complete");
       });
       break;
     }

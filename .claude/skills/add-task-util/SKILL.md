@@ -50,7 +50,10 @@ export async function assertUrlChanged(
 |------|---------|---------|
 | `selectors.ts` | `waitForFirst`, `clickFirst`, `fillFirst` | Multi-selector fallback patterns |
 | `timing.ts` | `sleep` | Promise-based delay |
-| `turnstile.ts` | `detectTurnstile`, `clickTurnstile` | Cloudflare Turnstile detection and clicking |
+| `turnstile.ts` | `detectTurnstile`, `detectAndClickTurnstile` | Cloudflare Turnstile detection and clicking |
+| `poll.ts` | `pollUntil` | Generic polling for custom conditions (mockable via `timing.ts` sleep) |
+| `schemas.ts` | `loginSecretsSchema` | Shared Zod schemas for common task secrets shapes |
+| `dump.ts` | `dumpHtml` | HTML dumper for debugging (saves to `logs/`) |
 
 ## Usage in tasks
 
@@ -59,5 +62,5 @@ Import from the actual source module:
 ```typescript
 import { waitForFirst, clickFirst } from "../../utils/selectors.js";
 import { sleep } from "../../utils/timing.js";
-import { clickTurnstile } from "../../utils/turnstile.js";
+import { detectAndClickTurnstile } from "../../utils/turnstile.js";
 ```

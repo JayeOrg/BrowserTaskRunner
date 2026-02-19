@@ -77,10 +77,23 @@ export function updateOverlay(update: StepState): void {
     }
   }
 
-  // Auto-show on first update
+  showOnFirstStateArrival();
+}
+
+function showOnFirstStateArrival(): void {
   if (elements && elements.container.style.display === "none") {
     elements.container.style.display = "block";
   }
+}
+
+export function showNotConnected(): void {
+  ensureOverlay();
+  if (elements) {
+    elements.stepLabel.textContent = "Waiting for connection...";
+  }
+  updateStateBadge("idle");
+  updateControlButtons();
+  showOnFirstStateArrival();
 }
 
 export function toggleInteractive(): void {

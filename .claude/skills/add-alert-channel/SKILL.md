@@ -30,7 +30,7 @@ async function sendWebhook(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       task: taskName,
-      step: result.step,
+      step: result.lastCompletedStep,
       url: result.finalUrl,
       timestamp: new Date().toISOString(),
     }),
@@ -44,7 +44,7 @@ async function sendWebhook(
 function writeAlert(taskName: string, result: TaskResultSuccess): void {
   // ...existing file write and bell...
   sendWebhook(taskName, result).catch((err) => {
-    logger.warn("Webhook failed", { error: getErrorMessage(err) });
+    logger.warn("Webhook failed", { error: toErrorMessage(err) });
   });
 }
 ```
@@ -74,7 +74,7 @@ The `TaskResultSuccess` type provides:
 
 ```typescript
 interface TaskResultSuccess {
-  step: string;       // name of the final successful step
+  lastCompletedStep: string;  // name of the final successful step
   finalUrl?: string;  // URL after the task completed (if applicable)
 }
 ```

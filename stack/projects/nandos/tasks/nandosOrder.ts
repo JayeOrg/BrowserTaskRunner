@@ -7,8 +7,8 @@ import {
 } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
 import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
-import { fillFirst } from "../../utils/selectors.js";
-import { nandosContextSchema } from "../../utils/schemas.js";
+import { fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
+import { nandosSecretsSchema } from "../../utils/schemas.js";
 import { sleep } from "../../utils/timing.js";
 import { pollUntil } from "../../utils/poll.js";
 
@@ -18,7 +18,7 @@ const URLS = {
 
 const TASK = {
   name: "nandosOrder",
-  url: "https://www.nandos.com.au/sign-in",
+  displayUrl: "https://www.nandos.com.au/sign-in",
 } as const;
 
 const TIMINGS = {
@@ -51,8 +51,7 @@ const SAFE_MODE = process.env.SAFE_MODE === "true";
 const FINAL_STEP = "selectPaymentAndConfirm" as const;
 
 const SELECTORS = {
-  email: ['input[type="email"]', 'input[name="email"]', "input#email"],
-  password: ['input[type="password"]', 'input[name="password"]', "input#password"],
+  ...LOGIN_SELECTORS,
   submit: ['button[type="submit"]'],
 } as const;
 
@@ -113,7 +112,7 @@ async function checkAlreadyLoggedIn(
 }
 
 async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  await browser.navigate(TASK.url);
+  await browser.navigate(TASK.displayUrl);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
   log.success("Navigated to sign-in page", { url, title });
@@ -126,13 +125,14 @@ async function findAndFillLogin(
   password: string,
 ): Promise<void> {
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.selectorWait);
-  if (!emailResult.found)
-    log.fatal("EMAIL_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.email.join(", ")}`);
+  if (!emailResult.found) log.fatal("EMAIL_INPUT_NOT_FOUND", { error: emailResult.error });
   await sleep(TIMINGS.afterFill);
 
   const passResult = await fillFirst(browser, SELECTORS.password, password, TIMINGS.selectorWait);
   if (!passResult.found)
-    log.fatal("PASSWORD_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.password.join(", ")}`);
+    log.fatal("PASSWORD_INPUT_NOT_FOUND", {
+      summary: `Selectors tried: ${SELECTORS.password.join(", ")}`,
+    });
   await sleep(TIMINGS.afterFill);
 
   log.success("Entered credentials");
@@ -140,7 +140,8 @@ async function findAndFillLogin(
 
 async function clickSignIn(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const result = await browser.cdpClickSelector([...SELECTORS.submit]);
-  if (!result.found) log.fatal("SIGN_IN_BUTTON_NOT_FOUND", "Could not find submit button");
+  if (!result.found)
+    log.fatal("SIGN_IN_BUTTON_NOT_FOUND", { summary: "Could not find submit button" });
   log.success("Clicked SIGN IN via cdpClick", { selector: result.selector });
   await sleep(TIMINGS.afterClick);
 }
@@ -155,10 +156,9 @@ async function handleMfa(browser: BrowserAPI, log: StepLogger): Promise<void> {
   );
 
   if (!result.ok)
-    log.fatal(
-      "MFA_TIMEOUT",
-      `MFA not completed within ${String(TIMINGS.mfaTimeout / 1000)} seconds`,
-    );
+    log.fatal("MFA_TIMEOUT", {
+      summary: `MFA not completed within ${String(TIMINGS.mfaTimeout / 1000)} seconds`,
+    });
 
   log.success("Login completed, left sign-in page", { url: result.value.url });
 }
@@ -189,10 +189,9 @@ async function clickSaveAndContinue(browser: BrowserAPI, log: StepLogger): Promi
     timeout: TIMINGS.saveAndContinueWait,
   });
   if (!result.found)
-    log.fatal(
-      "SAVE_AND_CONTINUE_NOT_FOUND",
-      "Save and Continue not found on page within 15 seconds",
-    );
+    log.fatal("SAVE_AND_CONTINUE_NOT_FOUND", {
+      summary: `Save and Continue not found on page within ${String(TIMINGS.saveAndContinueWait / 1000)} seconds`,
+    });
   log.success("Clicked SAVE AND CONTINUE", { text: result.text });
 
   const closed = await pollUntil(
@@ -201,10 +200,9 @@ async function clickSaveAndContinue(browser: BrowserAPI, log: StepLogger): Promi
     { timeoutMs: TIMINGS.saveAndContinueWait, intervalMs: TIMINGS.modalWait },
   );
   if (!closed.ok)
-    log.fatal(
-      "MODAL_NOT_CLOSING",
-      "Order Details modal still visible after clicking Save and Continue",
-    );
+    log.fatal("MODAL_NOT_CLOSING", {
+      summary: "Order Details modal still visible after clicking Save and Continue",
+    });
   log.success("Modal closed");
 }
 
@@ -219,7 +217,8 @@ async function handleDeliveryModal(
     'button[value="DELIVERY"]',
     '[data-testid="delivery"]',
   ]);
-  if (!delivResult.found) log.fatal("DELIVERY_OPTION_NOT_FOUND", "Could not find Delivery button");
+  if (!delivResult.found)
+    log.fatal("DELIVERY_OPTION_NOT_FOUND", { summary: "Could not find Delivery button" });
   log.success("Clicked Delivery via cdpClick", {
     selector: delivResult.selector,
   });
@@ -228,16 +227,15 @@ async function handleDeliveryModal(
 
   const modalPoll = await browser.waitForText(["Order Details"], TIMINGS.deliveryModalPoll);
   if (!modalPoll.found)
-    log.fatal("MODAL_NOT_PRESENT", "Expected Order Details modal but not found");
+    log.fatal("MODAL_NOT_PRESENT", { summary: "Expected Order Details modal but not found" });
   log.success("Order details modal confirmed present");
 
   const addressPoll = await browser.waitForText([expectedAddress], TIMINGS.addressWait);
   if (!addressPoll.found) {
     const body = await browser.getText();
-    log.fatal(
-      "ADDRESS_NOT_VISIBLE",
-      `Expected address containing '${expectedAddress}' not found. Page snippet: ${body.slice(0, 500)}`,
-    );
+    log.fatal("ADDRESS_NOT_VISIBLE", {
+      summary: `Expected address containing '${expectedAddress}' not found. Page snippet: ${body.slice(0, 500)}`,
+    });
   }
   log.success("Address confirmed visible");
 
@@ -247,10 +245,9 @@ async function handleDeliveryModal(
 async function navigateToCategory(browser: BrowserAPI, log: StepLogger): Promise<void> {
   const result = await browser.clickText(["Burgers, Wraps & Pitas"], { cdp: true });
   if (!result.found)
-    log.fatal(
-      "CATEGORY_NOT_FOUND",
-      'Could not find "Burgers, Wraps & Pitas" section via clickText',
-    );
+    log.fatal("CATEGORY_NOT_FOUND", {
+      summary: 'Could not find "Burgers, Wraps & Pitas" section via clickText',
+    });
   log.success("Navigated to Burgers, Wraps & Pitas", {
     text: result.text,
   });
@@ -264,10 +261,9 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
     timeout: TIMINGS.addToCartWait,
   });
   if (!addResult.found)
-    log.fatal(
-      "ADD_ITEM_BUTTON_NOT_FOUND",
-      "Could not find add-to-cart button text on page within 15 seconds",
-    );
+    log.fatal("ADD_ITEM_BUTTON_NOT_FOUND", {
+      summary: `Could not find add-to-cart button text on page within ${String(TIMINGS.addToCartWait / 1000)} seconds`,
+    });
   log.success("Clicked add-to-cart", { text: addResult.text });
 
   const closed = await pollUntil(
@@ -276,10 +272,9 @@ async function clickAddToCart(browser: BrowserAPI, log: StepLogger): Promise<voi
     { timeoutMs: TIMINGS.addToCartWait, intervalMs: TIMINGS.afterAddItem },
   );
   if (!closed.ok)
-    log.fatal(
-      "ITEM_MODAL_NOT_CLOSING",
-      "Item modal still visible 15 seconds after clicking add-to-cart",
-    );
+    log.fatal("ITEM_MODAL_NOT_CLOSING", {
+      summary: "Item modal still visible 15 seconds after clicking add-to-cart",
+    });
   log.success("Item modal closed");
 }
 
@@ -292,16 +287,17 @@ async function addMenuItem(
   const imgSelector = `img[alt="${item.name}"]`;
   const imgResult = await browser.cdpClickSelector([imgSelector]);
   if (!imgResult.found)
-    log.fatal("MENU_ITEM_NOT_FOUND", `Could not find product image with alt="${item.name}"`);
+    log.fatal("MENU_ITEM_NOT_FOUND", {
+      summary: `Could not find product image with alt="${item.name}"`,
+    });
   log.success(`Clicked ${item.name} image`, { selector: imgResult.selector });
   await sleep(TIMINGS.modalWait);
 
   const modalBody = await browser.getText();
   if (!modalBody.toLowerCase().includes("choose your protein")) {
-    log.fatal(
-      "ITEM_MODAL_NOT_VISIBLE",
-      `Expected item modal with "choose your protein" heading after clicking ${item.name}. Page snippet: ${modalBody.slice(0, 500)}`,
-    );
+    log.fatal("ITEM_MODAL_NOT_VISIBLE", {
+      summary: `Expected item modal with "choose your protein" heading after clicking ${item.name}. Page snippet: ${modalBody.slice(0, 500)}`,
+    });
   }
   log.success("Item modal confirmed open");
 
@@ -336,9 +332,7 @@ async function addMenuItem(
   await clickAddToCart(browser, log);
 }
 
-async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  await sleep(TIMINGS.afterClick);
-
+async function tryOpenCart(browser: BrowserAPI, log: StepLogger): Promise<boolean> {
   const cartResult = await browser.cdpClickSelector([
     '[data-testid*="cart"]',
     'button[aria-label*="cart"]',
@@ -346,8 +340,7 @@ async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<
   ]);
   if (cartResult.found) {
     log.success("Clicked cart element", { selector: cartResult.selector });
-    await sleep(TIMINGS.afterModalAction);
-    return;
+    return true;
   }
 
   log.warn("Cart CSS selectors did not match, trying text fallback");
@@ -355,11 +348,20 @@ async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<
   const textResult = await browser.clickText(["View cart", "Cart"], { cdp: true });
   if (textResult.found) {
     log.success("Clicked cart via text", { text: textResult.text });
-    await sleep(TIMINGS.afterModalAction);
-    return;
+    return true;
   }
 
-  log.fatal("CART_NOT_FOUND", "Could not find cart element via CSS or text");
+  return false;
+}
+
+async function verifyCartAndOpen(browser: BrowserAPI, log: StepLogger): Promise<void> {
+  await sleep(TIMINGS.afterClick);
+
+  if (!(await tryOpenCart(browser, log))) {
+    log.fatal("CART_NOT_FOUND", { summary: "Could not find cart element via CSS or text" });
+  }
+
+  await sleep(TIMINGS.afterModalAction);
 }
 
 async function tryDismissSuggestions(browser: BrowserAPI, log: StepLogger): Promise<boolean> {
@@ -407,15 +409,16 @@ async function continueToCheckout(browser: BrowserAPI, log: StepLogger): Promise
     timeout: TIMINGS.checkoutWait,
   });
   if (!checkoutResult.found)
-    log.fatal(
-      "CONTINUE_TO_CHECKOUT_NOT_FOUND",
-      "Continue to checkout not found on page within 60 seconds",
-    );
+    log.fatal("CONTINUE_TO_CHECKOUT_NOT_FOUND", {
+      summary: `Continue to checkout not found on page within ${String(TIMINGS.checkoutWait / 1000)} seconds`,
+    });
   log.success("Clicked Continue to checkout", { text: checkoutResult.text });
 
   const navResult = await browser.waitForUrl("/checkout", TIMINGS.checkoutWait);
   if (!navResult.found)
-    log.fatal("CHECKOUT_NAV_TIMEOUT", "Did not navigate to /checkout within 60 seconds");
+    log.fatal("CHECKOUT_NAV_TIMEOUT", {
+      summary: `Did not navigate to /checkout within ${String(TIMINGS.checkoutWait / 1000)} seconds`,
+    });
   log.success("Navigated to checkout", { url: navResult.url });
 }
 
@@ -429,7 +432,9 @@ async function expandCardSection(browser: BrowserAPI, log: StepLogger): Promise<
     timeout: TIMINGS.cardOptionWait,
   });
   if (!cardClick.found)
-    log.fatal("CARD_OPTION_NOT_FOUND", "Credit/Debit card not found on page within 30 seconds");
+    log.fatal("CARD_OPTION_NOT_FOUND", {
+      summary: `Credit/Debit card not found on page within ${String(TIMINGS.cardOptionWait / 1000)} seconds`,
+    });
   log.success("Clicked Credit/Debit card", { text: cardClick.text });
   await sleep(TIMINGS.afterClick);
 
@@ -438,10 +443,9 @@ async function expandCardSection(browser: BrowserAPI, log: StepLogger): Promise<
     TIMINGS.cardSectionWait,
   );
   if (!expandPoll.found)
-    log.fatal(
-      "CARD_SECTION_NOT_EXPANDED",
-      "Clicked Credit/Debit card but saved payment methods section did not appear",
-    );
+    log.fatal("CARD_SECTION_NOT_EXPANDED", {
+      summary: "Clicked Credit/Debit card but saved payment methods section did not appear",
+    });
   log.success("Card section expanded — saved payment methods visible");
 }
 
@@ -450,21 +454,11 @@ async function selectSavedCard(
   log: StepLogger,
   savedCardSuffix: string,
 ): Promise<void> {
-  const savedResult = await browser.waitForSelector(
-    '[data-testid="saved-card"]',
-    TIMINGS.cardSectionWait,
-  );
-  if (!savedResult.found)
-    log.fatal(
-      "SAVED_CARD_NOT_FOUND",
-      `Could not find saved card (ending in ${savedCardSuffix}) within 15 seconds`,
-    );
   const savedClick = await browser.cdpClickSelector(['[data-testid="saved-card"]']);
   if (!savedClick.found)
-    log.fatal(
-      "SAVED_CARD_CLICK_FAILED",
-      "Saved card element visible but cdpClickSelector could not click it",
-    );
+    log.fatal("SAVED_CARD_NOT_FOUND", {
+      summary: `Could not find saved card (ending in ${savedCardSuffix})`,
+    });
   log.success("Clicked saved card", { selector: savedClick.selector });
   await sleep(TIMINGS.afterClick);
 }
@@ -482,7 +476,9 @@ async function selectPaymentAndConfirm(browser: BrowserAPI, log: StepLogger): Pr
     timeout: TIMINGS.placeOrderWait,
   });
   if (!placeResult.found)
-    return log.fatal("PLACE_ORDER_NOT_FOUND", "Place Order not found on page within 60 seconds");
+    return log.fatal("PLACE_ORDER_NOT_FOUND", {
+      summary: `Place Order not found on page within ${String(TIMINGS.placeOrderWait / 1000)} seconds`,
+    });
   log.success("Clicked Place Order", { text: placeResult.text });
 
   const confirmed = await pollUntil(
@@ -502,21 +498,20 @@ async function selectPaymentAndConfirm(browser: BrowserAPI, log: StepLogger): Pr
   );
 
   if (!confirmed.ok)
-    return log.fatal(
-      "ORDER_NOT_CONFIRMED",
-      "Clicked Place Order but page did not navigate to confirmation within 60 seconds",
-    );
+    return log.fatal("ORDER_NOT_CONFIRMED", {
+      summary: `Clicked Place Order but page did not navigate to confirmation within ${String(TIMINGS.placeOrderWait / 1000)} seconds`,
+    });
   log.success("Order confirmed", { url: confirmed.value.url });
   return confirmed.value.url;
 }
 
 async function run(
   browser: BrowserAPI,
-  context: VaultSecrets,
+  secrets: VaultSecrets,
   deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
   const { email, password, firstName, expectedAddress, savedCardSuffix } =
-    nandosContextSchema.parse(context);
+    nandosSecretsSchema.parse(secrets);
   const logger = deps.taskLogger;
   logger.scoped("config").log(SAFE_MODE ? "SAFE MODE — will not place order" : "LIVE mode");
   let finalUrl = "";
@@ -571,18 +566,18 @@ async function run(
   await runner.execute();
 
   return {
-    step: FINAL_STEP,
+    lastCompletedStep: FINAL_STEP,
     finalUrl,
   };
 }
 
 export const task: SingleAttemptTask = {
   name: TASK.name,
-  displayUrl: TASK.url,
+  displayUrl: TASK.displayUrl,
   project: "nandos",
-  needs: needsFromSchema(nandosContextSchema),
+  needs: needsFromSchema(nandosSecretsSchema),
   mode: "once",
   keepBrowserOpen: true,
-  contextSchema: nandosContextSchema,
+  secretsSchema: nandosSecretsSchema,
   run,
 };

@@ -7,15 +7,15 @@ import {
 } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
 import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
-import { clickFirst, fillFirst } from "../../utils/selectors.js";
-import { loginContextSchema } from "../../utils/schemas.js";
+import { clickFirst, fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
+import { loginSecretsSchema } from "../../utils/schemas.js";
 import { sleep } from "../../utils/timing.js";
-import { clickTurnstile } from "../../utils/turnstile.js";
+import { detectAndClickTurnstile } from "../../utils/turnstile.js";
 import { pollUntil } from "../../utils/poll.js";
 
 const TASK = {
   name: "botcLogin",
-  url: "https://botc.app/",
+  displayUrl: "https://botc.app/",
 } as const;
 
 const FINAL_STEP = "checkResult" as const;
@@ -30,13 +30,12 @@ const TIMINGS = {
 } as const;
 
 const SELECTORS = {
-  email: ['input[type="email"]', 'input[name="email"]', "input#email"],
-  password: ['input[type="password"]', 'input[name="password"]', "input#password"],
+  ...LOGIN_SELECTORS,
   submit: ['button[type="submit"]', 'input[type="submit"]'],
 } as const;
 
 async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  await browser.navigate(TASK.url);
+  await browser.navigate(TASK.displayUrl);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
   log.success("Navigated", { url, title });
@@ -49,19 +48,20 @@ async function fillLogin(
   password: string,
 ): Promise<void> {
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.waitEmail);
-  if (!emailResult.found)
-    log.fatal("EMAIL_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.email.join(", ")}`);
+  if (!emailResult.found) log.fatal("EMAIL_INPUT_NOT_FOUND", { error: emailResult.error });
 
   const passResult = await fillFirst(browser, SELECTORS.password, password, TIMINGS.waitPassword);
   if (!passResult.found)
-    log.fatal("PASSWORD_INPUT_NOT_FOUND", `Selectors tried: ${SELECTORS.password.join(", ")}`);
+    log.fatal("PASSWORD_INPUT_NOT_FOUND", {
+      summary: `Selectors tried: ${SELECTORS.password.join(", ")}`,
+    });
   log.success("Entered credentials");
 }
 
 async function turnstileBeforeSubmit(browser: BrowserAPI, log: StepLogger): Promise<void> {
   await sleep(TIMINGS.beforeTurnstile);
 
-  const result = await clickTurnstile(browser);
+  const result = await detectAndClickTurnstile(browser);
   if (result.found) {
     log.success("Clicked turnstile", { selector: result.selector });
     await sleep(TIMINGS.afterTurnstile);
@@ -78,7 +78,7 @@ async function submit(browser: BrowserAPI, log: StepLogger): Promise<void> {
     return;
   }
   const errorSummary = result.error.map((re) => `${re.selector}: ${re.error}`).join("; ");
-  log.fatal("SUBMIT_NOT_FOUND", `Selectors tried: ${errorSummary}`);
+  log.fatal("SUBMIT_NOT_FOUND", { summary: `Selectors tried: ${errorSummary}` });
 }
 
 async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string> {
@@ -96,10 +96,10 @@ async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string
 
 async function run(
   browser: BrowserAPI,
-  context: VaultSecrets,
+  secrets: VaultSecrets,
   deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
-  const { email, password } = loginContextSchema.parse(context);
+  const { email, password } = loginSecretsSchema.parse(secrets);
   let finalUrl = "";
 
   const runner = new StepRunner(deps);
@@ -116,18 +116,18 @@ async function run(
   await runner.execute();
 
   return {
-    step: FINAL_STEP,
+    lastCompletedStep: FINAL_STEP,
     finalUrl,
   };
 }
 
 export const task: RetryingTask = {
   name: TASK.name,
-  displayUrl: TASK.url,
-  project: "monitorBotcLogin",
-  needs: needsFromSchema(loginContextSchema),
+  displayUrl: TASK.displayUrl,
+  project: "monitor-botc",
+  needs: needsFromSchema(loginSecretsSchema),
   mode: "retry",
   intervalMs: 300_000,
-  contextSchema: loginContextSchema,
+  secretsSchema: loginSecretsSchema,
   run,
 };

@@ -32,7 +32,8 @@ The `Browser` constructor accepts an optional `BrowserOptions` object:
 
 ## Files
 
-- `browser.ts` - `Browser` class with WebSocket server and all browser commands
+- `browser.ts` — `Browser` class with WebSocket server and all browser commands
+- `poll.ts` — Polling utility for browser-side operations
 
 ## API
 

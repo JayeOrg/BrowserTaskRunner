@@ -50,7 +50,7 @@ Modules with strict separation:
   - **Defense-in-depth.** Vault code includes type checks and guards that are technically unreachable (SQLite STRICT mode, CLI flow ordering). These are intentional redundancy for direct callers bypassing the CLI.
 - **Browser**: WebSocket server bridging framework and extension.
 
-Each directory under `stack/` is an independent module. Do not add cross-module imports between them (e.g., framework importing from extension). `stack/browser/` is the bridge that imports types from both framework and extension. Where the same type is needed in multiple modules (e.g., `ControlAction`), duplicate it with sync comments rather than creating a shared import.
+Imports flow downward: higher-level modules import from lower-level ones, not the reverse. Projects can import from framework, browser, and utils. Framework can import from vault. But infra must not import from projects, and framework must not import from extension. `stack/browser/` is the bridge — it imports types from both framework and extension. Where the same type is needed in two modules at the same level (e.g., `ControlAction` in framework and extension), duplicate it with sync comments rather than creating a shared import.
 
 ### Extension Design Principle
 
@@ -62,7 +62,7 @@ Keep extension commands **minimal and generic** while maintaining **developer ex
 - When adding new capabilities, ask: "Is this generic enough that any site might need it?"
 
 Good extension commands: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`, `select`, `keyboard`, `check`, `scroll`, `getFrameId`
-Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
+Bad extension commands: `detectAndClickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
 **`script-results.ts` uses Zod `safeParse()` intentionally.** Don't replace with manual `typeof` guards. The schemas are the single source of truth for both types (`z.infer`) and runtime validation — manual guards would drift. `ScriptFoundSchema` has nested optionals that make manual checks verbose and error-prone. These run once per command (not a hot loop), so allocation cost is irrelevant. And `executeScript` results run in the page's JS context, so they're not fully "trusted internal data."
 
@@ -78,6 +78,22 @@ Bad extension commands: `clickTurnstile`, `fillLoginForm`, `detectCaptcha`
 
 **Keyboard input uses CDP.** The `keyboard` command uses `chrome.debugger` for `Input.insertText` (type action) and `Input.dispatchKeyEvent` (press/down/up actions). Unlike `cdpClick`, keyboard has no DOM fallback — if debugger attach fails, it returns an error. The `type` method focuses the element first via `executeScript`, then uses CDP `Input.insertText` for efficient single-call text insertion.
 
+#### Adding a new extension command — checklist
+
+1. Create `stack/extension/messages/commands/<name>.ts` — export a Zod schema, handler function, and command/response types. Follow the pattern from an existing command (e.g. `click.ts`).
+2. Register the handler in `stack/extension/messages/index.ts` — add to `CommandMessage` union, `ResponseMessage` union, and `commandHandlers` object. TypeScript will error until all three are done (`satisfies` exhaustiveness).
+3. Add the `Browser` method in `stack/browser/browser.ts`. Choose the appropriate sub-interface:
+   - `BrowserNavigation` — URL loading and querying (`navigate`, `getUrl`)
+   - `BrowserWaiting` — polling/waiting for conditions (`waitForSelector`, `waitForText`, `waitForUrl`)
+   - `BrowserClicking` — any form of click (`click`, `cdpClick`, `clickText`, `cdpClickSelector`)
+   - `BrowserFormInput` — filling/selecting form controls (`fill`, `type`, `selectOption`, `check`, `uncheck`)
+   - `BrowserKeyboard` — raw key events not tied to a form field (`press`, `keyDown`, `keyUp`)
+   - `BrowserQueries` — read-only page inspection (`getContent`, `getText`, `querySelectorRect`, `getFrameId`)
+   - `BrowserScrolling` — viewport/element scrolling (`scrollIntoView`, `scrollTo`, `scrollBy`)
+4. Add a mock to `stubBrowserAPI()` in `tests/fixtures/mock-browser.ts`. The `satisfies Record<keyof BrowserAPI, ...>` will error until you do.
+5. Add an integration test in `tests/integration/browser.test.ts` using `createQueuedExtension`.
+6. Update `stack/browser/README.md` and `stack/extension/README.md` API tables.
+
 ### Task Execution: StepRunner
 
 All tasks must use `StepRunner` to register named steps. This enables the debug overlay (pause/rewind/play controls via `Ctrl+Shift+.` in the browser).
@@ -85,7 +101,7 @@ All tasks must use `StepRunner` to register named steps. This enables the debug 
 ```typescript
 import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 
-async function run(browser, context, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
+async function run(browser, secrets, deps: StepRunnerDeps): Promise<TaskResultSuccess> {
   let finalUrl = "";
 
   const runner = new StepRunner(deps);
@@ -100,7 +116,7 @@ async function run(browser, context, deps: StepRunnerDeps): Promise<TaskResultSu
 
   await runner.execute();
 
-  return { ok: true, step: "verify", finalUrl };
+  return { lastCompletedStep: "verify", finalUrl };
 }
 ```
 
@@ -169,11 +185,12 @@ Use `/create-project` for end-to-end project setup.
 Use `/add-task-util` to add a shared task utility.
 Use `/debug-task` to debug a failing task.
 Use `/review-dx` to review DX and readability across the codebase.
+Use `/persona-review-dx` to review DX through developer persona journeys.
 Use `/review-tests` to review test coverage, comprehensiveness, and readability.
 
 ### Shared Task Utilities (`stack/projects/utils/`)
 
-- **`dump.ts`** — Drop-in HTML dumper for debugging. Saves the current page HTML to `/tmp` with a timestamped filename. Usage:
+- **`dump.ts`** — Drop-in HTML dumper for debugging. Saves the current page HTML to `logs/` with a timestamped filename. In Docker the `logs/` directory is a mounted volume, so dumps are accessible on the host. Usage:
   ```ts
   import { dumpHtml } from "../../utils/dump.js";
   await dumpHtml(browser, logger, "after-login");
@@ -182,7 +199,7 @@ Use `/review-tests` to review test coverage, comprehensiveness, and readability.
 - **`selectors.ts`** — Shared selector helpers (`waitForFirst`, `clickFirst`, `fillFirst`).
 - **`timing.ts`** — Timing/delay helpers (`sleep`).
 - **`poll.ts`** — Generic polling (`pollUntil`) for custom conditions not covered by Browser's built-in `waitForText`/`waitForUrl`.
-- **`schemas.ts`** — Shared Zod schemas (`loginContextSchema`) for tasks with common context shapes.
+- **`schemas.ts`** — Shared Zod schemas (`loginSecretsSchema`) for tasks with common secrets shapes.
 
 After using any skill, review the conversation history for confusions, mistakes, or non-obvious learnings encountered during implementation. Update the relevant skill's `SKILL.md` with those findings so future uses benefit.
 
@@ -191,6 +208,99 @@ After using any skill, review the conversation history for confusions, mistakes,
 - **Remote**: GitHub Actions runs on push/PR to `main` via `.github/workflows/ci.yml`.
 - **Local**: `npm run ci:local` runs the workflow locally using [`act`](https://github.com/nektos/act). The "Upload coverage" step will fail locally with `Unable to get the ACTIONS_RUNTIME_TOKEN env variable` — this is expected because `act` doesn't provide GitHub's artifact upload API. The actual validation (lint, build, tests, coverage) still runs and its pass/fail is what matters.
 - **Quick check**: `npm run validate` runs lint + build + test:coverage directly without Docker, which is faster for local iteration.
+
+## Testing
+
+Tests live in `tests/` mirroring the module structure. Run with `npx vitest run` or `npm run validate` (lint + build + tests).
+
+### Test layers
+
+| Layer | Location | What it tests | Key fixtures |
+|-------|----------|---------------|--------------|
+| Unit | `tests/unit/` | Pure functions, logging, vault ops | `stubBrowserAPI()` for browser mocks |
+| Integration | `tests/integration/browser/` | Browser ↔ extension WebSocket protocol | `createQueuedExtension()` for manual command stepping |
+| E2E | `tests/e2e/` | Full task `run()` with fake extension | `setupTaskRunTest()` for auto-responding fake extension |
+
+### Mock browser (`stubBrowserAPI`)
+
+`tests/fixtures/mock-browser.ts` exports `stubBrowserAPI()` — returns all `BrowserAPI` methods as `vi.fn()` with sensible defaults. Uses `satisfies Record<keyof BrowserAPI, ...>` so adding a `BrowserAPI` method without a matching mock is a compile error.
+
+```typescript
+import { stubBrowserAPI } from "../../../fixtures/mock-browser.js";
+const browser = stubBrowserAPI();
+vi.mocked(browser.click).mockResolvedValue({ type: "click", success: false });
+```
+
+### Task e2e tests (`setupTaskRunTest`)
+
+`tests/fixtures/test-helpers.ts` exports `setupTaskRunTest()` — creates a real WebSocket connection to a fake extension with default command responses. Override individual commands:
+
+```typescript
+const s = await setupTaskRunTest({
+  click: () => ({ type: "click", success: true }),
+  getUrl: () => ({ type: "getUrl", url: "https://example.com/dashboard", title: "Dashboard" }),
+});
+const result = await task.run(s.browser, secrets, deps);
+```
+
+### `pollUntil` in tests
+
+`pollUntil` uses `Date.now()` for its deadline — mocking `sleep` alone doesn't eliminate wall-clock delays. E2e task tests should mock `poll.js` with the shared `fastPollUntil` factory from `tests/fixtures/poll-mock.ts`:
+
+```typescript
+vi.mock("../../../stack/projects/utils/timing.js", () => ({
+  sleep: () => Promise.resolve(),
+}));
+
+vi.mock("../../../stack/projects/utils/poll.js", async () => ({
+  pollUntil: (await import("../../fixtures/poll-mock.js")).fastPollUntil,
+}));
+```
+
+The factory is async-imported inside the `vi.mock` callback because `vi.mock` is hoisted above regular imports. This runs the same number of iterations as the real version but without delays — no extended `{ timeout }` needed. See `botc.test.ts` for the full example.
+
+## Running Tasks
+
+Tasks only run inside Docker. There is no local-dev-without-Docker path — the extension requires Chrome with Xvfb, the vault database is mounted read-only into the container, and the full startup sequence (Xvfb → VNC → Chrome → extension → WebSocket → framework) is orchestrated by `stack/infra/run.ts`. Use VNC (`localhost:5900`) for visual debugging while iterating on task logic.
+
+## Cross-Cutting Patterns
+
+### `--safemode` flag
+
+The `--safemode` CLI flag prevents destructive final actions (e.g. placing a real order). The flag threads through:
+
+1. **CLI** (`stack/infra/check.ts`): `--safemode` → sets `process.env["SAFE_MODE"] = "true"`
+2. **Docker Compose** (`stack/infra/docker-compose.yml`): `SAFE_MODE=${SAFE_MODE:-false}` passes it into the container
+3. **Task** (e.g. `nandosOrder.ts`): reads `process.env.SAFE_MODE === "true"` and skips the final action
+
+Not all tasks use `SAFE_MODE` — it's a per-task opt-in for tasks with irreversible side effects. Tasks like `botcLogin` (read-only login check) don't need it. When adding safemode to a new task, follow the nandosOrder pattern: check `SAFE_MODE` at the start of the final step, log the skip, and return early.
+
+### Vault token env var naming
+
+The framework resolves vault tokens via `VAULT_TOKEN_${project.toUpperCase().replace(/-/g, "_")}`. A task declaring `project: "monitor-botc"` needs `VAULT_TOKEN_MONITOR_BOTC` in `.env`. The vault project name in the task file, the `.env` token name, and the vault CLI commands must all be consistent.
+
+**Project names are freeform** — there's no naming convention or prefix requirement. `monitor-botc` is just the name chosen for the BotC project; `nandos` is the name for the Nando's project. Pick whatever makes sense for the project.
+
+## Reviewer Checklist
+
+When reviewing a task PR, check:
+
+- [ ] `TASK` constant at file top with `name` and `displayUrl`
+- [ ] `name` in `TASK` matches the filename (e.g. `botcLogin.ts` → `name: "botcLogin"`)
+- [ ] `project` matches the vault project name used in `.env` and the project README
+- [ ] `needs: needsFromSchema(schema)` — derive from Zod schema, not a manual string array
+- [ ] `secretsSchema` set to the same Zod schema used for `needsFromSchema`
+- [ ] Step names match their helper function names
+- [ ] `FINAL_STEP` constant used for the last step name (ties `.step(FINAL_STEP, ...)` to `return { step: FINAL_STEP }`)
+- [ ] Magic strings (URLs, selectors, addresses, card suffixes) extracted to named constants
+- [ ] `fillFirst`/`clickFirst`/`pollUntil` from `utils/` used instead of manual loops
+- [ ] DOM clicks for form submission on Cloudflare-protected sites, CDP clicks elsewhere
+- [ ] `SAFE_MODE` check in the final step if the task has irreversible side effects
+- [ ] No closure variables between steps unless genuinely needed (prefer merging tightly-coupled steps)
+- [ ] E2e tests use `setupTaskRunTest()` (not `setupRawTaskTest`) with command overrides
+- [ ] E2e tests mock both `timing.js` and `poll.js` for fast iteration (see `pollUntil` in tests section)
+- [ ] E2e tests cover happy path and key failure paths
+- [ ] Tests use `pauseOnError: false` so step errors throw immediately
 
 # SiteCheck Project Memory
 
@@ -207,9 +317,9 @@ After using any skill, review the conversation history for confusions, mistakes,
 - `node:sqlite` enables `PRAGMA foreign_keys = ON` by default (unlike C SQLite)
 - scrypt `maxmem` defaults to 32MB; cost=131072 needs `maxmem: 256 * 1024 * 1024` explicitly
 - `TaskConfig = SingleAttemptTask | RetryingTask` — discriminated union on `mode: "once" | "retry"`. `displayUrl` is informational metadata (logged on task start, not used by the runner)
-- Tasks declare `contextSchema?: ZodType` for optional Zod validation before `run()`
+- Tasks declare `secretsSchema?: ZodType` for optional Zod validation before `run()`. Always set `secretsSchema` and derive `needs` with `needsFromSchema(schema)` — this keeps them in sync and is enforced by the reviewer checklist
 - Zod is `zod` (standard) — `ZodType` has `.safeParse()` method, consistent with `script-results.ts`
-- **Double context parsing is intentional.** Framework calls `safeParse()` as a gate (fail early with a clear error before connecting to browser). Tasks call `contextSchema.parse()` again to get a typed destructured object. Making `run` generic on schema output was rejected: the generic erases at `TaskConfig[]` since TS lacks existentials, and the only payoff would be saving one `.parse()` line per task. Tasks own their own context typing — framework stays type-agnostic about context shape.
+- **Double secrets parsing is intentional.** Framework calls `safeParse()` as a gate (fail early with a clear error before connecting to browser). Tasks call `secretsSchema.parse()` again to get a typed destructured object. Making `run` generic on schema output was rejected: the generic erases at `TaskConfig[]` since TS lacks existentials, and the only payoff would be saving one `.parse()` line per task. Tasks own their own secrets typing — framework stays type-agnostic about secrets shape.
 - Framework uses `node:timers/promises` setTimeout for retry delays (avoids importing from tasks layer)
 - Class is `Browser` (in `stack/browser/browser.ts`), tasks receive `browser: BrowserAPI` parameter
 

@@ -6,7 +6,9 @@ export interface StepState {
   error?: string;
 }
 
-export function isStepUpdateMessage(value: unknown): value is StepState & { type: "stepUpdate" } {
+export type StepUpdateMessage = StepState & { type: "stepUpdate" };
+
+export function isStepUpdateMessage(value: unknown): value is StepUpdateMessage {
   return (
     typeof value === "object" &&
     value !== null &&

@@ -1,8 +1,6 @@
 import { scryptSync, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { requireBlob } from "./rows.js";
 
-// ── Constants ──
-
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 32;
@@ -10,15 +8,11 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const PASSWORD_CHECK_MAGIC = "sitecheck-vault-v1";
 
-// ── Encrypted data shape ──
-
 interface EncryptedParts {
   iv: Buffer;
   authTag: Buffer;
   ciphertext: Buffer;
 }
-
-// ── Low-level crypto ──
 
 function deriveKey(password: string, salt: Uint8Array): Buffer {
   return scryptSync(password, salt, KEY_LENGTH, {
@@ -48,8 +42,6 @@ function aesDecrypt(
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
-// ── Blob packing (for single-column storage in config table) ──
-
 function packBlob(parts: EncryptedParts): Buffer {
   return Buffer.concat([parts.iv, parts.authTag, parts.ciphertext]);
 }
@@ -61,8 +53,6 @@ function unpackBlob(blob: Buffer): EncryptedParts {
     ciphertext: blob.subarray(IV_LENGTH + AUTH_TAG_LENGTH),
   };
 }
-
-// ── Column groups for multi-column encrypted fields ──
 
 type EncryptedColumnNames = readonly [iv: string, authTag: string, ciphertext: string];
 
@@ -92,8 +82,6 @@ function decryptFrom(
     requireBlob(row, cols[2]),
   );
 }
-
-// ── Token serialization ──
 
 function exportProjectToken(projectKey: Buffer): string {
   return projectKey.toString("base64");

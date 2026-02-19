@@ -12,10 +12,23 @@ To add a new task (e.g., `acmeLogin`), create one file:
 
 Copy `stack/projects/botc/tasks/botcLogin.ts` as a starting point. A task file contains:
 
-- Constants: `TASK`, `TIMINGS`, `SELECTORS`
+- Constants: `TASK`, `FINAL_STEP`, `TIMINGS`, `SELECTORS`
 - Step functions at file scope (not nested in `run`)
 - A `run` function that orchestrates steps via `StepRunner`
 - An exported task config with a type annotation
+
+### `FINAL_STEP` pattern
+
+Extract the last step's name to a typed constant so the step registration and return value can't drift apart:
+
+```typescript
+const FINAL_STEP = "verify" as const;
+
+// In run():
+runner.step(FINAL_STEP, async (log) => { finalUrl = await verify(browser, log); });
+await runner.execute();
+return { step: FINAL_STEP, finalUrl };
+```
 
 ### Task modes
 
@@ -26,11 +39,11 @@ Tasks declare their retry semantics via a discriminated union:
 // File: stack/projects/acme/tasks/acmeCheck.ts
 export const task: SingleAttemptTask = {
   name: "acmeCheck",
-  url: "https://example.com",
+  displayUrl: "https://example.com",
   project: "acme",
-  needs: needsFromSchema(contextSchema),
+  needs: needsFromSchema(secretsSchema),
   mode: "once",
-  contextSchema,
+  secretsSchema,
   run,
 };
 
@@ -38,52 +51,52 @@ export const task: SingleAttemptTask = {
 // File: stack/projects/acme/tasks/acmeLogin.ts
 export const task: RetryingTask = {
   name: "acmeLogin",
-  url: "https://example.com",
+  displayUrl: "https://example.com",
   project: "monitor-acme",
-  needs: needsFromSchema(contextSchema),
+  needs: needsFromSchema(secretsSchema),
   mode: "retry",
   intervalMs: 300_000,
-  contextSchema,
+  secretsSchema,
   run,
 };
 ```
 
-The runner owns the retry loop. Tasks implement a single attempt — throw `StepError` (via `logger.fail()`) on failure, return `TaskResultSuccess` on success.
+The runner owns the retry loop. Tasks implement a single attempt — throw `StepError` (via `logger.fatal()`) on failure, return `TaskResultSuccess` on success.
 
 ### `needs` — vault detail mapping
 
-Every task must declare `needs` — a mapping from local context keys to vault detail names. Use `needsFromSchema` when the keys match 1:1:
+Every task must declare `needs` — a mapping from local secrets keys to vault detail names. Use `needsFromSchema` when the keys match 1:1:
 
 ```typescript
 import { needsFromSchema } from "../../../framework/tasks.js";
 
 // When keys match vault detail names (common case)
-needs: needsFromSchema(contextSchema),
+needs: needsFromSchema(secretsSchema),
 // Produces: { email: "email", password: "password" }
 
 // When local keys differ from vault detail names
 needs: { loginEmail: "email", loginPassword: "password" },
 ```
 
-`needs` is always **explicit** — it is never derived implicitly from `contextSchema`. The schema validates shape/types; `needs` maps vault keys. They overlap in the common case but serve different purposes.
+`needs` is always **explicit** — it is never derived implicitly from `secretsSchema`. The schema validates shape/types; `needs` maps vault keys. They overlap in the common case but serve different purposes.
 
-### Context validation
+### Secrets validation
 
-Add a `contextSchema` using `zod` to validate the context loaded from the vault:
+Add a `secretsSchema` using `zod` to validate the secrets loaded from the vault:
 
 ```typescript
 import { z } from "zod";
 
-const contextSchema = z.object({
+const secretsSchema = z.object({
   email: z.string().min(1),
   password: z.string().min(1),
 });
 ```
 
-The runner calls `contextSchema.safeParse(context)` before `run()` and fails fast with a clear message if validation fails. Inside `run()`, use `contextSchema.parse(context)` for type narrowing:
+The runner calls `secretsSchema.safeParse(secrets)` before `run()` and fails fast with a clear message if validation fails. Inside `run()`, use `secretsSchema.parse(secrets)` for type narrowing:
 
 ```typescript
-const { email, password } = contextSchema.parse(context);
+const { email, password } = secretsSchema.parse(secrets);
 ```
 
 ### Step functions
@@ -91,15 +104,15 @@ const { email, password } = contextSchema.parse(context);
 Define steps as file-scope functions, not nested inside `run`. Pass `browser` and `logger` explicitly:
 
 ```typescript
-async function navigate(browser: BrowserAPI, logger: StepLogger): Promise<void> {
-  await browser.navigate(TASK.url);
+async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
+  await browser.navigate(TASK.displayUrl);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
-  logger.success("navigate", "Navigated", { url, title });
+  log.success("Navigated", { url, title });
 }
 ```
 
-Use `logger.fail()` for step failures — it throws a `StepError` which the framework catches and logs.
+Use `logger.fatal()` for step failures — it throws a `StepError` which the framework catches and logs.
 
 ### StepRunner
 
@@ -108,26 +121,25 @@ All tasks use `StepRunner` to register named steps (enables the debug overlay). 
 ```typescript
 async function run(
   browser: BrowserAPI,
-  context: TaskContext,
+  secrets: TaskContext,
   deps: StepRunnerDeps,
 ): Promise<TaskResultSuccess> {
-  const logger = deps.taskLogger!;
-  const { email, password } = contextSchema.parse(context);
+  const { email, password } = secretsSchema.parse(secrets);
   let finalUrl = "";
 
   const runner = new StepRunner(deps);
 
   runner
-    .step("navigate", () => navigate(browser, logger))
-    .step("fillLogin", () => fillLogin(browser, logger, email, password))
-    .step("submit", () => submit(browser, logger))
-    .step("verify", async () => {
-      finalUrl = await verify(browser, logger);
+    .step("navigate", (log) => navigate(browser, log))
+    .step("fillLogin", (log) => fillLogin(browser, log, email, password))
+    .step("submit", (log) => submit(browser, log))
+    .step("verify", async (log) => {
+      finalUrl = await verify(browser, log);
     });
 
   await runner.execute();
 
-  return { ok: true, step: "verify", finalUrl };
+  return { lastCompletedStep: "verify", finalUrl };
 }
 ```
 
@@ -146,7 +158,7 @@ const result = await pollUntil(
   { timeoutMs: 15_000, intervalMs: 2000 },
 );
 if (!result.ok) {
-  logger.fail(step, "TARGET_NOT_FOUND", { details: "..." });
+  logger.fatal("TARGET_NOT_FOUND", { details: "..." });
 }
 ```
 
@@ -160,4 +172,4 @@ The loader discovers tasks by filename convention. Name the file `{taskName}.ts`
 npm run check acmeLogin
 ```
 
-Context is loaded from the vault using the task's `project` and `needs`. See `stack/vault/README.md`.
+Secrets are loaded from the vault using the task's `project` and `needs`. See `stack/vault/README.md`.

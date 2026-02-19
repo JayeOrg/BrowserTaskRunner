@@ -81,10 +81,10 @@ describe("createTaskLogger", () => {
     expect(stripAnsi(lines[0]!)).toContain("timeout");
   });
 
-  it("fatal() accepts a string shorthand for summary", () => {
+  it("fatal() accepts StepErrorMeta with summary", () => {
     const logger = createTaskLogger("myTask", output);
     try {
-      logger.fatal("login", "TIMEOUT", "could not reach server");
+      logger.fatal("login", "TIMEOUT", { summary: "could not reach server" });
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
       if (error instanceof StepError) {
@@ -95,11 +95,11 @@ describe("createTaskLogger", () => {
     expect(stripAnsi(lines[0]!)).toContain("→ summary=could not reach server");
   });
 
-  it("scoped fatal() accepts a string shorthand for summary", () => {
+  it("scoped fatal() accepts StepErrorMeta with summary", () => {
     const logger = createTaskLogger("myTask", output);
     const scoped = logger.scoped("login");
     try {
-      scoped.fatal("TIMEOUT", "could not reach server");
+      scoped.fatal("TIMEOUT", { summary: "could not reach server" });
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
       if (error instanceof StepError) {
@@ -122,6 +122,38 @@ describe("createTaskLogger", () => {
     vi.advanceTimersByTime(90_000);
     logger.log("step", "second");
     expect(stripAnsi(lines[1]!)).toContain("1:30");
+  });
+
+  it("formats object data values as JSON", () => {
+    const logger = createTaskLogger("task", output);
+    logger.log("step", "msg", { nested: { a: 1 } });
+    const plain = stripAnsi(lines[0]!);
+    expect(plain).toContain('nested={"a":1}');
+  });
+
+  it("scoped().log delegates to the correct step", () => {
+    const logger = createTaskLogger("task", output);
+    const scoped = logger.scoped("myStep");
+    scoped.log("hello");
+    const plain = stripAnsi(lines[0]!);
+    expect(plain).toContain("[1 myStep]");
+    expect(plain).toContain("hello");
+  });
+
+  it("scoped().success outputs success icon", () => {
+    const logger = createTaskLogger("task", output);
+    const scoped = logger.scoped("myStep");
+    scoped.success("done");
+    const plain = stripAnsi(lines[0]!);
+    expect(plain).toContain("done");
+  });
+
+  it("scoped().warn outputs warning", () => {
+    const logger = createTaskLogger("task", output);
+    const scoped = logger.scoped("myStep");
+    scoped.warn("careful");
+    const plain = stripAnsi(lines[0]!);
+    expect(plain).toContain("careful");
   });
 });
 

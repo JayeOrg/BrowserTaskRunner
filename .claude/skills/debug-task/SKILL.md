@@ -39,7 +39,7 @@ On exit, the script captures a screenshot and prints the last 20 lines of each l
 ✗ [step-name] Reason here  { url: "...", details: "..." }
 ```
 
-This is a task calling `logger.fail()`. The step name tells you where it failed. Check the task file's step function for that name.
+This is a task calling `logger.fatal()`. The step name tells you where it failed. Check the task file's step function for that name.
 
 ### Command timeout (30s default)
 
@@ -82,7 +82,7 @@ Not an error by itself — the task decides what to do. If a task depends on fin
 ### Add logging to a task
 
 ```typescript
-logger.success("debug", "Current state", { url, content: html.slice(0, 200) });
+logger.success("Current state", { url, content: html.slice(0, 200) });
 ```
 
 Use `logger.success()` for non-failing debug output with step tracking.
@@ -98,7 +98,7 @@ console.log(content.slice(0, 500)); // raw HTML
 
 ```typescript
 const { url, title } = await browser.getUrl();
-logger.success("location", "Current page", { url, title });
+logger.success("Current page", { url, title });
 ```
 
 ### Override retry interval for faster iteration

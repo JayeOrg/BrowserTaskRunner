@@ -1,10 +1,10 @@
 import "dotenv/config";
 import { setTimeout } from "node:timers/promises";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Browser } from "../browser/browser.js";
 import {
-  validateContext,
+  validateSecrets,
   normalizeNeeds,
   type TaskConfig,
   type VaultSecrets,
@@ -13,8 +13,8 @@ import {
   type SingleAttemptTask,
 } from "./tasks.js";
 import { loadTask, listTaskNames } from "./loader.js";
-import { StepError, getErrorMessage } from "./errors.js";
-import { createPrefixLogger, createTaskLogger } from "./logging.js";
+import { StepError, toErrorMessage } from "./errors.js";
+import { ANSI_PATTERN, createPrefixLogger, createTaskLogger, type LogOutput } from "./logging.js";
 import { parseProjectToken } from "../vault/crypto.js";
 import { openVaultReadOnly } from "../vault/core.js";
 import { loadProjectDetails } from "../vault/ops/runtime.js";
@@ -24,7 +24,20 @@ if (!Number.isFinite(WS_PORT)) {
   throw new Error(`Invalid WS_PORT: "${process.env.WS_PORT ?? ""}". Must be a finite number.`);
 }
 const VAULT_PATH = process.env.VAULT_PATH || resolve(import.meta.dirname, "../../vault.db");
-const logger = createPrefixLogger("Framework");
+const MIN_INTERVAL_MS = 1000;
+
+const logsDir = resolve(import.meta.dirname, "../../logs");
+mkdirSync(logsDir, { recursive: true });
+
+// Mutable output — upgraded to file+console in main() once task name is known
+let writeLog: LogOutput = (message) => {
+  console.log(message);
+};
+const output: LogOutput = (message) => {
+  writeLog(message);
+};
+
+const logger = createPrefixLogger("Framework", output);
 
 function getTaskName(): string {
   const taskName = process.argv[2];
@@ -49,20 +62,21 @@ function resolveToken(project: string): string {
   return token;
 }
 
-function loadContext(task: TaskConfig): VaultSecrets {
+function loadSecrets(task: TaskConfig): VaultSecrets {
   const token = resolveToken(task.project);
 
   const projectKey = parseProjectToken(token);
   const db = openVaultReadOnly(VAULT_PATH);
 
   try {
-    const context = loadProjectDetails(db, projectKey, task.project, normalizeNeeds(task.needs));
-    const keys = Object.keys(context);
-    logger.log("Loaded context from vault", {
+    const secrets = loadProjectDetails(db, projectKey, task.project, normalizeNeeds(task.needs));
+    const keys = Object.keys(secrets);
+    logger.log("Loaded secrets from vault", {
       project: task.project,
+      vault: VAULT_PATH,
       keys: keys.length > 0 ? keys.join(", ") : "(none)",
     });
-    return context;
+    return secrets;
   } finally {
     db.close();
   }
@@ -70,40 +84,40 @@ function loadContext(task: TaskConfig): VaultSecrets {
 
 function handleSuccess(taskName: string, result: TaskResultSuccess): void {
   logger.success("TASK SUCCESSFUL!", {
-    step: result.step,
+    step: result.lastCompletedStep,
     ...(result.finalUrl ? { url: result.finalUrl } : {}),
   });
 
   const timestamp = new Date().toISOString();
-  const logsDir = resolve(import.meta.dirname, "../../logs");
-  mkdirSync(logsDir, { recursive: true });
   const alertFile = resolve(logsDir, `alert-${taskName}.txt`);
-  const lines = [`Task: ${taskName}`, `Success: ${timestamp}`, `Step: ${result.step}`];
+  const lines = [`Task: ${taskName}`, `Success: ${timestamp}`, `Step: ${result.lastCompletedStep}`];
   if (result.finalUrl) {
     lines.push(`URL: ${result.finalUrl}`);
   }
   writeFileSync(alertFile, `${lines.join("\n")}\n`);
   logger.success("Alert written", { file: alertFile });
-  process.stdout.write("\u0007"); // Bell character — triggers a system alert sound
-  logger.success("ALERT: Task successful!");
+  const BELL = "\u0007";
+  process.stdout.write(BELL);
 }
 
 async function runSingleAttempt(
   task: SingleAttemptTask,
   browser: Browser,
-  context: VaultSecrets,
+  secrets: VaultSecrets,
 ): Promise<void> {
-  const taskLogger = createTaskLogger(task.name);
+  const taskLogger = createTaskLogger(task.name, output);
   const deps = { ...browser.stepRunnerDeps(), taskLogger };
-  const result = await task.run(browser, context, deps);
+  const result = await task.run(browser, secrets, deps);
   handleSuccess(task.name, result);
 }
 
 function parseIntervalMs(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 1000) {
-    throw new Error(`Invalid SITE_CHECK_INTERVAL_MS: "${raw}". Must be a finite number >= 1000.`);
+  if (!Number.isFinite(parsed) || parsed < MIN_INTERVAL_MS) {
+    throw new Error(
+      `Invalid SITE_CHECK_INTERVAL_MS: "${raw}". Must be a finite number >= ${String(MIN_INTERVAL_MS)}.`,
+    );
   }
   return parsed;
 }
@@ -111,7 +125,7 @@ function parseIntervalMs(raw: string | undefined, fallback: number): number {
 async function runWithRetry(
   task: RetryingTask,
   browser: Browser,
-  context: VaultSecrets,
+  secrets: VaultSecrets,
 ): Promise<void> {
   const intervalMs = parseIntervalMs(process.env.SITE_CHECK_INTERVAL_MS, task.intervalMs);
   let attempt = 0;
@@ -119,11 +133,12 @@ async function runWithRetry(
   while (true) {
     attempt++;
     logger.log(`Attempt ${attempt.toString()}`, { task: task.name });
-    const taskLogger = createTaskLogger(task.name);
+    // Fresh logger per attempt so step numbers reset to 1
+    const taskLogger = createTaskLogger(task.name, output);
     const deps = { ...browser.stepRunnerDeps(), taskLogger };
 
     try {
-      const result = await task.run(browser, context, deps);
+      const result = await task.run(browser, secrets, deps);
       handleSuccess(task.name, result);
       return;
     } catch (error) {
@@ -152,7 +167,7 @@ async function blockForever(): Promise<never> {
   });
 }
 
-async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
+async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
   const browser = new Browser(WS_PORT);
   const keepOpen = shouldKeepOpen(task);
 
@@ -168,10 +183,10 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
 
     switch (task.mode) {
       case "once":
-        await runSingleAttempt(task, browser, context);
+        await runSingleAttempt(task, browser, secrets);
         break;
       case "retry":
-        await runWithRetry(task, browser, context);
+        await runWithRetry(task, browser, secrets);
         break;
       default: {
         const exhaustive: never = task;
@@ -185,7 +200,7 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
   } catch (error) {
     if (keepOpen) {
       logger.error("Task failed but browser kept open for inspection", {
-        error: getErrorMessage(error),
+        error: toErrorMessage(error),
       });
       await blockForever();
     }
@@ -201,9 +216,17 @@ async function runTask(task: TaskConfig, context: VaultSecrets): Promise<void> {
 
 async function main(): Promise<void> {
   const taskName = getTaskName();
+
+  // Upgrade writeLog to tee both console and a per-task log file
+  const logStream = createWriteStream(resolve(logsDir, `task-${taskName}.log`), { flags: "a" });
+  writeLog = (message) => {
+    console.log(message);
+    logStream.write(`${message.replace(ANSI_PATTERN, "")}\n`);
+  };
+
   const task = await loadTask(taskName);
-  const context = loadContext(task);
-  validateContext(task, context);
+  const secrets = loadSecrets(task);
+  validateSecrets(task, secrets);
 
   logger.log("Running task", {
     task: task.name,
@@ -211,7 +234,7 @@ async function main(): Promise<void> {
     mode: task.mode,
   });
 
-  await runTask(task, context);
+  await runTask(task, secrets);
 }
 
 main().catch((error: unknown) => {
