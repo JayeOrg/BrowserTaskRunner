@@ -20,7 +20,7 @@ Arguments:
 
 Options:
   --detach, -d      Run in background (detached mode)
-  --safemode        Skip destructive final action (e.g., skip Place Order)
+  --safe-mode       Skip destructive final action (e.g., skip Place Order)
   --no-vnc          Disable VNC server
   --no-build        Skip Docker build step
   --rebuild         Force fresh build (no cache)
@@ -38,7 +38,7 @@ Examples:
   npm run check botcLogin --no-vnc           Run without VNC
   npm run check botcLogin --rebuild          Force fresh Docker build
   npm run check nandosOrder --persist-profile Keep login session across runs
-  npm run check nandosOrder --safemode        Run without placing final order`);
+  npm run check nandosOrder --safe-mode        Run without placing final order`);
 }
 
 function main(): void {

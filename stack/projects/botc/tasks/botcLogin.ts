@@ -1,10 +1,5 @@
 import type { BrowserAPI } from "../../../browser/browser.js";
-import {
-  needsFromSchema,
-  type RetryingTask,
-  type VaultSecrets,
-  type TaskResultSuccess,
-} from "../../../framework/tasks.js";
+import { needsFromSchema, type RetryingTask, type VaultSecrets } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
 import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
 import { clickFirst, fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
@@ -17,8 +12,6 @@ const TASK = {
   name: "botcLogin",
   displayUrl: "https://botc.app/",
 } as const;
-
-const FINAL_STEP = "checkResult" as const;
 
 const TIMINGS = {
   afterNav: 2000,
@@ -34,7 +27,7 @@ const SELECTORS = {
   submit: ['button[type="submit"]', 'input[type="submit"]'],
 } as const;
 
-async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
+async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await browser.navigate(TASK.displayUrl);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
@@ -42,13 +35,16 @@ async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
 }
 
 async function fillLogin(
-  browser: BrowserAPI,
   log: StepLogger,
+  browser: BrowserAPI,
   email: string,
   password: string,
 ): Promise<void> {
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.waitEmail);
-  if (!emailResult.found) log.fatal("EMAIL_INPUT_NOT_FOUND", { error: emailResult.error });
+  if (!emailResult.found)
+    log.fatal("EMAIL_INPUT_NOT_FOUND", {
+      summary: `Selectors tried: ${SELECTORS.email.join(", ")}`,
+    });
 
   const passResult = await fillFirst(browser, SELECTORS.password, password, TIMINGS.waitPassword);
   if (!passResult.found)
@@ -58,7 +54,7 @@ async function fillLogin(
   log.success("Entered credentials");
 }
 
-async function turnstileBeforeSubmit(browser: BrowserAPI, log: StepLogger): Promise<void> {
+async function turnstileBeforeSubmit(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await sleep(TIMINGS.beforeTurnstile);
 
   const result = await detectAndClickTurnstile(browser);
@@ -71,54 +67,45 @@ async function turnstileBeforeSubmit(browser: BrowserAPI, log: StepLogger): Prom
 }
 
 // DOM click — Cloudflare rejects CDP-dispatched events on form submission
-async function submit(browser: BrowserAPI, log: StepLogger): Promise<void> {
+async function submit(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await clickFirst(browser, SELECTORS.submit);
   if (result.found) {
     log.success("Submitted", { selector: result.selector });
     return;
   }
-  const errorSummary = result.error.map((re) => `${re.selector}: ${re.error}`).join("; ");
+  const errorSummary = result.errors.map((re) => `${re.selector}: ${re.error}`).join("; ");
   log.fatal("SUBMIT_NOT_FOUND", { summary: `Selectors tried: ${errorSummary}` });
 }
 
-async function checkResult(browser: BrowserAPI, log: StepLogger): Promise<string> {
+async function checkResult(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await pollUntil(
     () => browser.getUrl(),
     ({ url }) => url.includes("/app") || url.includes("/home") || url.includes("/dashboard"),
     { timeoutMs: TIMINGS.waitResult, intervalMs: 2_000 },
   );
   if (!result.ok) {
-    return log.fatal("STILL_ON_LOGIN_PAGE");
+    log.fatal("STILL_ON_LOGIN_PAGE");
   }
   log.success("Login successful", { finalUrl: result.value.url });
-  return result.value.url;
 }
 
 async function run(
   browser: BrowserAPI,
   secrets: VaultSecrets,
   deps: StepRunnerDeps,
-): Promise<TaskResultSuccess> {
+): Promise<string> {
   const { email, password } = loginSecretsSchema.parse(secrets);
-  let finalUrl = "";
 
   const runner = new StepRunner(deps);
 
   runner
-    .step("navigate", (log) => navigate(browser, log))
-    .step("fillLogin", (log) => fillLogin(browser, log, email, password))
-    .step("turnstileBeforeSubmit", (log) => turnstileBeforeSubmit(browser, log))
-    .step("submit", (log) => submit(browser, log))
-    .step(FINAL_STEP, async (log) => {
-      finalUrl = await checkResult(browser, log);
-    });
+    .step(navigate, browser)
+    .step(fillLogin, browser, email, password)
+    .step(turnstileBeforeSubmit, browser)
+    .step(submit, browser)
+    .step(checkResult, browser);
 
-  await runner.execute();
-
-  return {
-    lastCompletedStep: FINAL_STEP,
-    finalUrl,
-  };
+  return runner.execute();
 }
 
 export const task: RetryingTask = {

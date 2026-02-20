@@ -12,6 +12,8 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 
 ## Quick Start
 
+**Prerequisites:** Docker and Docker Compose (all tasks run inside Docker — there is no local execution path).
+
 1. Install dependencies:
 
     ```bash
@@ -67,7 +69,7 @@ To disable VNC:
 npm run check botcLogin --no-vnc
 ```
 
-[Full documentation](./stack/infra/README.md) | [Extension documentation](./stack/extension/README.md) | [Developer guide & conventions](./AGENTS.md)
+[Full documentation](./stack/infra/README.md) | [Browser & extension](./stack/browser/README.md) | [Developer guide & conventions](./AGENTS.md)
 
 ## Development
 
@@ -79,19 +81,24 @@ npm run validate
 
 ## Adding New Tasks
 
-1. Create a task file in `stack/projects/yoursite/tasks/yourSite.ts`. The filename must match the task name. Export `const task`:
+1. Create a task file in `stack/projects/yoursite/tasks/yourSite.ts`. The filename must match the task name. Import paths must use `.js` extensions (ESM/NodeNext requirement — TypeScript resolves them to the source `.ts` files). Export `const task`:
 
     ```typescript
     // stack/projects/yoursite/tasks/yourSite.ts
     import type { RetryingTask, VaultSecrets } from "../../../framework/tasks.js";
     import { needsFromSchema } from "../../../framework/tasks.js";
     import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
+    import type { StepLogger } from "../../../framework/logging.js";
     import { loginSecretsSchema } from "../../utils/schemas.js";
 
     const TASK = {
         name: "yourSite",
         displayUrl: "https://yoursite.com/login",
     } as const;
+
+    // Step functions: log first, then dependencies
+    async function navigate(log: StepLogger, browser: BrowserAPI) { /* ... */ }
+    async function verify(log: StepLogger, browser: BrowserAPI) { /* ... */ }
 
     export const task: RetryingTask = {
         ...TASK,
@@ -104,10 +111,9 @@ npm run validate
             const { email, password } = loginSecretsSchema.parse(secrets);
             const runner = new StepRunner(deps);
             runner
-                .step("navigate", (log) => { /* ... */ })
-                .step("verify", (log) => { /* ... */ });
-            await runner.execute();
-            return { lastCompletedStep: "verify", finalUrl: "" };
+                .step(navigate, browser)
+                .step(verify, browser);
+            return runner.execute();
         },
     };
     ```

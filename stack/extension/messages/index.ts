@@ -162,7 +162,7 @@ const commandHandlers = {
   getContent: createHandler(getContentSchema, handleGetContent),
   querySelectorRect: createHandler(querySelectorRectSchema, handleQuerySelectorRect),
   clickText: createHandler(clickTextSchema, handleClickText),
-  select: createHandler(selectSchema, handleSelect),
+  selectOption: createHandler(selectSchema, handleSelect),
   keyboard: createHandler(keyboardSchema, handleKeyboard),
   check: createHandler(checkSchema, handleCheck),
   scroll: createHandler(scrollSchema, handleScroll),

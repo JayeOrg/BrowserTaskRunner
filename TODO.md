@@ -1,17 +1,6 @@
 Improvements:
 
-- Review DX via agent
-- Review all code manually and see how it feels to read
-
-- Review claude memory
-- Can we condense documentation?
-- Can we condense skills?
-- Can we condense readmes
-
-review final step pattern
-Break up this file into musings and actual todo
-
-A lot of stuff gets stale. Let's only write what we need to convey to increase maintainability.
+Break up this file into goals, codebase directions, and actual todo
 
 Reducing duplication of interfaces across prod and test
 
@@ -23,6 +12,7 @@ Need to add core principles for the project:
   - Write for onboarding clarity
 - Readability
 - Maintainability
+  - A lot of stuff gets stale. Let's only write what we need to convey
 - Coverage and documentation of non coverage
 - Skills for repeated dev tasks
 
@@ -54,13 +44,27 @@ Start in plan mode
 Research:
 
 - Claude code essentials from Anthropic
+  - official skills
 - Using swarms
 - Using specs
 - Github has its own PR AI
 - I want to know what the model tends towards when prompted to improve ad infinitum. What does the point of diminishing returns start to look like?
+  - Review REJECTIONS to get an idea of the useless stuff the model will try to implement
 - There has to be a better scaffold for asking for changes
+- Creating evals for agents and agentic scaffolding
 
 Improvement options:
 
 - Review DX
 - Review codebase via developer personas give tasks with DX in mind
+
+Recurring tasks:
+
+- Review DX via agent
+- Review all code manually and see how it feels to read
+
+- Review claude memory
+- Can we condense documentation?
+- Can we condense skills?
+- Can we condense readmes
+- Can we condese agents.md or split it up?

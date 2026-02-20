@@ -14,7 +14,7 @@ function makeTask(name: string): SingleAttemptTask {
     project: "test-project",
     needs: {},
     mode: "once",
-    run: async () => ({ lastCompletedStep: "done" }),
+    run: async () => "done",
   };
 }
 

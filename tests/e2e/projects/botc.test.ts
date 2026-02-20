@@ -73,7 +73,7 @@ describe("e2e: botcLoginTask", () => {
       deps,
     );
 
-    expect(result.finalUrl).toContain("dashboard");
+    expect(result).toBe("checkResult");
   });
 
   it("fails when email input is not found", async () => {

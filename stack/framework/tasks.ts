@@ -2,18 +2,14 @@ import type { BrowserAPI } from "../browser/browser.js";
 import { z, type ZodType } from "zod";
 import type { StepRunnerDeps } from "./step-runner.js";
 
-export interface TaskResultSuccess {
-  lastCompletedStep: string;
-  finalUrl?: string;
-}
-
 export type VaultSecrets = Record<string, string>;
 
+/** Returns the last completed step name (from runner.execute()). */
 export type TaskRun = (
   browser: BrowserAPI,
   secrets: VaultSecrets,
   deps: StepRunnerDeps,
-) => Promise<TaskResultSuccess>;
+) => Promise<string>;
 
 // Array shorthand: ["email", "password"] — key and vault detail name are the same.
 // Object form: { loginEmail: "email" } — local key differs from vault detail name.
@@ -42,7 +38,7 @@ const baseTaskFields = {
   project: z.string(),
   needs: taskNeedsSchema,
 
-  secretsSchema: z.custom<ZodType>(() => true).optional(),
+  secretsSchema: z.custom<ZodType>((val) => val instanceof z.ZodType).optional(),
 
   run: z.custom<TaskRun>((val) => typeof val === "function"),
 };

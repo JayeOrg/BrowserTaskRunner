@@ -8,7 +8,6 @@ import {
   normalizeNeeds,
   type TaskConfig,
   type VaultSecrets,
-  type TaskResultSuccess,
   type RetryingTask,
   type SingleAttemptTask,
 } from "./tasks.js";
@@ -82,18 +81,17 @@ function loadSecrets(task: TaskConfig): VaultSecrets {
   }
 }
 
-function handleSuccess(taskName: string, result: TaskResultSuccess): void {
-  logger.success("TASK SUCCESSFUL!", {
-    step: result.lastCompletedStep,
-    ...(result.finalUrl ? { url: result.finalUrl } : {}),
-  });
+function handleSuccess(taskName: string, lastCompletedStep: string, finalUrl: string): void {
+  logger.success("TASK SUCCESSFUL!", { step: lastCompletedStep, url: finalUrl });
 
   const timestamp = new Date().toISOString();
   const alertFile = resolve(logsDir, `alert-${taskName}.txt`);
-  const lines = [`Task: ${taskName}`, `Success: ${timestamp}`, `Step: ${result.lastCompletedStep}`];
-  if (result.finalUrl) {
-    lines.push(`URL: ${result.finalUrl}`);
-  }
+  const lines = [
+    `Task: ${taskName}`,
+    `Success: ${timestamp}`,
+    `Step: ${lastCompletedStep}`,
+    `URL: ${finalUrl}`,
+  ];
   writeFileSync(alertFile, `${lines.join("\n")}\n`);
   logger.success("Alert written", { file: alertFile });
   const BELL = "\u0007";
@@ -107,8 +105,9 @@ async function runSingleAttempt(
 ): Promise<void> {
   const taskLogger = createTaskLogger(task.name, output);
   const deps = { ...browser.stepRunnerDeps(), taskLogger };
-  const result = await task.run(browser, secrets, deps);
-  handleSuccess(task.name, result);
+  const lastCompletedStep = await task.run(browser, secrets, deps);
+  const { url: finalUrl } = await browser.getUrl();
+  handleSuccess(task.name, lastCompletedStep, finalUrl);
 }
 
 function parseIntervalMs(raw: string | undefined, fallback: number): number {
@@ -138,12 +137,13 @@ async function runWithRetry(
     const deps = { ...browser.stepRunnerDeps(), taskLogger };
 
     try {
-      const result = await task.run(browser, secrets, deps);
-      handleSuccess(task.name, result);
+      const lastCompletedStep = await task.run(browser, secrets, deps);
+      const { url: finalUrl } = await browser.getUrl();
+      handleSuccess(task.name, lastCompletedStep, finalUrl);
       return;
     } catch (error) {
       if (error instanceof StepError) {
-        logger.warn("Not successful yet");
+        logger.warn("Not successful yet", { step: error.step, reason: error.reason });
       } else {
         throw error;
       }

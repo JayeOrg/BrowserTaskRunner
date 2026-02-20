@@ -35,8 +35,8 @@ describe("parseArgs", () => {
     expect(opts.detach).toBe(true);
   });
 
-  it("parses --safemode flag", () => {
-    const opts = parseArgs(["botcLogin", "--safemode"]);
+  it("parses --safe-mode flag", () => {
+    const opts = parseArgs(["botcLogin", "--safe-mode"]);
     expect(opts.safeMode).toBe(true);
   });
 
@@ -61,7 +61,7 @@ describe("parseArgs", () => {
   });
 
   it("parses multiple flags together", () => {
-    const opts = parseArgs(["botcLogin", "--detach", "--no-vnc", "--safemode"]);
+    const opts = parseArgs(["botcLogin", "--detach", "--no-vnc", "--safe-mode"]);
     expect(opts.taskName).toBe("botcLogin");
     expect(opts.detach).toBe(true);
     expect(opts.noVnc).toBe(true);

@@ -26,7 +26,7 @@ describe("waitForFirst", () => {
 
     const result = await waitForFirst(browser, [".a", ".b"], 100);
     expect(result.found).toBe(false);
-    expect(result).toHaveProperty("error");
+    expect(result).toHaveProperty("errors");
   });
 
   it("maps synchronous throw into AggregateError detail", async () => {
@@ -38,8 +38,8 @@ describe("waitForFirst", () => {
     const result = await waitForFirst(browser, [".a"], 100);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toHaveLength(1);
-      expect(result.error[0]?.error).toContain("unexpected");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toContain("unexpected");
     }
   });
 });
@@ -64,11 +64,11 @@ describe("clickFirst", () => {
     const result = await clickFirst(browser, [".a", ".b"]);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toHaveLength(2);
-      expect(result.error[0]?.selector).toBe(".a");
-      expect(result.error[0]?.error).toContain("nope1");
-      expect(result.error[1]?.selector).toBe(".b");
-      expect(result.error[1]?.error).toContain("nope2");
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors[0]?.selector).toBe(".a");
+      expect(result.errors[0]?.error).toContain("nope1");
+      expect(result.errors[1]?.selector).toBe(".b");
+      expect(result.errors[1]?.error).toContain("nope2");
     }
   });
 
@@ -89,9 +89,9 @@ describe("clickFirst", () => {
     const result = await clickFirst(browser, [".a"]);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toHaveLength(1);
-      expect(result.error[0]?.selector).toBe(".a");
-      expect(result.error[0]?.error).toContain("string rejection");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.selector).toBe(".a");
+      expect(result.errors[0]?.error).toContain("string rejection");
     }
   });
 });
@@ -130,9 +130,9 @@ describe("fillFirst", () => {
     const result = await fillFirst(browser, ["#input"], "val", 5000);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toHaveLength(1);
-      expect(result.error[0]?.selector).toBe("#input");
-      expect(result.error[0]?.error).toContain("element detached");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.selector).toBe("#input");
+      expect(result.errors[0]?.error).toContain("element detached");
     }
   });
 
@@ -148,9 +148,9 @@ describe("fillFirst", () => {
     const result = await fillFirst(browser, ["#input"], "val", 5000);
     expect(result.found).toBe(false);
     if (!result.found) {
-      expect(result.error).toHaveLength(1);
-      expect(result.error[0]?.selector).toBe("#input");
-      expect(result.error[0]?.error).toContain("string rejection");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.selector).toBe("#input");
+      expect(result.errors[0]?.error).toContain("string rejection");
     }
   });
 });

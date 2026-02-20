@@ -42,17 +42,19 @@ function readTaskDir(base: string, projectName: string): string[] {
   }
 }
 
+function listProjectDirs(): string[] {
+  return readdirSync(projectsDir(), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+}
+
 function findTaskFile(name: string): string | null {
   const base = projectsDir();
   const target = `${name}.js`;
   let matchedPath: string | null = null;
 
-  const projects = readdirSync(base, { withFileTypes: true }).filter((entry) =>
-    entry.isDirectory(),
-  );
-
-  for (const entry of projects) {
-    const files = readTaskDir(base, entry.name);
+  for (const projectName of listProjectDirs()) {
+    const files = readTaskDir(base, projectName);
 
     if (files.includes(target)) {
       if (matchedPath !== null) {
@@ -61,7 +63,7 @@ function findTaskFile(name: string): string | null {
             `Remove duplicates so each task name is unique.`,
         );
       }
-      matchedPath = resolve(base, entry.name, "tasks", target);
+      matchedPath = resolve(base, projectName, "tasks", target);
     }
   }
 
@@ -89,13 +91,8 @@ export function listTaskNames(): string[] {
   const base = projectsDir();
   const names: string[] = [];
 
-  const projects = readdirSync(base, { withFileTypes: true }).filter((entry) =>
-    entry.isDirectory(),
-  );
-
-  for (const entry of projects) {
-    const files = readTaskDir(base, entry.name);
-    for (const file of files) {
+  for (const projectName of listProjectDirs()) {
+    for (const file of readTaskDir(base, projectName)) {
       if (file.endsWith(".js")) {
         names.push(file.replace(/\.js$/u, ""));
       }

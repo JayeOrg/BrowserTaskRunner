@@ -11,7 +11,7 @@ export type IframeOption = { frameId?: number };
 
 const POLL_INTERVAL_MS = 500;
 
-type ClickTextOptions = { tag?: string; exact?: boolean; cdp?: boolean; timeout?: number };
+type ClickTextOptions = { tag?: string; exact?: boolean; cdp?: boolean };
 
 type CdpClickSelectorResult = { found: true; selector: string } | { found: false };
 
@@ -47,7 +47,11 @@ interface BrowserWaiting {
 interface BrowserClicking {
   click(selector: string, options?: IframeOption): Promise<ResponseFor<"click">>;
   cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
-  clickText(texts: string[], options?: ClickTextOptions): Promise<ResponseFor<"clickText">>;
+  clickText(
+    texts: string[],
+    timeout?: number,
+    options?: ClickTextOptions,
+  ): Promise<ResponseFor<"clickText">>;
   cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult>;
 }
 
@@ -58,7 +62,7 @@ interface BrowserFormInput {
     selector: string,
     values: string[],
     options?: IframeOption,
-  ): Promise<ResponseFor<"select">>;
+  ): Promise<ResponseFor<"selectOption">>;
   check(selector: string, options?: IframeOption): Promise<CheckResult>;
   uncheck(selector: string, options?: IframeOption): Promise<CheckResult>;
 }
@@ -73,7 +77,7 @@ interface BrowserQueries {
   getContent(
     options?: { selector?: string; html?: boolean } & IframeOption,
   ): Promise<ResponseFor<"getContent">>;
-  getText(selector?: string): Promise<string>;
+  getText(selector?: string): Promise<string | null>;
   querySelectorRect(selectors: string[]): Promise<ResponseFor<"querySelectorRect">>;
   getFrameId(selector: string): Promise<FrameIdResult>;
 }
@@ -297,10 +301,10 @@ export class Browser implements BrowserAPI {
   getContent(options: { selector?: string; html?: boolean } & IframeOption = {}) {
     return this.send({ type: "getContent", ...options });
   }
-  async getText(selector?: string): Promise<string> {
+  async getText(selector?: string): Promise<string | null> {
     const result = await this.getContent(selector ? { selector } : {});
     if (result.kind === "error") throw new Error(result.error);
-    if (result.kind === "notFound") return "";
+    if (result.kind === "notFound") return null;
     return result.content;
   }
   querySelectorRect(selectors: string[]) {
@@ -308,14 +312,14 @@ export class Browser implements BrowserAPI {
   }
   async clickText(
     texts: string[],
+    timeout?: number,
     options: ClickTextOptions = {},
   ): Promise<ResponseFor<"clickText">> {
-    const { timeout, ...sendOptions } = options;
     if (timeout === undefined) {
-      return this.send({ type: "clickText", texts, ...sendOptions });
+      return this.send({ type: "clickText", texts, ...options });
     }
     const result = await pollUntil(
-      () => this.send({ type: "clickText", texts, ...sendOptions }),
+      () => this.send({ type: "clickText", texts, ...options }),
       (response) => response.found,
       { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
     );
@@ -334,6 +338,7 @@ export class Browser implements BrowserAPI {
     const result = await pollUntil(
       async () => {
         const body = await this.getText();
+        if (body === null) return undefined;
         return texts.find((candidate) => body.includes(candidate));
       },
       (match) => match !== undefined,
@@ -354,7 +359,7 @@ export class Browser implements BrowserAPI {
     return result.ok ? { found: true, url: result.value } : { found: false };
   }
   selectOption(selector: string, values: string[], options?: IframeOption) {
-    return this.send({ type: "select", selector, values, ...options });
+    return this.send({ type: "selectOption", selector, values, ...options });
   }
   type(selector: string, text: string) {
     return this.send({

@@ -1,9 +1,5 @@
 import type { BrowserAPI } from "../../../stack/browser/browser.js";
-import type {
-  RetryingTask,
-  VaultSecrets,
-  TaskResultSuccess,
-} from "../../../stack/framework/tasks.js";
+import type { RetryingTask, VaultSecrets } from "../../../stack/framework/tasks.js";
 import { StepError } from "../../../stack/framework/errors.js";
 
 const TASK_NAME = "retry-test";
@@ -14,7 +10,7 @@ function resetAttempts(): void {
   attemptCount = 0;
 }
 
-async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResultSuccess> {
+async function run(browser: BrowserAPI, context: VaultSecrets): Promise<string> {
   attemptCount++;
   const failUntil = parseInt(context.failUntil ?? "0", 10);
 
@@ -25,7 +21,7 @@ async function run(browser: BrowserAPI, context: VaultSecrets): Promise<TaskResu
   }
 
   await browser.getUrl();
-  return { lastCompletedStep: "verify" };
+  return "verify";
 }
 
 const retryTask: RetryingTask = {

@@ -3,7 +3,7 @@ import { toErrorMessage } from "../../framework/errors.js";
 
 export type SelectorResult =
   | { found: true; selector: string }
-  | { found: false; error: Array<{ selector: string; error: string }> };
+  | { found: false; errors: Array<{ selector: string; error: string }> };
 
 export async function waitForFirst(
   browser: BrowserAPI,
@@ -29,7 +29,7 @@ export async function waitForFirst(
       selector: selectors[idx] ?? "unknown",
       error: inner instanceof Error ? inner.message : String(inner),
     }));
-    return { found: false, error: detail };
+    return { found: false, errors: detail };
   }
 }
 
@@ -47,7 +47,7 @@ export async function clickFirst(
       errors.push({ selector, error: toErrorMessage(error) });
     }
   }
-  return { found: false, error: errors };
+  return { found: false, errors };
 }
 
 // Common login selectors shared across tasks
@@ -72,7 +72,7 @@ export async function fillFirst(
   } catch (error) {
     return {
       found: false,
-      error: [{ selector: result.selector, error: `fill failed: ${toErrorMessage(error)}` }],
+      errors: [{ selector: result.selector, error: `fill failed: ${toErrorMessage(error)}` }],
     };
   }
 }

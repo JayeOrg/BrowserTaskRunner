@@ -125,7 +125,7 @@ function writeDefaultChromePreferences(profileDir: string): void {
   }
 }
 
-function resetChromeProfile(): void {
+function prepareChromeProfile(): void {
   if (process.env["PERSIST_CHROME_PROFILE"] === "true") {
     log("Chrome profile persistence enabled — preserving existing profile");
     mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
@@ -140,28 +140,8 @@ function cleanup(): void {
   spawnSync("pkill", ["-f", "chromium"], { stdio: "ignore" });
   rmSync(`/tmp/.X${DISPLAY_NUM}-lock`, { force: true });
   rmSync(`/tmp/.X11-unix/X${DISPLAY_NUM}`, { force: true });
-  resetChromeProfile();
+  prepareChromeProfile();
   log("Cleaned up stale processes");
-}
-
-function captureScreenshot(): void {
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[T:]/gu, "-")
-    .replace(/\.\d+Z$/u, "");
-  const screenshotPath = join(LOG_DIR, `failure-${timestamp}.png`);
-
-  const scrot = spawnSync("scrot", [screenshotPath], { stdio: "ignore" });
-  if (scrot.status === 0) {
-    log(`Screenshot saved: ${screenshotPath}`);
-    return;
-  }
-
-  // Fallback to ImageMagick
-  const result = spawnSync("import", ["-window", "root", screenshotPath], { stdio: "ignore" });
-  if (result.status === 0) {
-    log(`Screenshot saved: ${screenshotPath}`);
-  }
 }
 
 function spawnWithLog(cmd: string, args: string[], logPath: string): ChildProcess {
@@ -183,7 +163,6 @@ function tailFile(path: string, lines: number): string {
 function handleExit(exitStatus: number): void {
   if (exitStatus !== 0) {
     logError(`Exit with status ${String(exitStatus)}`);
-    captureScreenshot();
 
     console.log("\nRecent third-party logs:");
     for (const logfile of LOG_FILES) {

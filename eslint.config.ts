@@ -103,7 +103,7 @@ export default [
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/consistent-type-assertions": "off",
       "@typescript-eslint/consistent-type-imports": "off",
-      "@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }],
       "sonarjs/no-unused-vars": "off",
       "sonarjs/publicly-writable-directories": "off",
       "id-length": "off",

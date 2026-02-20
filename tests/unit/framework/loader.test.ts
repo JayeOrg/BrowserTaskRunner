@@ -132,7 +132,7 @@ describe("isTaskConfig", () => {
         project: "proj",
         needs: ["email"],
         mode: "once",
-        run: () => Promise.resolve({ lastCompletedStep: "done" }),
+        run: () => Promise.resolve("done"),
       }),
     ).toBe(true);
   });
@@ -148,7 +148,7 @@ describe("isTaskConfig", () => {
         needs: ["email"],
         mode: "once",
         secretsSchema: z.object({ email: z.string() }),
-        run: () => Promise.resolve({ lastCompletedStep: "done" }),
+        run: () => Promise.resolve("done"),
       }),
     ).toBe(true);
   });
@@ -163,7 +163,7 @@ describe("isTaskConfig", () => {
         needs: { loginEmail: "email" },
         mode: "retry",
         intervalMs: 5000,
-        run: () => Promise.resolve({ lastCompletedStep: "done" }),
+        run: () => Promise.resolve("done"),
       }),
     ).toBe(true);
   });
@@ -190,7 +190,7 @@ describe("validateLoadedModule", () => {
         project: "proj",
         needs: ["email"],
         mode: "once",
-        run: () => Promise.resolve({ lastCompletedStep: "done" }),
+        run: () => Promise.resolve("done"),
       },
     };
     const result = validateLoadedModule(mod, "myTask", "/fake/path/myTask.js");
@@ -220,7 +220,7 @@ describe("validateLoadedModule", () => {
         project: "proj",
         needs: [],
         mode: "once",
-        run: () => Promise.resolve({ lastCompletedStep: "done" }),
+        run: () => Promise.resolve("done"),
       },
     };
     expect(() => validateLoadedModule(mod, "expected", "/fake/expected.js")).toThrow(
@@ -239,7 +239,7 @@ describe("getProjectNeeds", () => {
       ...overrides,
       displayUrl: "https://example.com",
       mode: "once" as const,
-      run: () => Promise.resolve({ lastCompletedStep: "done" }),
+      run: () => Promise.resolve("done"),
     };
   }
 

@@ -401,7 +401,7 @@ describe("Browser convenience methods", () => {
   it("clickText() without timeout sends single command", async () => {
     setup = await setupBrowser();
 
-    const clickPromise = setup.browser.clickText(["Submit"], { tag: "button" });
+    const clickPromise = setup.browser.clickText(["Submit"], undefined, { tag: "button" });
     const cmd = await setup.ext.receiveCommand();
     expect(cmd.type).toBe("clickText");
     expect(cmd.texts).toEqual(["Submit"]);
@@ -415,7 +415,7 @@ describe("Browser convenience methods", () => {
   it("clickText() with timeout polls until found", async () => {
     setup = await setupBrowser();
 
-    const clickPromise = setup.browser.clickText(["Submit"], { timeout: 5000 });
+    const clickPromise = setup.browser.clickText(["Submit"], 5000);
 
     // First poll: not found
     const cmd1 = await setup.ext.receiveCommand();
@@ -432,7 +432,7 @@ describe("Browser convenience methods", () => {
   it("clickText() with timeout returns result on timeout", async () => {
     setup = await setupBrowser();
 
-    const clickPromise = setup.browser.clickText(["Nope"], { timeout: 100 });
+    const clickPromise = setup.browser.clickText(["Nope"], 100);
 
     // First poll: not found — 500ms delay exceeds 100ms timeout, so loop exits
     const cmd1 = await setup.ext.receiveCommand();
@@ -656,13 +656,13 @@ describe("Select command", () => {
 
     const selectPromise = setup.browser.selectOption("#dropdown", ["a", "b"]);
     const cmd = await setup.ext.receiveCommand();
-    expect(cmd.type).toBe("select");
+    expect(cmd.type).toBe("selectOption");
     expect(cmd.selector).toBe("#dropdown");
     expect(cmd.values).toEqual(["a", "b"]);
 
-    setup.ext.sendResponse({ id: cmd.id, type: "select", selected: ["a", "b"] });
+    setup.ext.sendResponse({ id: cmd.id, type: "selectOption", selected: ["a", "b"] });
     const result = await selectPromise;
-    expect(result.type).toBe("select");
+    expect(result.type).toBe("selectOption");
     expect(result.selected).toEqual(["a", "b"]);
   });
 
@@ -671,10 +671,10 @@ describe("Select command", () => {
 
     const selectPromise = setup.browser.selectOption("#dropdown", ["x"], { frameId: 42 });
     const cmd = await setup.ext.receiveCommand();
-    expect(cmd.type).toBe("select");
+    expect(cmd.type).toBe("selectOption");
     expect(cmd.frameId).toBe(42);
 
-    setup.ext.sendResponse({ id: cmd.id, type: "select", selected: ["x"] });
+    setup.ext.sendResponse({ id: cmd.id, type: "selectOption", selected: ["x"] });
     await selectPromise;
   });
 });

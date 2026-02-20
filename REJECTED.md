@@ -6,6 +6,7 @@ Decisions that have been made and should not be revisited. Check this file befor
 
 Findings considered during DX reviews and intentionally kept as-is. Don't re-raise these.
 
+- **Project scaffolding template (`stack/projects/_template/`)**: A skeleton README and task file for new projects was considered. New projects are created by copying an existing task file (`botcLogin.ts` is the canonical reference) and an existing project README. At 2 projects, copying is simpler than maintaining a template that drifts from the real code. The README's "Adding New Tasks" section has an inline code template, and the reviewer checklist covers the required structure.
 - **`clicks.ts` CDP fallback logging**: `cdpClickAt` silently falls back to DOM click when CDP attach fails (lines 39, 59). Logging here would be noisy — CDP attach fails routinely when debugger is already attached, and the fallback is intentional. The caller already logs click results.
 - **`pollUntil` uses `ok` while `SelectorResult`/`TurnstileDetectionResult` use `found`**: These are different semantic concepts. `ok` means "the operation completed successfully" (generic polling). `found` means "the element was located in the DOM" (selector queries). Using `found` for poll results would be misleading when polling non-element conditions (URL changes, text content).
 - **`browser.ts` helper type `ClickTextOptions` is not exported**: It's an implementation detail of the BrowserAPI interface, only used as a parameter type. Callers construct it as an object literal — exporting would suggest it's meant to be referenced by name.
@@ -48,7 +49,7 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **Async guard in `vault/db.ts` is runtime-only; could be compile-time**: TypeScript's `Exclude` on return types is fragile with confusing error messages. Runtime guard gives clear, actionable error (`"callback must be synchronous — got a Promise"`). Intentional defense-in-depth.
 - **`withVault`/`withVaultReadOnly` have duplicated structure in `vault/cli/env.ts`**: Two functions, 8 lines each, differ only in the opener call. A shared helper would save 4 lines but add indirection. Tolerable at this scale.
 
-- **Automated step name enforcement**: Step names in `StepRunner.step("name", fn)` must match helper function names by convention. Automated enforcement was considered (runtime `fn.name` check, custom ESLint rule) but rejected: arrow functions have empty `.name`, subtitle steps (`addItem:PERi-Chip Wrap`) wouldn't match, and the cost of a mismatch is cosmetic (wrong log label). Convention + reviewer checklist is sufficient for a 2-task codebase.
+- **String-based step names**: The old `StepRunner.step("name", fn)` API required manually keeping step names in sync with function names. Replaced with `step(fn, ...args)` which auto-derives the name from `fn.name`, and `named(subtitle, fn, ...args)` for reused functions. Anonymous arrows are rejected at runtime. The old string-based API is no longer available.
 - **`handleSuccess` splitting in `run.ts`**: Three side effects (log, file write, bell) are sequential in a 15-line function. Splitting into separate functions would add definitions for a linear sequence with no branching.
 - **`normalizeUrl` inside `handleGetFrameId`**: 5-line helper called once, two lines below its definition. Hoisting to module level separates it from its only consumer. Tightly-scoped placement is standard.
 - **`verifyLogin` after `handleMfa` in `nandosOrder.ts`**: Defensive redundancy — costs one `getUrl()` call and catches edge cases if `handleMfa`'s poll has a subtle bug. Intentional safety.
@@ -112,8 +113,7 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **`pollUntil` `@throws` not documented in JSDoc in `projects/utils/poll.ts`**: The throw is the first line of the function with a clear message. JSDoc `@throws` for a one-line validation guard is over-documenting.
 - **`sleep` re-export hides `setTimeout` overloads in `timing.ts`**: Tasks only need `sleep(ms)`. The alias correctly narrows the interface.
 - **`LOGS_DIR` three-level `../` in `dump.ts`**: Standard resolution pattern, same as `run.ts`. Stable path.
-- **Closure capture pattern undocumented in task files**: Both tasks demonstrate it identically. New tasks are created by copying existing ones.
-- **`FINAL_STEP` purpose undocumented in `botcLogin.ts`**: Named `FINAL_STEP`, used in `lastCompletedStep`. Connection is clear.
+- **Closure capture pattern undocumented in task files**: Both tasks demonstrate it identically. New tasks are created by copying existing ones. (Most closure variables eliminated — `FINAL_STEP` and `finalUrl` removed; framework captures URL automatically.)
 - **`skipLogin` lazy closure in `nandosOrder.ts`**: Standard JS closure over `let` variable. Declaration and mutation visible within a few lines.
 - **`tryDismissSuggestions`/`dismissSuggestions` two-layer naming in `nandosOrder.ts`**: Standard extract-and-wrap pattern. `try` prefix signals "returns success/failure."
 - **Bare `sleep(TIMINGS.modalWait)` calls in `nandosOrder.ts`**: Constant name `modalWait` and surrounding context make purpose clear.
@@ -150,6 +150,9 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **`neverResolves` in shared `test-helpers.ts` used by one test**: One import from a shared fixtures file. Moving adds a file for one export. Available for future tests that need it.
 - **`sessions.id` blob storage vs external base64 representation in `schema.ts`**: Standard binary-storage / text-transport pattern. `createSession` encodes to base64, `parseSessionToken` decodes back. No mismatch, no effects.
 - **`details` INSERT column order differs from PRIMARY KEY in `schema.ts`**: INSERT lists `key, project` matching the CREATE TABLE column declaration order. PRIMARY KEY `(project, key)` controls B-tree index layout, not INSERT ordering. SQLite matches by name.
+
+- **Block comment style in `browser.ts:437-442`**: The `close()` method uses a `/* */` block comment while the rest of the file uses `//`. Using `/* */` for multi-sentence explanations and `//` for single-line annotations is a common, readable convention. The block comment visually signals "this is a paragraph of explanation."
+- **`resolveToken` silently falls back from project-specific to generic `VAULT_TOKEN` in `run.ts:53-63`**: The fallback (`process.env[envKey] ?? process.env.VAULT_TOKEN`) is intentional — single-project setups use `VAULT_TOKEN`, multi-project setups use project-specific vars. The error message (when neither exists) documents both env var names. Logging which token was used would add noise to every successful run.
 
 ## Failed Approaches
 

@@ -34,7 +34,7 @@ export function parseArgs(argv: string[]): CheckOptions {
       case "-d":
         opts.detach = true;
         break;
-      case "--safemode":
+      case "--safe-mode":
         opts.safeMode = true;
         break;
       case "--no-vnc":

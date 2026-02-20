@@ -43,6 +43,8 @@ export interface StepRunnerDeps {
   pauseOnError?: boolean;
 }
 
+export type StepFn<Args extends unknown[]> = (log: StepLogger, ...args: Args) => Promise<void>;
+
 export class StepRunner {
   private steps: StepDefinition[] = [];
   private pointer = 0;
@@ -65,19 +67,41 @@ export class StepRunner {
     });
   }
 
-  step(
-    name: string,
-    fn: (log: StepLogger) => Promise<void>,
-    options?: { skip?: () => boolean },
-  ): this {
-    this.steps.push({ name, fn, skip: options?.skip });
+  step<Args extends unknown[]>(fn: StepFn<Args>, ...args: Args): this {
+    const name = fn.name;
+    if (!name) {
+      throw new Error(
+        "Step function must be named (use a function declaration or const assignment, not an inline arrow)",
+      );
+    }
+    this.steps.push({ name, fn: (log) => fn(log, ...args) });
     return this;
   }
 
-  async execute(): Promise<void> {
+  named<Args extends unknown[]>(subtitle: string, fn: StepFn<Args>, ...args: Args): this {
+    const name = fn.name;
+    if (!name) {
+      throw new Error(
+        "Step function must be named (use a function declaration or const assignment, not an inline arrow)",
+      );
+    }
+    this.steps.push({ name: `${name}:${subtitle}`, fn: (log) => fn(log, ...args) });
+    return this;
+  }
+
+  skipIf(predicate: () => boolean): this {
+    const last = this.steps[this.steps.length - 1];
+    if (!last) {
+      throw new Error("skipIf() must follow a step() or named() call");
+    }
+    last.skip = predicate;
+    return this;
+  }
+
+  async execute(): Promise<string> {
     if (this.steps.length === 0) {
       this.log?.warn("execute() called with no steps registered");
-      return;
+      return "";
     }
 
     // Reset for re-execution — control actions may have moved the pointer
@@ -131,6 +155,7 @@ export class StepRunner {
     }
 
     this.emitUpdate("done");
+    return this.steps[this.steps.length - 1]?.name ?? "";
   }
 
   private handleControl(action: ControlAction): void {

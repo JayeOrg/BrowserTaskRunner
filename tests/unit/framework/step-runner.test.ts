@@ -5,7 +5,7 @@ import {
   type StepRunnerDeps,
 } from "../../../stack/framework/step-runner.js";
 import { StepError } from "../../../stack/framework/errors.js";
-import { createTaskLogger } from "../../../stack/framework/logging.js";
+import { createTaskLogger, type StepLogger } from "../../../stack/framework/logging.js";
 
 function createDeps(overrides?: Partial<StepRunnerDeps>): {
   deps: StepRunnerDeps;
@@ -45,13 +45,14 @@ describe("StepRunner execution", () => {
     const runner = new StepRunner(deps);
     const order: string[] = [];
 
-    runner
-      .step("a", async () => {
-        order.push("a");
-      })
-      .step("b", async () => {
-        order.push("b");
-      });
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
+    runner.step(a).step(b);
 
     await runner.execute();
     expect(order).toEqual(["a", "b"]);
@@ -69,7 +70,9 @@ describe("StepRunner execution", () => {
     const { deps, updates } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner.step("only", async () => {});
+    async function only(_log: StepLogger) {}
+
+    runner.step(only);
 
     await runner.execute();
     expect(updates).toEqual([
@@ -82,7 +85,10 @@ describe("StepRunner execution", () => {
     const { deps, updates } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner.step("a", async () => {}).step("b", async () => {});
+    async function a(_log: StepLogger) {}
+    async function b(_log: StepLogger) {}
+
+    runner.step(a).step(b);
 
     await runner.execute();
 
@@ -97,9 +103,11 @@ describe("StepRunner execution", () => {
     const { deps } = createDeps({ pauseOnError: false });
     const runner = new StepRunner(deps);
 
-    runner.step("fail", async () => {
+    async function fail(_log: StepLogger) {
       throw new Error("boom");
-    });
+    }
+
+    runner.step(fail);
 
     await expect(runner.execute()).rejects.toThrow("boom");
   });
@@ -108,76 +116,161 @@ describe("StepRunner execution", () => {
     const { deps } = createDeps();
     const runner = new StepRunner(deps);
 
-    const result = runner.step("x", async () => {});
+    async function x(_log: StepLogger) {}
+
+    const result = runner.step(x);
     expect(result).toBe(runner);
   });
 
-  it("skips a step when skip returns true", async () => {
+  it("rejects anonymous functions", () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    expect(() => runner.step(async () => {})).toThrow("Step function must be named");
+  });
+
+  it("derives step name from function name", async () => {
+    const { deps, updates } = createDeps();
+    const runner = new StepRunner(deps);
+
+    async function myStepName(_log: StepLogger) {}
+
+    runner.step(myStepName);
+    await runner.execute();
+
+    expect(updates[0]?.name).toBe("myStepName");
+  });
+
+  it("passes extra args to step function", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const received: unknown[] = [];
+
+    async function greet(_log: StepLogger, name: string, count: number) {
+      received.push(name, count);
+    }
+
+    runner.step(greet, "world", 42);
+    await runner.execute();
+
+    expect(received).toEqual(["world", 42]);
+  });
+
+  it("returns last step name from execute()", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    async function first(_log: StepLogger) {}
+    async function last(_log: StepLogger) {}
+
+    runner.step(first).step(last);
+
+    const result = await runner.execute();
+    expect(result).toBe("last");
+  });
+});
+
+describe("StepRunner named()", () => {
+  it("uses fn.name:subtitle as step name", async () => {
+    const { deps, updates } = createDeps();
+    const runner = new StepRunner(deps);
+
+    async function addItem(_log: StepLogger, _name: string) {}
+
+    runner.named("Burger", addItem, "Burger");
+    await runner.execute();
+
+    expect(updates[0]?.name).toBe("addItem:Burger");
+  });
+
+  it("returns last named step from execute()", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    async function doThing(_log: StepLogger) {}
+
+    runner.named("final", doThing);
+
+    const result = await runner.execute();
+    expect(result).toBe("doThing:final");
+  });
+});
+
+describe("StepRunner skipIf()", () => {
+  it("skips a step when predicate returns true", async () => {
     const { deps } = createDeps();
     const runner = new StepRunner(deps);
     const order: string[] = [];
 
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+    async function c(_log: StepLogger) {
+      order.push("c");
+    }
+
     runner
-      .step("a", async () => {
-        order.push("a");
-      })
-      .step(
-        "b",
-        async () => {
-          order.push("b");
-        },
-        { skip: () => true },
-      )
-      .step("c", async () => {
-        order.push("c");
-      });
+      .step(a)
+      .step(b)
+      .skipIf(() => true)
+      .step(c);
 
     await runner.execute();
     expect(order).toEqual(["a", "c"]);
   });
 
-  it("runs step when skip returns false", async () => {
+  it("runs step when predicate returns false", async () => {
     const { deps } = createDeps();
     const runner = new StepRunner(deps);
     const order: string[] = [];
 
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
     runner
-      .step(
-        "a",
-        async () => {
-          order.push("a");
-        },
-        { skip: () => false },
-      )
-      .step("b", async () => {
-        order.push("b");
-      });
+      .step(a)
+      .skipIf(() => false)
+      .step(b);
 
     await runner.execute();
     expect(order).toEqual(["a", "b"]);
   });
 
-  it("evaluates skip at execution time not registration time", async () => {
+  it("evaluates predicate at execution time not registration time", async () => {
     const { deps } = createDeps();
     const runner = new StepRunner(deps);
     let shouldSkip = false;
     const order: string[] = [];
 
+    async function a(_log: StepLogger) {
+      order.push("a");
+      shouldSkip = true;
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
     runner
-      .step("a", async () => {
-        order.push("a");
-        shouldSkip = true;
-      })
-      .step(
-        "b",
-        async () => {
-          order.push("b");
-        },
-        { skip: () => shouldSkip },
-      );
+      .step(a)
+      .step(b)
+      .skipIf(() => shouldSkip);
 
     await runner.execute();
     expect(order).toEqual(["a"]);
+  });
+
+  it("throws when called with no preceding step", () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    expect(() => runner.skipIf(() => true)).toThrow("skipIf() must follow");
   });
 });
 
@@ -187,14 +280,15 @@ describe("StepRunner pause/play", () => {
     const runner = new StepRunner(deps);
     const order: string[] = [];
 
-    runner
-      .step("a", async () => {
-        order.push("a");
-        sendControl("pause");
-      })
-      .step("b", async () => {
-        order.push("b");
-      });
+    async function a(_log: StepLogger) {
+      order.push("a");
+      sendControl("pause");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
+    runner.step(a).step(b);
 
     const done = runner.execute();
 
@@ -210,11 +304,12 @@ describe("StepRunner pause/play", () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner
-      .step("a", async () => {
-        sendControl("pause");
-      })
-      .step("b", async () => {});
+    async function a(_log: StepLogger) {
+      sendControl("pause");
+    }
+    async function b(_log: StepLogger) {}
+
+    runner.step(a).step(b);
 
     const done = runner.execute();
     await tick();
@@ -229,9 +324,11 @@ describe("StepRunner pause/play", () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner.step("a", async () => {
+    async function a(_log: StepLogger) {
       sendControl("unknown-action");
-    });
+    }
+
+    runner.step(a);
 
     await runner.execute();
 
@@ -246,17 +343,18 @@ describe("StepRunner skipBack/skipForward", () => {
     const runner = new StepRunner(deps);
     const order: string[] = [];
 
-    runner
-      .step("a", async () => {
-        order.push("a");
-        sendControl("pause");
-      })
-      .step("b", async () => {
-        order.push("b");
-      })
-      .step("c", async () => {
-        order.push("c");
-      });
+    async function a(_log: StepLogger) {
+      order.push("a");
+      sendControl("pause");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+    async function c(_log: StepLogger) {
+      order.push("c");
+    }
+
+    runner.step(a).step(b).step(c);
 
     const done = runner.execute();
     await tick();
@@ -276,20 +374,21 @@ describe("StepRunner skipBack/skipForward", () => {
     const order: string[] = [];
     let pauseOnB = true;
 
-    runner
-      .step("a", async () => {
-        order.push("a");
-      })
-      .step("b", async () => {
-        order.push("b");
-        if (pauseOnB) {
-          pauseOnB = false;
-          sendControl("pause");
-        }
-      })
-      .step("c", async () => {
-        order.push("c");
-      });
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+      if (pauseOnB) {
+        pauseOnB = false;
+        sendControl("pause");
+      }
+    }
+    async function c(_log: StepLogger) {
+      order.push("c");
+    }
+
+    runner.step(a).step(b).step(c);
 
     const done = runner.execute();
     await tick();
@@ -307,9 +406,11 @@ describe("StepRunner skipBack/skipForward", () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner.step("only", async () => {
+    async function only(_log: StepLogger) {
       sendControl("pause");
-    });
+    }
+
+    runner.step(only);
 
     const done = runner.execute();
     await tick();
@@ -332,11 +433,12 @@ describe("StepRunner skipBack/skipForward", () => {
     const { deps, updates, sendControl } = createDeps();
     const runner = new StepRunner(deps);
 
-    runner
-      .step("a", async () => {
-        sendControl("pause");
-      })
-      .step("b", async () => {});
+    async function a(_log: StepLogger) {
+      sendControl("pause");
+    }
+    async function b(_log: StepLogger) {}
+
+    runner.step(a).step(b);
 
     const done = runner.execute();
     await tick();
@@ -358,10 +460,12 @@ describe("StepRunner pauseOnError", () => {
     const runner = new StepRunner(deps);
     let calls = 0;
 
-    runner.step("flaky", async () => {
+    async function flaky(_log: StepLogger) {
       calls++;
       if (calls === 1) throw new StepError("test", "flaky", "first try fails");
-    });
+    }
+
+    runner.step(flaky);
 
     const done = runner.execute();
     await tick();
@@ -381,9 +485,11 @@ describe("StepRunner pauseOnError", () => {
     const { deps } = createDeps({ pauseOnError: false });
     const runner = new StepRunner(deps);
 
-    runner.step("fail", async () => {
+    async function fail(_log: StepLogger) {
       throw new StepError("test", "fail", "immediate");
-    });
+    }
+
+    runner.step(fail);
 
     await expect(runner.execute()).rejects.toThrow("immediate");
   });
@@ -392,9 +498,11 @@ describe("StepRunner pauseOnError", () => {
     const { deps } = createDeps({ pauseOnError: true });
     const runner = new StepRunner(deps);
 
-    runner.step("buggy", async () => {
+    async function buggy(_log: StepLogger) {
       throw new TypeError("Cannot read properties of undefined");
-    });
+    }
+
+    runner.step(buggy);
 
     await expect(runner.execute()).rejects.toThrow("Cannot read properties of undefined");
   });

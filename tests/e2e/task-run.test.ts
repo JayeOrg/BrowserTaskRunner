@@ -24,7 +24,7 @@ describe("e2e: click-task against local test site", () => {
     setup = ctx;
     const result = await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger);
 
-    expect(result.finalUrl).toContain("/success");
+    expect(result).toBe("verify");
     expect(ctx.state.commands).toEqual(["navigate", "waitForSelector", "click", "getUrl"]);
   });
 
