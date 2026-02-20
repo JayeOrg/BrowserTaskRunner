@@ -167,6 +167,21 @@ async function blockForever(): Promise<never> {
   });
 }
 
+async function withKeepOpen(action: () => Promise<void>, keepOpen: boolean): Promise<void> {
+  try {
+    await action();
+    if (keepOpen) await blockForever();
+  } catch (error) {
+    if (keepOpen) {
+      logger.error("Task failed but browser kept open for inspection", {
+        error: toErrorMessage(error),
+      });
+      await blockForever();
+    }
+    throw error;
+  }
+}
+
 async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
   const browser = new Browser(WS_PORT);
   const keepOpen = shouldKeepOpen(task);
@@ -180,31 +195,20 @@ async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
 
   try {
     await browser.start();
-
-    switch (task.mode) {
-      case "once":
-        await runSingleAttempt(task, browser, secrets);
-        break;
-      case "retry":
-        await runWithRetry(task, browser, secrets);
-        break;
-      default: {
-        const exhaustive: never = task;
-        throw new Error(`Unknown task mode: ${String(exhaustive)}`);
+    await withKeepOpen(async () => {
+      switch (task.mode) {
+        case "once":
+          await runSingleAttempt(task, browser, secrets);
+          break;
+        case "retry":
+          await runWithRetry(task, browser, secrets);
+          break;
+        default: {
+          const exhaustive: never = task;
+          throw new Error(`Unknown task mode: ${String(exhaustive)}`);
+        }
       }
-    }
-
-    if (keepOpen) {
-      await blockForever();
-    }
-  } catch (error) {
-    if (keepOpen) {
-      logger.error("Task failed but browser kept open for inspection", {
-        error: toErrorMessage(error),
-      });
-      await blockForever();
-    }
-    throw error;
+    }, keepOpen);
   } finally {
     process.off("SIGINT", shutdown);
     process.off("SIGTERM", shutdown);
@@ -238,7 +242,11 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  if (!(error instanceof StepError)) {
+  if (error instanceof StepError) {
+    // Already logged by fatal() at the call site — emit a marker so the exit
+    // Reason is visible without duplicating the full message.
+    logger.warn("Exiting after step failure", { step: error.step, task: error.task });
+  } else {
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
     logger.error("Fatal error", { error: detail });
   }

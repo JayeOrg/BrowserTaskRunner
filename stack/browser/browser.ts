@@ -5,7 +5,7 @@ import { pollUntil } from "./poll.js";
 import type { CommandMessage, ResponseMessage, ResponseFor } from "../extension/messages/index.js";
 import { createPrefixLogger, type PrefixLogger } from "../framework/logging.js";
 import { toErrorMessage } from "../framework/errors.js";
-import type { StepUpdate, StepRunnerDeps } from "../framework/step-runner.js";
+import type { StepRunnerDeps } from "../framework/step-runner.js";
 
 export type IframeOption = { frameId?: number };
 
@@ -47,11 +47,7 @@ interface BrowserWaiting {
 interface BrowserClicking {
   click(selector: string, options?: IframeOption): Promise<ResponseFor<"click">>;
   cdpClick(x: number, y: number): Promise<ResponseFor<"cdpClick">>;
-  clickText(
-    texts: string[],
-    timeout?: number,
-    options?: ClickTextOptions,
-  ): Promise<ResponseFor<"clickText">>;
+  clickText(texts: string[], options?: ClickTextOptions): Promise<ResponseFor<"clickText">>;
   cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult>;
 }
 
@@ -62,7 +58,7 @@ interface BrowserFormInput {
     selector: string,
     values: string[],
     options?: IframeOption,
-  ): Promise<ResponseFor<"selectOption">>;
+  ): Promise<ResponseFor<"select">>;
   check(selector: string, options?: IframeOption): Promise<CheckResult>;
   uncheck(selector: string, options?: IframeOption): Promise<CheckResult>;
 }
@@ -175,38 +171,57 @@ export class Browser implements BrowserAPI {
           this.ws = null;
           this.rejectAllPending(new Error("Extension disconnected"));
         });
-        incoming.on("message", (data: Buffer) => {
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(data.toString());
-          } catch (error) {
-            this.logger.log("Error parsing message", { error: String(error) });
-            return;
-          }
 
-          if (isStepControlMessage(parsed)) {
-            if (this.controlHandler) {
-              this.controlHandler(parsed.action);
-            }
-            return;
-          }
+        // One-shot handshake: wait for "ready", then switch to permanent handler
+        const boundRouteMessage = this.routeMessage.bind(this);
+        const onHandshake = (data: Buffer) => {
+          const parsed = this.parseMessage(data);
+          if (parsed === undefined) return;
 
-          if (!isResponseMessage(parsed)) {
-            this.logger.log("Invalid message format");
-            return;
-          }
-
-          if (parsed.type === "ready") {
+          if (isResponseMessage(parsed) && parsed.type === "ready") {
             clearTimeout(timeout);
             this.server?.removeListener("error", onServerError);
+            incoming.removeListener("message", onHandshake);
+            incoming.on("message", boundRouteMessage);
             resolve();
             return;
           }
 
-          this.handleResponse(parsed);
-        });
+          // Messages before "ready" are unexpected — still route them defensively
+          this.routeMessage(data);
+        };
+
+        incoming.on("message", onHandshake);
       });
     });
+  }
+
+  private parseMessage(data: Buffer): unknown {
+    try {
+      return JSON.parse(data.toString());
+    } catch (error) {
+      this.logger.log("Error parsing message", { error: String(error) });
+      return undefined;
+    }
+  }
+
+  private routeMessage(data: Buffer): void {
+    const parsed = this.parseMessage(data);
+    if (parsed === undefined) return;
+
+    if (isStepControlMessage(parsed)) {
+      if (this.controlHandler) {
+        this.controlHandler(parsed.action);
+      }
+      return;
+    }
+
+    if (!isResponseMessage(parsed)) {
+      this.logger.log("Invalid message format");
+      return;
+    }
+
+    this.handleResponse(parsed);
   }
 
   private handleResponse(message: ResponseMessage): void {
@@ -255,10 +270,9 @@ export class Browser implements BrowserAPI {
         }
       }, this.commandTimeoutMs);
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- pendingCommands stores mixed response types as ResponseMessage; callers get the narrow ResponseFor<T> back via the typed Promise
-      const typedResolve = resolve as (value: ResponseMessage) => void;
       this.pendingCommands.set(id, {
-        resolve: typedResolve,
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- pendingCommands stores mixed response types as ResponseMessage; callers get the narrow ResponseFor<T> back via the typed Promise
+        resolve: resolve as (value: ResponseMessage) => void,
         reject,
         timeoutId,
       });
@@ -310,20 +324,8 @@ export class Browser implements BrowserAPI {
   querySelectorRect(selectors: string[]) {
     return this.send({ type: "querySelectorRect", selectors });
   }
-  async clickText(
-    texts: string[],
-    timeout?: number,
-    options: ClickTextOptions = {},
-  ): Promise<ResponseFor<"clickText">> {
-    if (timeout === undefined) {
-      return this.send({ type: "clickText", texts, ...options });
-    }
-    const result = await pollUntil(
-      () => this.send({ type: "clickText", texts, ...options }),
-      (response) => response.found,
-      { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
-    );
-    return result.ok ? result.value : { type: "clickText", found: false };
+  clickText(texts: string[], options: ClickTextOptions = {}): Promise<ResponseFor<"clickText">> {
+    return this.send({ type: "clickText", texts, ...options });
   }
   async cdpClickSelector(selectors: string[]): Promise<CdpClickSelectorResult> {
     const rect = await this.querySelectorRect(selectors);
@@ -344,8 +346,8 @@ export class Browser implements BrowserAPI {
       (match) => match !== undefined,
       { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
     );
-    const text = result.ok ? result.value : undefined;
-    return text !== undefined ? { found: true, text } : { found: false };
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- predicate guarantees defined when ok
+    return result.ok ? { found: true, text: result.value as string } : { found: false };
   }
   async waitForUrl(pattern: string, timeout = 10000): Promise<WaitForUrlResult> {
     const result = await pollUntil(
@@ -359,7 +361,7 @@ export class Browser implements BrowserAPI {
     return result.ok ? { found: true, url: result.value } : { found: false };
   }
   selectOption(selector: string, values: string[], options?: IframeOption) {
-    return this.send({ type: "selectOption", selector, values, ...options });
+    return this.send({ type: "select", selector, values, ...options });
   }
   type(selector: string, text: string) {
     return this.send({
@@ -373,10 +375,10 @@ export class Browser implements BrowserAPI {
     return this.send({ type: "keyboard", action: "press" as const, key });
   }
   keyDown(key: string) {
-    return this.send({ type: "keyboard", action: "down" as const, key });
+    return this.send({ type: "keyboard", action: "keyDown" as const, key });
   }
   keyUp(key: string) {
-    return this.send({ type: "keyboard", action: "up" as const, key });
+    return this.send({ type: "keyboard", action: "keyUp" as const, key });
   }
   check(selector: string, options?: IframeOption) {
     return this.send({ type: "check", selector, checked: true, ...options });
@@ -406,26 +408,14 @@ export class Browser implements BrowserAPI {
     return { found: true, frameId: result.frameId };
   }
 
-  sendStepUpdate(update: StepUpdate): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
-  }
-
-  onControl(handler: (action: string) => void): void {
-    this.controlHandler = handler;
-  }
-
-  offControl(): void {
-    this.controlHandler = null;
-  }
-
   stepRunnerDeps(): Omit<StepRunnerDeps, "taskLogger"> {
     return {
       sendStepUpdate: (update) => {
-        this.sendStepUpdate(update);
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
       },
       onControl: (handler) => {
-        this.onControl(handler);
+        this.controlHandler = handler;
       },
       ...(this.pauseOnError !== undefined && { pauseOnError: this.pauseOnError }),
     };

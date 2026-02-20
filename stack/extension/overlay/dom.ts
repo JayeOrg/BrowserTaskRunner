@@ -52,7 +52,7 @@ function createButton(
 export function createOverlay(onControl: (action: ControlAction) => void): OverlayElements {
   const existing = document.getElementById(OVERLAY_ID);
   if (existing) {
-    console.warn("Removing existing SiteCheck overlay");
+    console.warn("[SiteCheck]", "Removing existing overlay");
     existing.remove();
   }
 

@@ -1,6 +1,6 @@
 import { setDetail, getDetail, listDetails, removeDetail } from "../../ops/details.js";
 import { requireArg } from "../args.js";
-import { resolveAdminAuth } from "../auth.js";
+import { resolveAdminAuth, ensureAuth } from "../auth.js";
 import { withVault, withVaultReadOnly } from "../env.js";
 import { getSecretValue, promptConfirm } from "../prompt.js";
 
@@ -34,7 +34,7 @@ async function handleDetailGet(subArgs: string[]): Promise<void> {
 
 async function handleDetailList(subArgs: string[]): Promise<void> {
   await withVaultReadOnly(async (db) => {
-    await resolveAdminAuth(db);
+    await ensureAuth(db);
     const project = subArgs[0];
     const details = listDetails(db, project);
     if (details.length === 0) {
@@ -60,13 +60,19 @@ async function handleDetailRemove(subArgs: string[]): Promise<void> {
   const key = subArgs[1];
   requireArg(project, "detail remove <project> <key>");
   requireArg(key, "detail remove <project> <key>");
-  const confirmed = await promptConfirm(`Remove detail "${key}" from project "${project}"?`);
-  if (!confirmed) {
-    console.log("Aborted");
-    return;
-  }
   await withVault(async (db) => {
-    await resolveAdminAuth(db);
+    await ensureAuth(db);
+    const existing = db
+      .prepare("SELECT 1 FROM details WHERE project = ? AND key = ?")
+      .get(project, key);
+    if (!existing) {
+      throw new Error(`Detail not found: "${project}/${key}"`);
+    }
+    const confirmed = await promptConfirm(`Remove detail "${key}" from project "${project}"?`);
+    if (!confirmed) {
+      console.log("Aborted");
+      return;
+    }
     removeDetail(db, project, key);
     console.log(`Removed detail "${key}" from project "${project}"`);
   });

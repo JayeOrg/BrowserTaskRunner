@@ -16,7 +16,7 @@ export function stubBrowserAPI(): BrowserAPI {
     cdpClickSelector: vi.fn().mockResolvedValue({ found: false }),
     waitForText: vi.fn().mockResolvedValue({ found: false }),
     waitForUrl: vi.fn().mockResolvedValue({ found: false }),
-    selectOption: vi.fn().mockResolvedValue({ type: "select", selected: [] }),
+    selectOption: vi.fn().mockResolvedValue({ type: "select" as const, selected: [] }),
     type: vi.fn().mockResolvedValue({ type: "keyboard" }),
     press: vi.fn().mockResolvedValue({ type: "keyboard" }),
     keyDown: vi.fn().mockResolvedValue({ type: "keyboard" }),

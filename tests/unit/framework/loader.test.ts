@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readdirSync, type Dirent } from "node:fs";
 import type { TaskConfig } from "../../../stack/framework/tasks.js";
+import {
+  listTaskNames,
+  loadTask,
+  isTaskConfig,
+  validateLoadedModule,
+  getProjectNeeds,
+} from "../../../stack/framework/loader.js";
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -19,10 +26,6 @@ beforeEach(() => {
   vi.mocked(readdirSync).mockReset();
 });
 
-async function getLoader() {
-  return import("../../../stack/framework/loader.js");
-}
-
 describe("listTaskNames", () => {
   it("returns sorted task names from project task directories", async () => {
     vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
@@ -34,7 +37,6 @@ describe("listTaskNames", () => {
       return [];
     }) as typeof readdirSync);
 
-    const { listTaskNames } = await getLoader();
     const names = listTaskNames();
     expect(names).toEqual(["aTask", "mTask", "zTask"]);
   });
@@ -47,7 +49,6 @@ describe("listTaskNames", () => {
       return ["task.js", "task.ts", "task.d.ts", "README.md"];
     }) as typeof readdirSync);
 
-    const { listTaskNames } = await getLoader();
     const names = listTaskNames();
     expect(names).toEqual(["task"]);
   });
@@ -62,7 +63,6 @@ describe("listTaskNames", () => {
       throw err;
     }) as typeof readdirSync);
 
-    const { listTaskNames } = await getLoader();
     const names = listTaskNames();
     expect(names).toEqual([]);
   });
@@ -77,7 +77,6 @@ describe("listTaskNames", () => {
       throw err;
     }) as typeof readdirSync);
 
-    const { listTaskNames } = await getLoader();
     expect(() => listTaskNames()).toThrow("EACCES");
   });
 
@@ -89,7 +88,6 @@ describe("listTaskNames", () => {
       return ["myTask.js"];
     }) as typeof readdirSync);
 
-    const { listTaskNames } = await getLoader();
     const names = listTaskNames();
     expect(names).toEqual(["myTask"]);
   });
@@ -104,7 +102,6 @@ describe("loadTask", () => {
       return ["other.js"];
     }) as typeof readdirSync);
 
-    const { loadTask } = await getLoader();
     await expect(loadTask("nonexistent")).rejects.toThrow('No task file found for "nonexistent"');
   });
 
@@ -117,14 +114,12 @@ describe("loadTask", () => {
       return ["shared.js"];
     }) as typeof readdirSync);
 
-    const { loadTask } = await getLoader();
     await expect(loadTask("shared")).rejects.toThrow('Ambiguous task "shared"');
   });
 });
 
 describe("isTaskConfig", () => {
-  it("returns true for a valid once-mode task", async () => {
-    const { isTaskConfig } = await getLoader();
+  it("returns true for a valid once-mode task", () => {
     expect(
       isTaskConfig({
         name: "test",
@@ -139,7 +134,6 @@ describe("isTaskConfig", () => {
 
   it("returns true for a task with secretsSchema", async () => {
     const { z } = await import("zod");
-    const { isTaskConfig } = await getLoader();
     expect(
       isTaskConfig({
         name: "test",
@@ -153,8 +147,7 @@ describe("isTaskConfig", () => {
     ).toBe(true);
   });
 
-  it("returns true for a valid retry-mode task", async () => {
-    const { isTaskConfig } = await getLoader();
+  it("returns true for a valid retry-mode task", () => {
     expect(
       isTaskConfig({
         name: "test",
@@ -168,21 +161,18 @@ describe("isTaskConfig", () => {
     ).toBe(true);
   });
 
-  it("returns false for an invalid object", async () => {
-    const { isTaskConfig } = await getLoader();
+  it("returns false for an invalid object", () => {
     expect(isTaskConfig({ name: "test" })).toBe(false);
   });
 
-  it("returns false for non-objects", async () => {
-    const { isTaskConfig } = await getLoader();
+  it("returns false for non-objects", () => {
     expect(isTaskConfig(null)).toBe(false);
     expect(isTaskConfig("string")).toBe(false);
   });
 });
 
 describe("validateLoadedModule", () => {
-  it("returns task when module exports a valid TaskConfig", async () => {
-    const { validateLoadedModule } = await getLoader();
+  it("returns task when module exports a valid TaskConfig", () => {
     const mod = {
       task: {
         name: "myTask",
@@ -197,22 +187,19 @@ describe("validateLoadedModule", () => {
     expect(result.name).toBe("myTask");
   });
 
-  it("throws when module does not export a valid TaskConfig", async () => {
-    const { validateLoadedModule } = await getLoader();
+  it("throws when module does not export a valid TaskConfig", () => {
     expect(() => validateLoadedModule({ task: {} }, "bad", "/fake/bad.js")).toThrow(
       'must export a valid TaskConfig as "task"',
     );
   });
 
-  it("throws when module has no task export", async () => {
-    const { validateLoadedModule } = await getLoader();
+  it("throws when module has no task export", () => {
     expect(() => validateLoadedModule({}, "missing", "/fake/missing.js")).toThrow(
       'must export a valid TaskConfig as "task"',
     );
   });
 
-  it("throws when task.name does not match expected name", async () => {
-    const { validateLoadedModule } = await getLoader();
+  it("throws when task.name does not match expected name", () => {
     const mod = {
       task: {
         name: "wrong",
@@ -259,7 +246,6 @@ describe("getProjectNeeds", () => {
       fakeTask({ name: "b", project: "proj", needs: ["email", "token"] }),
     );
 
-    const { getProjectNeeds } = await getLoader();
     const needs = await getProjectNeeds("proj", loader);
     expect(needs).toEqual(["email", "password", "token"]);
   });
@@ -276,7 +262,6 @@ describe("getProjectNeeds", () => {
     loader.mockResolvedValueOnce(fakeTask({ name: "a", project: "proj", needs: ["email"] }));
     loader.mockResolvedValueOnce(fakeTask({ name: "b", project: "other", needs: ["token"] }));
 
-    const { getProjectNeeds } = await getLoader();
     const needs = await getProjectNeeds("proj", loader);
     expect(needs).toEqual(["email"]);
   });
@@ -292,7 +277,6 @@ describe("getProjectNeeds", () => {
     const loader = vi.fn<(name: string) => Promise<TaskConfig>>();
     loader.mockResolvedValueOnce(fakeTask({ name: "a", project: "other", needs: ["email"] }));
 
-    const { getProjectNeeds } = await getLoader();
     const needs = await getProjectNeeds("proj", loader);
     expect(needs).toEqual([]);
   });
@@ -310,7 +294,6 @@ describe("getProjectNeeds", () => {
       fakeTask({ name: "a", project: "proj", needs: { loginEmail: "email", pw: "password" } }),
     );
 
-    const { getProjectNeeds } = await getLoader();
     const needs = await getProjectNeeds("proj", loader);
     expect(needs).toEqual(["email", "password"]);
   });

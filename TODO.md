@@ -1,5 +1,7 @@
 Improvements:
 
+Explore plugins
+
 Break up this file into goals, codebase directions, and actual todo
 
 Reducing duplication of interfaces across prod and test
@@ -45,6 +47,7 @@ Research:
 
 - Claude code essentials from Anthropic
   - official skills
+  - plugins
 - Using swarms
 - Using specs
 - Github has its own PR AI
@@ -52,6 +55,7 @@ Research:
   - Review REJECTIONS to get an idea of the useless stuff the model will try to implement
 - There has to be a better scaffold for asking for changes
 - Creating evals for agents and agentic scaffolding
+- MCP
 
 Improvement options:
 

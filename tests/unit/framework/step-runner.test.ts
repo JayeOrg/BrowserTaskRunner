@@ -33,7 +33,7 @@ function createDeps(overrides?: Partial<StepRunnerDeps>): {
   };
 }
 
-function tick(ms = 10): Promise<void> {
+function settleAsync(ms = 10): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
@@ -292,7 +292,7 @@ describe("StepRunner pause/play", () => {
 
     const done = runner.execute();
 
-    await tick();
+    await settleAsync();
     expect(order).toEqual(["a"]);
 
     sendControl("play");
@@ -312,7 +312,7 @@ describe("StepRunner pause/play", () => {
     runner.step(a).step(b);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
 
     expect(updates.some((entry) => entry.state === "paused")).toBe(true);
 
@@ -357,7 +357,7 @@ describe("StepRunner skipBack/skipForward", () => {
     runner.step(a).step(b).step(c);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
     expect(order).toEqual(["a"]);
 
     // Step index 1 -> 2 (skip "b")
@@ -391,7 +391,7 @@ describe("StepRunner skipBack/skipForward", () => {
     runner.step(a).step(b).step(c);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
     expect(order).toEqual(["a", "b"]);
 
     // Step index 2 -> 1
@@ -413,7 +413,7 @@ describe("StepRunner skipBack/skipForward", () => {
     runner.step(only);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
 
     // Step index 1 -> 0
     sendControl("skipBack");
@@ -441,7 +441,7 @@ describe("StepRunner skipBack/skipForward", () => {
     runner.step(a).step(b);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
 
     // Step index 1 -> 1 (already at last step)
     sendControl("skipForward");
@@ -451,6 +451,105 @@ describe("StepRunner skipBack/skipForward", () => {
 
     sendControl("play");
     await done;
+  });
+});
+
+describe("StepRunner conditionalStep()", () => {
+  it("runs step when condition returns true", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const order: string[] = [];
+
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
+    runner.conditionalStep(() => true, a).conditionalStep(() => true, b);
+
+    await runner.execute();
+    expect(order).toEqual(["a", "b"]);
+  });
+
+  it("skips step when condition returns false", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const order: string[] = [];
+
+    async function a(_log: StepLogger) {
+      order.push("a");
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
+    runner.conditionalStep(() => true, a).conditionalStep(() => false, b);
+
+    await runner.execute();
+    expect(order).toEqual(["a"]);
+  });
+
+  it("evaluates condition at execution time", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    let shouldRun = false;
+    const order: string[] = [];
+
+    async function a(_log: StepLogger) {
+      order.push("a");
+      shouldRun = true;
+    }
+    async function b(_log: StepLogger) {
+      order.push("b");
+    }
+
+    runner.step(a).conditionalStep(() => shouldRun, b);
+
+    await runner.execute();
+    expect(order).toEqual(["a", "b"]);
+  });
+
+  it("passes extra args to step function", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+    const received: unknown[] = [];
+
+    async function greet(_log: StepLogger, name: string) {
+      received.push(name);
+    }
+
+    runner.conditionalStep(() => true, greet, "world");
+    await runner.execute();
+
+    expect(received).toEqual(["world"]);
+  });
+
+  it("rejects anonymous functions", () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    expect(() =>
+      runner.conditionalStep(
+        () => true,
+        async () => {},
+      ),
+    ).toThrow("Step function must be named");
+  });
+});
+
+describe("StepRunner execute() guard", () => {
+  it("throws when called twice", async () => {
+    const { deps } = createDeps();
+    const runner = new StepRunner(deps);
+
+    async function a(_log: StepLogger) {}
+
+    runner.step(a);
+    await runner.execute();
+
+    await expect(runner.execute()).rejects.toThrow("StepRunner.execute() called twice");
   });
 });
 
@@ -468,7 +567,7 @@ describe("StepRunner pauseOnError", () => {
     runner.step(flaky);
 
     const done = runner.execute();
-    await tick();
+    await settleAsync();
 
     const failedUpdate = updates.find((entry) => entry.state === "failed");
     expect(failedUpdate).toBeDefined();

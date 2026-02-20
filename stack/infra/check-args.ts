@@ -64,7 +64,8 @@ export function parseArgs(argv: string[]): CheckOptions {
   return opts;
 }
 
-const VAULT_TOKEN_LINE = /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/mu;
+// eslint-disable-next-line require-unicode-regexp -- ASCII-only pattern; u flag unnecessary
+const VAULT_TOKEN_LINE = /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/m;
 
 export function hasVaultToken(envContents: string): boolean {
   return VAULT_TOKEN_LINE.test(envContents);
@@ -94,8 +95,8 @@ export function buildComposeArgs(opts: CheckOptions, composeFile: string): strin
 
   args.push("--env-file", ".env", "up");
 
-  const shouldBuild = !opts.noBuild && !opts.rebuild;
-  if (shouldBuild) {
+  const shouldIncrementalBuild = !opts.noBuild && !opts.rebuild;
+  if (shouldIncrementalBuild) {
     args.push("--build");
   }
 

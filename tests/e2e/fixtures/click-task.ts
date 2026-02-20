@@ -2,6 +2,7 @@ import type { BrowserAPI } from "../../../stack/browser/browser.js";
 import type { SingleAttemptTask, VaultSecrets } from "../../../stack/framework/tasks.js";
 import { StepError } from "../../../stack/framework/errors.js";
 
+// Selector #go must match DEFAULT_PAGE_HTML exported from tests/fixtures/test-helpers.ts
 const TASK_NAME = "click-test";
 
 async function run(browser: BrowserAPI, context: VaultSecrets): Promise<string> {

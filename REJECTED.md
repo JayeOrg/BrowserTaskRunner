@@ -151,6 +151,15 @@ Findings considered during DX reviews and intentionally kept as-is. Don't re-rai
 - **`sessions.id` blob storage vs external base64 representation in `schema.ts`**: Standard binary-storage / text-transport pattern. `createSession` encodes to base64, `parseSessionToken` decodes back. No mismatch, no effects.
 - **`details` INSERT column order differs from PRIMARY KEY in `schema.ts`**: INSERT lists `key, project` matching the CREATE TABLE column declaration order. PRIMARY KEY `(project, key)` controls B-tree index layout, not INSERT ordering. SQLite matches by name.
 
+- **`poll.ts` / `wait-for-selector.ts` use `while (Date.now() < deadline)` loop**: These ARE the implementations backing the AGENTS.md rule. The rule targets task code that should use `pollUntil`, not the polling primitives themselves. Obvious from context.
+- **`mousePressed` on CDP send failure in `clicks.ts`**: If `chrome.debugger.attach` succeeds but `sendCommand("mousePressed")` throws, Chrome never processed the event — no orphaned mouse state. The `finally` block detaches the debugger, which resets input state. Zero practical impact.
+- **`run-utils.ts` single-function file**: `tailLines` extracted from `run.ts` for test isolation — `run.ts` has module-level side effects preventing direct import in tests. The file is small and self-explanatory.
+- **`SAFE_MODE` read at module load time in `nandosOrder.ts`**: Standard Docker pattern — env vars are fixed for the container's lifetime. Module loads once per process. Not testable in isolation, but that's not a requirement (e2e tests control env before module load).
+- **`CHROME_PROFILE_DIR` hardcoded in infra config block**: Internal constant tied to cleanup() logic. Not user-configurable. README documents `PERSIST_CHROME_PROFILE` (the flag), not the path.
+- **`detectTurnstile` exported but only used internally in `turnstile.ts`**: May be useful for future tasks that want detect-without-click. One extra export is harmless.
+- **`dismissSuggestions` discards `tryDismissSuggestions` result in `nandosOrder.ts`**: Non-fatal by design — suggestions modal may not appear. Inner function already logs a warn.
+- **Conformity-only pattern enforcement**: Don't enforce patterns purely for uniformity when the non-conforming code works well and is clear. Added as a rule in AGENTS.md.
+
 - **Block comment style in `browser.ts:437-442`**: The `close()` method uses a `/* */` block comment while the rest of the file uses `//`. Using `/* */` for multi-sentence explanations and `//` for single-line annotations is a common, readable convention. The block comment visually signals "this is a paragraph of explanation."
 - **`resolveToken` silently falls back from project-specific to generic `VAULT_TOKEN` in `run.ts:53-63`**: The fallback (`process.env[envKey] ?? process.env.VAULT_TOKEN`) is intentional — single-project setups use `VAULT_TOKEN`, multi-project setups use project-specific vars. The error message (when neither exists) documents both env var names. Logging which token was used would add noise to every successful run.
 

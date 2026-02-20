@@ -93,7 +93,7 @@ export async function connect(): Promise<void> {
       messageId = parsed.id;
       log("Received command", { type: parsed.type });
       const result = await handleCommand(parsed);
-      // Overwrites any handler-set id with the message's correlation id
+      // Ensures the correlation id is always authoritative
       currentSocket.send(JSON.stringify({ ...result, id: messageId }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -12,6 +12,9 @@ Autonomous browser automation that checks site logins (e.g. every 5 minutes): na
 - **Never edit `TODO.md`.** It is a personal scratchpad maintained only by the user.
 - Review `REJECTED.md` for won't-fix decisions and failed approaches. Add to it as paths fail.
 - This extension is for personal use, not published.
+- Trivial improvements that make code more correct (e.g. lowercasing a comment, removing an unused regex flag, naming a magic number) are always appropriate. Don't skip them for being "too small."
+- Don't use "personal project" or "only N callers" as a reason to skip a fix. If the improvement is correct, make it.
+- Conformity without practicality is too far. Don't enforce patterns purely for uniformity when the non-conforming code works well and is clear.
 
 ## Environment
 

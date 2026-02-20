@@ -28,11 +28,11 @@ Each detail value is encrypted with its own random DEK. The DEK is wrapped twice
 
 ## Storage
 
-SQLite database (`vault.db` at project root). Three tables:
+SQLite database (`vault.db` at project root). Tables:
 
 | Table | Purpose | Encrypted columns |
 |-------|---------|-------------------|
-| `config` | Global salt + password verification blob | password check value |
+| `config` | Global salt + password verification | `ciphertext` (password check) |
 | `projects` | Project encryption keys wrapped with master key | `key_ciphertext` |
 | `details` | Secret values + DEK wrapped with both master and project key | `ciphertext`, `master_dek_ciphertext`, `project_dek_ciphertext` |
 | `sessions` | Time-limited admin sessions, master key encrypted with session key | `ciphertext` |

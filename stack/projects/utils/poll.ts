@@ -4,7 +4,7 @@ export async function pollUntil<T>(
   poll: () => Promise<T>,
   check: (value: T) => boolean,
   options: { timeoutMs: number; intervalMs: number },
-): Promise<{ ok: true; value: T } | { ok: false; timeoutMs: number }> {
+): Promise<{ ok: true; value: T } | { ok: false }> {
   if (options.intervalMs <= 0) {
     throw new Error("pollUntil: intervalMs must be positive");
   }
@@ -16,5 +16,5 @@ export async function pollUntil<T>(
     await sleep(options.intervalMs);
   }
 
-  return { ok: false, timeoutMs: options.timeoutMs };
+  return { ok: false };
 }

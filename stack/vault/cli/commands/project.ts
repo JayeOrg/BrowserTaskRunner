@@ -10,7 +10,7 @@ import {
 import { listDetails, setDetail } from "../../ops/details.js";
 import { getProjectNeeds } from "../../../framework/loader.js";
 import { requireArg } from "../args.js";
-import { resolveAdminAuth } from "../auth.js";
+import { resolveAdminAuth, ensureAuth } from "../auth.js";
 import { setEnvVar, withVault, withVaultReadOnly } from "../env.js";
 import { promptConfirm, getSecretValue } from "../prompt.js";
 
@@ -33,7 +33,7 @@ function parseProjectArgs(subArgs: string[], usage: string): { name: string; wri
   const remaining = subArgs.filter((arg) => arg !== "--write-env");
   const unknownFlags = remaining.filter((arg) => arg.startsWith("--"));
   if (unknownFlags.length > 0) {
-    throw new Error(`Unknown flag: ${unknownFlags[0] ?? ""}`);
+    throw new Error(`Unknown flags: ${unknownFlags.join(", ")}`);
   }
   const name = remaining[0];
   requireArg(name, usage);
@@ -77,7 +77,7 @@ async function handleProject(args: string[]): Promise<void> {
     }
     case "list": {
       await withVaultReadOnly(async (db) => {
-        await resolveAdminAuth(db);
+        await ensureAuth(db);
         const projects = listProjects(db);
         if (projects.length === 0) {
           console.log("No projects in vault");
@@ -99,7 +99,7 @@ async function handleProject(args: string[]): Promise<void> {
         return;
       }
       await withVault(async (db) => {
-        await resolveAdminAuth(db);
+        await ensureAuth(db);
         removeProject(db, name);
         console.log(`Removed project "${name}"`);
       });

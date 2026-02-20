@@ -28,7 +28,7 @@ describe("pollUntil", () => {
       () => false,
       { timeoutMs: 50, intervalMs: 10 },
     );
-    expect(result).toEqual({ ok: false, timeoutMs: 50 });
+    expect(result).toEqual({ ok: false });
   });
 
   it("returns the value that passed the check", async () => {

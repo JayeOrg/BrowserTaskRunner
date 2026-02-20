@@ -5,7 +5,6 @@ const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 32;
 const IV_LENGTH = 12;
-const AUTH_TAG_LENGTH = 16;
 const PASSWORD_CHECK_MAGIC = "sitecheck-vault-v1";
 
 interface EncryptedParts {
@@ -42,20 +41,9 @@ function aesDecrypt(
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
-function packBlob(parts: EncryptedParts): Buffer {
-  return Buffer.concat([parts.iv, parts.authTag, parts.ciphertext]);
-}
-
-function unpackBlob(blob: Buffer): EncryptedParts {
-  return {
-    iv: blob.subarray(0, IV_LENGTH),
-    authTag: blob.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH),
-    ciphertext: blob.subarray(IV_LENGTH + AUTH_TAG_LENGTH),
-  };
-}
-
 type EncryptedColumnNames = readonly [iv: string, authTag: string, ciphertext: string];
 
+const CONFIG_COLS: EncryptedColumnNames = ["iv", "auth_tag", "ciphertext"];
 const PROJECT_KEY_COLS: EncryptedColumnNames = ["key_iv", "key_auth_tag", "key_ciphertext"];
 const MASTER_DEK_COLS: EncryptedColumnNames = [
   "master_dek_iv",
@@ -106,9 +94,8 @@ export {
   deriveKey,
   aesEncrypt,
   aesDecrypt,
-  packBlob,
-  unpackBlob,
   decryptFrom,
+  CONFIG_COLS,
   PROJECT_KEY_COLS,
   MASTER_DEK_COLS,
   PROJECT_DEK_COLS,

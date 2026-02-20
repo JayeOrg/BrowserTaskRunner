@@ -398,10 +398,10 @@ describe("Browser convenience methods", () => {
     expect(result).toBe("Main");
   });
 
-  it("clickText() without timeout sends single command", async () => {
+  it("clickText() sends single command", async () => {
     setup = await setupBrowser();
 
-    const clickPromise = setup.browser.clickText(["Submit"], undefined, { tag: "button" });
+    const clickPromise = setup.browser.clickText(["Submit"], { tag: "button" });
     const cmd = await setup.ext.receiveCommand();
     expect(cmd.type).toBe("clickText");
     expect(cmd.texts).toEqual(["Submit"]);
@@ -410,36 +410,6 @@ describe("Browser convenience methods", () => {
     setup.ext.sendResponse({ id: cmd.id, type: "clickText", found: true, text: "Submit" });
     const result = await clickPromise;
     expect(result.found).toBe(true);
-  });
-
-  it("clickText() with timeout polls until found", async () => {
-    setup = await setupBrowser();
-
-    const clickPromise = setup.browser.clickText(["Submit"], 5000);
-
-    // First poll: not found
-    const cmd1 = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd1.id, type: "clickText", found: false });
-
-    // Second poll (after 500ms delay): found
-    const cmd2 = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd2.id, type: "clickText", found: true, text: "Submit" });
-
-    const result = await clickPromise;
-    expect(result.found).toBe(true);
-  });
-
-  it("clickText() with timeout returns result on timeout", async () => {
-    setup = await setupBrowser();
-
-    const clickPromise = setup.browser.clickText(["Nope"], 100);
-
-    // First poll: not found — 500ms delay exceeds 100ms timeout, so loop exits
-    const cmd1 = await setup.ext.receiveCommand();
-    setup.ext.sendResponse({ id: cmd1.id, type: "clickText", found: false });
-
-    const result = await clickPromise;
-    expect(result.found).toBe(false);
   });
 
   it("cdpClickSelector() clicks center of matching rect", async () => {
@@ -587,16 +557,18 @@ describe("Browser step control", () => {
     browser.close();
     ext.close();
 
+    const deps = browser.stepRunnerDeps();
     expect(() => {
-      browser.sendStepUpdate({ current: 1, total: 1, name: "test", state: "running" });
+      deps.sendStepUpdate({ current: 1, total: 1, name: "test", state: "running" });
     }).not.toThrow();
   });
 
-  it("routes stepControl messages to onControl handler", async () => {
+  it("routes stepControl messages to onControl handler via stepRunnerDeps", async () => {
     setup = await setupBrowser();
 
     const actions: string[] = [];
-    setup.browser.onControl((action) => actions.push(action));
+    const deps = setup.browser.stepRunnerDeps();
+    deps.onControl((action) => actions.push(action));
 
     setup.ext.sendResponse({ type: "stepControl", action: "pause" });
 
@@ -632,13 +604,17 @@ describe("getFrameId found:false", () => {
   });
 });
 
-describe("offControl", () => {
-  it("offControl() clears the control handler", async () => {
+describe("onControl handler replacement", () => {
+  it("replacing the control handler stops the previous one receiving messages", async () => {
     setup = await setupBrowser();
 
-    const actions: string[] = [];
-    setup.browser.onControl((action) => actions.push(action));
-    setup.browser.offControl();
+    const firstActions: string[] = [];
+    const secondActions: string[] = [];
+    const deps = setup.browser.stepRunnerDeps();
+    deps.onControl((action) => firstActions.push(action));
+
+    // Replace with a new handler
+    deps.onControl((action) => secondActions.push(action));
 
     setup.ext.sendResponse({ type: "stepControl", action: "pause" });
 
@@ -646,7 +622,8 @@ describe("offControl", () => {
       setTimeout(resolve, 50);
     });
 
-    expect(actions).toEqual([]);
+    expect(firstActions).toEqual([]);
+    expect(secondActions).toEqual(["pause"]);
   });
 });
 
@@ -656,13 +633,13 @@ describe("Select command", () => {
 
     const selectPromise = setup.browser.selectOption("#dropdown", ["a", "b"]);
     const cmd = await setup.ext.receiveCommand();
-    expect(cmd.type).toBe("selectOption");
+    expect(cmd.type).toBe("select");
     expect(cmd.selector).toBe("#dropdown");
     expect(cmd.values).toEqual(["a", "b"]);
 
-    setup.ext.sendResponse({ id: cmd.id, type: "selectOption", selected: ["a", "b"] });
+    setup.ext.sendResponse({ id: cmd.id, type: "select", selected: ["a", "b"] });
     const result = await selectPromise;
-    expect(result.type).toBe("selectOption");
+    expect(result.type).toBe("select");
     expect(result.selected).toEqual(["a", "b"]);
   });
 
@@ -671,10 +648,10 @@ describe("Select command", () => {
 
     const selectPromise = setup.browser.selectOption("#dropdown", ["x"], { frameId: 42 });
     const cmd = await setup.ext.receiveCommand();
-    expect(cmd.type).toBe("selectOption");
+    expect(cmd.type).toBe("select");
     expect(cmd.frameId).toBe(42);
 
-    setup.ext.sendResponse({ id: cmd.id, type: "selectOption", selected: ["x"] });
+    setup.ext.sendResponse({ id: cmd.id, type: "select", selected: ["x"] });
     await selectPromise;
   });
 });
@@ -713,14 +690,14 @@ describe("Keyboard command", () => {
 
     const downPromise = setup.browser.keyDown("Shift");
     const downCmd = await setup.ext.receiveCommand();
-    expect(downCmd.action).toBe("down");
+    expect(downCmd.action).toBe("keyDown");
     expect(downCmd.key).toBe("Shift");
     setup.ext.sendResponse({ id: downCmd.id, type: "keyboard" });
     await downPromise;
 
     const upPromise = setup.browser.keyUp("Shift");
     const upCmd = await setup.ext.receiveCommand();
-    expect(upCmd.action).toBe("up");
+    expect(upCmd.action).toBe("keyUp");
     expect(upCmd.key).toBe("Shift");
     setup.ext.sendResponse({ id: upCmd.id, type: "keyboard" });
     await upPromise;

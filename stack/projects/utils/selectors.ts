@@ -34,6 +34,7 @@ export async function waitForFirst(
 }
 
 // Sequential — DOM clicks have side effects, so we try one at a time.
+// Unlike waitForFirst/fillFirst, clickFirst has no timeout — it tries each selector once.
 export async function clickFirst(
   browser: BrowserAPI,
   selectors: readonly string[],

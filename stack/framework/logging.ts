@@ -73,7 +73,7 @@ function formatData(data?: Record<string, unknown>): string {
   return ` → ${pairs.join(", ")}`;
 }
 
-function recordStepTransition(state: StepState, step: string): StepState & { duration: string } {
+function computeStepTransition(state: StepState, step: string): StepState & { duration: string } {
   const stepNum = step !== state.lastStep ? state.stepNum + 1 : state.stepNum;
   const now = Date.now();
   const duration = formatDuration(now - state.lastTime);
@@ -88,7 +88,7 @@ function formatLogLine(
   level: LogLevel,
   output: LogOutput,
 ): StepState {
-  const next = recordStepTransition(state, step);
+  const next = computeStepTransition(state, step);
   const { stepNum, duration } = next;
   const { icon, color } = levelStyles[level];
   const prefix = `[${stepNum.toString()} ${step}]`;
@@ -162,6 +162,13 @@ export interface PrefixLogger {
   warn: (msg: string, data?: Record<string, unknown>) => void;
   error: (msg: string, data?: Record<string, unknown>) => void;
 }
+
+export const noopLogger: PrefixLogger = {
+  log: () => {},
+  success: () => {},
+  warn: () => {},
+  error: () => {},
+};
 
 export function createPrefixLogger(
   prefix: string,

@@ -50,36 +50,7 @@ The extension connects automatically inside the Docker container.
 
 ## Browser API
 
-Tasks receive a `BrowserAPI` instance and use these methods:
-
-| Method                                | Description                                    |
-| ------------------------------------- | ---------------------------------------------- |
-| `navigate(url)`                       | Navigate to a URL                              |
-| `getUrl()`                            | Get current page URL and title                 |
-| `fill(selector, value, opts?)`        | Fill an input field                            |
-| `click(selector, opts?)`              | Click an element via DOM events                |
-| `cdpClick(x, y)`                      | Click at viewport coordinates via CDP          |
-| `clickText(texts, opts?)`             | Find and click element by visible text         |
-| `cdpClickSelector(selectors)`         | Resolve selector to rect, then CDP click       |
-| `waitForSelector(sel, timeout, opts?)`| Wait for an element to appear                  |
-| `waitForText(texts, timeout?)`        | Poll page text for any matching string         |
-| `waitForUrl(pattern, timeout?)`       | Poll URL until it contains pattern             |
-| `getContent(selector?, opts?)`        | Get page text or HTML content                  |
-| `getText(selector?)`                  | Shorthand for `getContent().content`           |
-| `querySelectorRect(selectors)`        | Get bounding rect for first match              |
-| `type(selector, text)`                | CDP keyboard text insertion                    |
-| `press(key)`                          | CDP key press (down + up)                      |
-| `keyDown(key)`                        | CDP key down                                   |
-| `keyUp(key)`                          | CDP key up                                     |
-| `selectOption(selector, values, opts?)`| Select dropdown options by value              |
-| `check(selector, opts?)`              | Check a checkbox/radio                         |
-| `uncheck(selector, opts?)`            | Uncheck a checkbox/radio                       |
-| `scrollIntoView(selector, opts?)`     | Scroll element to viewport center              |
-| `scrollTo(x, y)`                      | Absolute page scroll                           |
-| `scrollBy(x, y)`                      | Relative page scroll                           |
-| `getFrameId(selector)`                | Resolve iframe selector to frameId             |
-
-Methods marked `opts?` accept `{ frameId?: number }` for iframe targeting. Use `getFrameId()` to resolve an iframe selector to a frameId first.
+See the `BrowserAPI` interface in `browser.ts` for available methods and signatures. Methods marked with `IframeOption` accept `{ frameId?: number }` for iframe targeting — use `getFrameId()` to resolve an iframe selector to a frameId first.
 
 ## Extension Wire Commands
 

@@ -80,6 +80,11 @@ function main(): void {
     process.exit(1);
   }
 
+  if (opts.rebuild && opts.noBuild) {
+    console.error("--rebuild and --no-build are mutually exclusive");
+    process.exit(1);
+  }
+
   // Cache-bust hash from git index. Falls back to timestamp outside a git repo.
   const sourceHash = computeSourceHashFromGit() || String(Math.floor(Date.now() / 1000));
 
@@ -96,11 +101,6 @@ function main(): void {
   }
   if (opts.persistProfile) {
     process.env["PERSIST_CHROME_PROFILE"] = "true";
-  }
-
-  if (opts.rebuild && opts.noBuild) {
-    console.error("--rebuild and --no-build are mutually exclusive");
-    process.exit(1);
   }
 
   if (opts.rebuild) {

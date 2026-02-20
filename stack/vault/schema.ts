@@ -1,7 +1,9 @@
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS config (
     key TEXT PRIMARY KEY,
-    value BLOB NOT NULL
+    iv BLOB,
+    auth_tag BLOB,
+    ciphertext BLOB
   ) STRICT;
 
   CREATE TABLE IF NOT EXISTS projects (

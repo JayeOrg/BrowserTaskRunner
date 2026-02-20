@@ -65,7 +65,7 @@ async function handleStatus(): Promise<void> {
     console.log("No active session");
     return;
   }
-  // Read-write because this may delete the current session if expired.
+  // Read-write: may delete expired session and remove .env vars
   await withVault((db) => {
     const now = Date.now();
     const result = getSessionExpiry(db, token);

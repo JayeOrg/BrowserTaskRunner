@@ -5,10 +5,8 @@ import {
   PASSWORD_CHECK_MAGIC,
   deriveKey,
   aesEncrypt,
-  aesDecrypt,
-  packBlob,
-  unpackBlob,
   decryptFrom,
+  CONFIG_COLS,
   PROJECT_KEY_COLS,
   MASTER_DEK_COLS,
 } from "./crypto.js";
@@ -48,7 +46,7 @@ function openVaultReadOnly(path: string): DatabaseSync {
 }
 
 function initVault(db: DatabaseSync, password: string): void {
-  const existing = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
+  const existing = db.prepare("SELECT 1 FROM config WHERE key = ?").get("salt");
   if (existing) {
     throw new Error("Vault is already initialized");
   }
@@ -56,23 +54,28 @@ function initVault(db: DatabaseSync, password: string): void {
   const salt = randomBytes(SALT_LENGTH);
   const masterKey = deriveKey(password, salt);
 
-  const encrypted = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
-  const checkBlob = packBlob(encrypted);
+  const check = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
 
   withSavepoint(db, "init_vault", () => {
-    db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("salt", salt);
-    db.prepare("INSERT INTO config (key, value) VALUES (?, ?)").run("password_check", checkBlob);
+    db.prepare("INSERT INTO config (key, ciphertext) VALUES (?, ?)").run("salt", salt);
+    db.prepare("INSERT INTO config (key, iv, auth_tag, ciphertext) VALUES (?, ?, ?, ?)").run(
+      "password_check",
+      check.iv,
+      check.authTag,
+      check.ciphertext,
+    );
   });
 }
 
 function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
-  const row = db.prepare("SELECT value FROM config WHERE key = ?").get("password_check");
+  const row = db
+    .prepare("SELECT iv, auth_tag, ciphertext FROM config WHERE key = ?")
+    .get("password_check");
   if (!row) throw new Error("Vault corrupted — missing password check");
-  const { iv, authTag, ciphertext } = unpackBlob(requireBlob(row, "value"));
 
   let decrypted: Buffer;
   try {
-    decrypted = aesDecrypt(masterKey, iv, authTag, ciphertext);
+    decrypted = decryptFrom(masterKey, row, CONFIG_COLS);
   } catch (cause) {
     throw new Error("Vault decryption failed — wrong password (GCM auth tag mismatch)", { cause });
   }
@@ -86,9 +89,9 @@ function deriveMasterKeyWithSalt(
   db: DatabaseSync,
   password: string,
 ): { masterKey: Buffer; salt: Buffer } {
-  const saltRow = db.prepare("SELECT value FROM config WHERE key = ?").get("salt");
+  const saltRow = db.prepare("SELECT ciphertext FROM config WHERE key = ?").get("salt");
   if (!saltRow) throw new Error("Vault not initialized. Run 'npm run vault -- init' first.");
-  const salt = requireBlob(saltRow, "value");
+  const salt = requireBlob(saltRow, "ciphertext");
 
   const masterKey = deriveKey(password, salt);
   verifyPassword(db, masterKey);
@@ -104,13 +107,16 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
 
   const newSalt = randomBytes(SALT_LENGTH);
   const newMasterKey = deriveKey(newPassword, newSalt);
-  const newCheckBlob = packBlob(
-    aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8")),
-  );
+  const newCheck = aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
 
   withSavepoint(db, "change_password", () => {
-    db.prepare("UPDATE config SET value = ? WHERE key = ?").run(newSalt, "salt");
-    db.prepare("UPDATE config SET value = ? WHERE key = ?").run(newCheckBlob, "password_check");
+    db.prepare("UPDATE config SET ciphertext = ? WHERE key = ?").run(newSalt, "salt");
+    db.prepare("UPDATE config SET iv = ?, auth_tag = ?, ciphertext = ? WHERE key = ?").run(
+      newCheck.iv,
+      newCheck.authTag,
+      newCheck.ciphertext,
+      "password_check",
+    );
 
     const projects = db
       .prepare("SELECT name, key_iv, key_auth_tag, key_ciphertext FROM projects")

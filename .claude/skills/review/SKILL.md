@@ -54,9 +54,12 @@ Review the codebase for developer experience and readability.
 
 3. **Triage**: Classify each finding as **Will**, **Won't**, or **Needs Clarification**. Check `REJECTED.md` first — skip anything already documented there.
 
-   For each finding, provide: problem description (2-3 sentences, self-contained), options table (`#`, `Option`, `Description`, `Tradeoffs`), and recommendation.
+   Every item uses the same format regardless of classification:
+   1. Problem description (2-3 sentences, self-contained — what and why it's a problem)
+   2. Options table: `#`, `Option`, `Description`, `Tradeoffs` (what the tradeoff is and why it matters)
+   3. Recommendation underneath the table
 
-4. **Present**: Write triage to `.claude/dx-review-plan.md` AND output identical content to chat. Number items continuously across all sections. **Stop and wait for user response.**
+4. **Present**: Write triage to `.claude/dx-review-plan.md` AND output identical content to chat. **All items share one continuous numbering sequence** across Will, Won't, and Needs Clarification sections. **Stop and wait for user response.**
 
    Rules:
    - Never assume implicit approval — every item needs explicit confirmation
@@ -82,6 +85,9 @@ Review the codebase for developer experience and readability.
 - ESLint `capitalized-comments`: every `//` line must start uppercase
 - Always read fix targets before applying — schema derivation can break due to subtle type interactions
 - Dependency-ordered implementation prevents cross-module type conflicts
+- Trivial-but-correct fixes (lowercase comment, remove unused flag, name a magic number) are always worth recommending — never skip for being "too small"
+- Never use "personal project", "only N callers", or "rare operation" as Won't-fix rationale — if the fix is correct, recommend it
+- When recommending Won't fix, the rationale must be a genuine technical reason (e.g. "type system limitation"), not a scale argument
 
 ---
 

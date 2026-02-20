@@ -9,10 +9,10 @@ export const selectSchema = z.object({
   frameId: z.number().optional(),
 });
 
-export type SelectCommand = z.infer<typeof selectSchema> & { type: "selectOption" };
+export type SelectCommand = z.infer<typeof selectSchema> & { type: "select" };
 
 export interface SelectResponse extends BaseResponse {
-  type: "selectOption";
+  type: "select";
   selected: string[];
 }
 
@@ -46,11 +46,11 @@ export async function handleSelect(input: z.infer<typeof selectSchema>): Promise
   });
   const extracted = extractResult(results);
   if (!extracted.ok) {
-    return { type: "selectOption", error: extracted.error, selected: [] };
+    return { type: "select", error: extracted.error, selected: [] };
   }
   const parsed = z.object({ selected: z.array(z.string()) }).safeParse(extracted.value);
   if (parsed.success) {
-    return { type: "selectOption", selected: parsed.data.selected };
+    return { type: "select", selected: parsed.data.selected };
   }
-  return { type: "selectOption", error: "Script did not return selected values", selected: [] };
+  return { type: "select", error: "Script did not return selected values", selected: [] };
 }

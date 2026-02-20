@@ -17,7 +17,11 @@ import { tailLines } from "./run-utils.js";
 // Configuration
 // =============================================================================
 const DISPLAY_NUM = process.env["DISPLAY_NUM"] ?? "99";
-const WS_PORT = process.env["WS_PORT"] ?? "8765";
+const WS_PORT = (() => {
+  const port = process.env["WS_PORT"];
+  if (!port) throw new Error("WS_PORT environment variable is required (set by Docker Compose)");
+  return port;
+})();
 const SCREEN_SIZE = process.env["SCREEN_SIZE"] ?? "1280x720x24";
 const LOG_DIR = process.env["LOG_DIR"] ?? "/app/logs";
 const READINESS_TIMEOUT = Number(process.env["READINESS_TIMEOUT"] ?? "30");
@@ -25,6 +29,8 @@ if (Number.isNaN(READINESS_TIMEOUT)) {
   throw new Error(`Invalid READINESS_TIMEOUT: "${String(process.env["READINESS_TIMEOUT"])}"`);
 }
 const CHROME_PROFILE_DIR = "/tmp/chrome-profile";
+const VAULT_RUNTIME_PATH = "/tmp/vault.db";
+const CHROME_STARTUP_DELAY_MS = 2000;
 
 process.env["DISPLAY"] = `:${DISPLAY_NUM}`;
 
@@ -135,11 +141,15 @@ function prepareChromeProfile(): void {
   }
 }
 
-function cleanup(): void {
+function teardown(): void {
   spawnSync("pkill", ["-f", "Xvfb"], { stdio: "ignore" });
   spawnSync("pkill", ["-f", "chromium"], { stdio: "ignore" });
   rmSync(`/tmp/.X${DISPLAY_NUM}-lock`, { force: true });
   rmSync(`/tmp/.X11-unix/X${DISPLAY_NUM}`, { force: true });
+}
+
+function cleanupStale(): void {
+  teardown();
   prepareChromeProfile();
   log("Cleaned up stale processes");
 }
@@ -173,7 +183,7 @@ function handleExit(exitStatus: number): void {
     }
   }
 
-  cleanup();
+  teardown();
 }
 
 // =============================================================================
@@ -186,7 +196,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  cleanup();
+  cleanupStale();
 
   log(`Configuration: display=:${DISPLAY_NUM}, ws_port=${WS_PORT}, screen=${SCREEN_SIZE}`);
   log(`Logs will be written to ${LOG_DIR}`);
@@ -207,8 +217,10 @@ async function main(): Promise<void> {
 
   writeDefaultChromePreferences(CHROME_PROFILE_DIR);
 
-  // Write WS port to a file — Chrome extensions can't read env vars,
-  // So the extension reads this file at connect time instead
+  /*
+   * Write WS port to a file — Chrome extensions can't read env vars,
+   * so the extension reads this file at connect time instead.
+   */
   writeFileSync("/app/dist/extension/ws-port", WS_PORT);
 
   // --no-sandbox is required when running as root in Docker.
@@ -225,7 +237,7 @@ async function main(): Promise<void> {
   );
 
   // Wait for Chromium process to survive startup
-  await sleep(2000);
+  await sleep(CHROME_STARTUP_DELAY_MS);
   if (chromium.exitCode !== null) {
     logError("Chromium failed to start");
     console.log(tailFile(CHROMIUM_LOG, 20));
@@ -234,10 +246,9 @@ async function main(): Promise<void> {
   logSuccess(`Chromium started with extension (pid: ${String(chromium.pid)})`);
 
   // Copy vault to writable location (SQLite WAL mode needs sibling -wal/-shm files)
-  copyFileSync("/app/vault.db", "/tmp/vault.db");
-  const vaultPath = "/tmp/vault.db";
+  copyFileSync("/app/vault.db", VAULT_RUNTIME_PATH);
   // eslint-disable-next-line require-atomic-updates -- No race: this is a synchronous entrypoint, not concurrent
-  process.env["VAULT_PATH"] = vaultPath;
+  process.env["VAULT_PATH"] = VAULT_RUNTIME_PATH;
 
   // Run the task — this is the final action; process exits when it completes
   log(`Starting task: ${taskName}`);

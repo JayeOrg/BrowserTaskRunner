@@ -10,6 +10,3 @@ export const nandosSecretsSchema = loginSecretsSchema.extend({
   expectedAddress: z.string().min(1),
   savedCardSuffix: z.string().min(1),
 });
-
-export type LoginSecrets = z.infer<typeof loginSecretsSchema>;
-export type NandosSecrets = z.infer<typeof nandosSecretsSchema>;

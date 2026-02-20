@@ -56,6 +56,8 @@ afterAll(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
+// Each test runs inside a savepoint that rolls back afterward, so tests see the
+// initialized vault (PASSWORD, masterKey) but never leak state to each other.
 beforeEach(() => {
   db.exec("SAVEPOINT test_start");
 });
@@ -593,8 +595,12 @@ describe("vault corruption defenses", () => {
 
   it("throws when password_check decrypts to wrong magic string", () => {
     const wrongMagic = aesEncrypt(masterKey, Buffer.from("wrong-magic", "utf8"));
-    const wrongBlob = Buffer.concat([wrongMagic.iv, wrongMagic.authTag, wrongMagic.ciphertext]);
-    db.prepare("UPDATE config SET value = ? WHERE key = ?").run(wrongBlob, "password_check");
+    db.prepare("UPDATE config SET iv = ?, auth_tag = ?, ciphertext = ? WHERE key = ?").run(
+      wrongMagic.iv,
+      wrongMagic.authTag,
+      wrongMagic.ciphertext,
+      "password_check",
+    );
 
     expect(() => deriveMasterKey(db, PASSWORD)).toThrow("data corrupted (magic string mismatch)");
   });
@@ -666,7 +672,7 @@ describe("wrapVaultOpenError", () => {
 describe("openVaultReadOnly", () => {
   it("opens an existing vault in read-only mode", () => {
     const readOnly = openVaultReadOnly(vaultPath);
-    const row = readOnly.prepare("SELECT value FROM config WHERE key = ?").get("salt");
+    const row = readOnly.prepare("SELECT ciphertext FROM config WHERE key = ?").get("salt");
     expect(row).toBeDefined();
     readOnly.close();
   });

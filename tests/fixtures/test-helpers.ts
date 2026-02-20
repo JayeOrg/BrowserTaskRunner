@@ -7,12 +7,19 @@ import {
 } from "./fake-extension.js";
 import { nextPort } from "./port.js";
 import { createTaskLogger } from "../../stack/framework/logging.js";
+import type { StepRunnerDeps } from "../../stack/framework/step-runner.js";
 
 export const noopLogger = createTaskLogger("test", () => undefined);
 
+export const noopDeps: StepRunnerDeps = {
+  sendStepUpdate: () => {},
+  onControl: () => {},
+  taskLogger: noopLogger,
+};
+
 // --- Test site ---
 
-const DEFAULT_PAGE_HTML = '<button id="go">Click me</button>';
+export const DEFAULT_PAGE_HTML = '<button id="go">Click me</button>';
 const DEFAULT_SUCCESS_HTML = "<h1>Success</h1>";
 
 type HttpRequestHandler = (req: IncomingMessage, res: ServerResponse) => void;

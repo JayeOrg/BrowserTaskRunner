@@ -7,7 +7,7 @@ import {
   setupTaskRunTest,
   createDefaultResponder,
   teardownTaskTest,
-  noopLogger,
+  noopDeps,
   type TaskTestSetup,
 } from "../fixtures/test-helpers.js";
 
@@ -22,7 +22,7 @@ describe("e2e: click-task against local test site", () => {
   it("navigates, clicks button, and verifies /success", async () => {
     const ctx = await setupTaskRunTest();
     setup = ctx;
-    const result = await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger);
+    const result = await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps);
 
     expect(result).toBe("verify");
     expect(ctx.state.commands).toEqual(["navigate", "waitForSelector", "click", "getUrl"]);
@@ -34,7 +34,7 @@ describe("e2e: click-task against local test site", () => {
     });
     setup = ctx;
 
-    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps)).rejects.toThrow(
       "BUTTON_NOT_FOUND",
     );
   });
@@ -46,7 +46,7 @@ describe("e2e: click-task against local test site", () => {
     });
     setup = ctx;
 
-    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps)).rejects.toThrow(
       "NOT_ON_SUCCESS_PAGE",
     );
   });
@@ -57,7 +57,7 @@ describe("e2e: click-task against local test site", () => {
     });
     setup = ctx;
 
-    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps)).rejects.toThrow(
       "Tab crashed",
     );
   });
@@ -68,7 +68,7 @@ describe("e2e: click-task against local test site", () => {
     });
     setup = ctx;
 
-    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger)).rejects.toThrow(
+    await expect(clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps)).rejects.toThrow(
       "CLICK_FAILED",
     );
   });
@@ -85,7 +85,7 @@ describe("e2e: click-task against local test site", () => {
     setup = ctx;
 
     try {
-      await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopLogger);
+      await clickTask.run(ctx.browser, { url: ctx.siteUrl }, noopDeps);
       expect.unreachable("Should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
@@ -105,17 +105,17 @@ describe("e2e: retry-task behavior", () => {
     setup = await setupRawTaskTest(responder);
 
     // First call: should fail (attempt 1 <= failUntil 2)
-    await expect(retryTask.run(setup.browser, { failUntil: "2" }, noopLogger)).rejects.toThrow(
+    await expect(retryTask.run(setup.browser, { failUntil: "2" }, noopDeps)).rejects.toThrow(
       "NOT_READY_YET",
     );
 
     // Second call: should also fail (attempt 2 <= failUntil 2)
-    await expect(retryTask.run(setup.browser, { failUntil: "2" }, noopLogger)).rejects.toThrow(
+    await expect(retryTask.run(setup.browser, { failUntil: "2" }, noopDeps)).rejects.toThrow(
       "NOT_READY_YET",
     );
 
     // Third call: should succeed (attempt 3 > failUntil 2)
-    await retryTask.run(setup.browser, { failUntil: "2" }, noopLogger);
+    await retryTask.run(setup.browser, { failUntil: "2" }, noopDeps);
   });
 
   it("is a RetryingTask with mode 'retry'", () => {
@@ -128,7 +128,7 @@ describe("e2e: retry-task behavior", () => {
     setup = await setupRawTaskTest(responder);
 
     try {
-      await retryTask.run(setup.browser, { failUntil: "1" }, noopLogger);
+      await retryTask.run(setup.browser, { failUntil: "1" }, noopDeps);
       expect.unreachable("Should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(StepError);
