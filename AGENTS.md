@@ -69,6 +69,7 @@ Use `/infra` to add an env var, Docker service, or alert channel.
 Use `/test` to add tests for a module.
 Use `/review` to review test coverage, DX, or readability.
 Use `/debug` to debug a failing task.
+Use `/prep-review` to prepare changes for PR review — creates branch, splits commits, validates, pushes, and opens a PR.
 
 After using any skill, review the conversation for confusions or non-obvious learnings. Update the relevant skill's `SKILL.md`.
 
