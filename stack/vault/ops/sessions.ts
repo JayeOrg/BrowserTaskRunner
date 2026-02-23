@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { KEY_LENGTH, aesEncrypt, decryptFrom, SESSION_COLS } from "../crypto.js";
+import { KEY_LENGTH, aesEncrypt, decryptFrom, zeroize, SESSION_COLS } from "../crypto.js";
 import { requireNumber } from "../rows.js";
 
 const SESSION_ID_LENGTH = 16;
@@ -29,16 +29,20 @@ function createSession(db: DatabaseSync, masterKey: Buffer, durationMinutes?: nu
   const sessionId = randomBytes(SESSION_ID_LENGTH);
   const sessionKey = randomBytes(KEY_LENGTH);
 
-  const wrapped = aesEncrypt(sessionKey, masterKey);
-  const expiresAt = Date.now() + minutes * 60 * 1000;
+  try {
+    const wrapped = aesEncrypt(sessionKey, masterKey);
+    const expiresAt = Date.now() + minutes * 60 * 1000;
 
-  pruneExpiredSessions(db);
+    pruneExpiredSessions(db);
 
-  db.prepare(
-    "INSERT INTO sessions (id, iv, auth_tag, ciphertext, expires_at) VALUES (?, ?, ?, ?, ?)",
-  ).run(sessionId, wrapped.iv, wrapped.authTag, wrapped.ciphertext, expiresAt);
+    db.prepare(
+      "INSERT INTO sessions (id, iv, auth_tag, ciphertext, expires_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(sessionId, wrapped.iv, wrapped.authTag, wrapped.ciphertext, expiresAt);
 
-  return Buffer.concat([sessionId, sessionKey]).toString("base64");
+    return Buffer.concat([sessionId, sessionKey]).toString("base64");
+  } finally {
+    zeroize(sessionKey);
+  }
 }
 
 function getMasterKeyFromSession(db: DatabaseSync, token: string): Buffer {

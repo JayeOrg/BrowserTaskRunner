@@ -20,7 +20,6 @@ services:
             - WS_PORT=${WS_PORT:-8765}
         ports:
             - "5900:5900" # VNC for debugging
-            - "${WS_PORT:-8765}:${WS_PORT:-8765}"
         volumes:
             - ../../logs:/app/logs
             - ../../vault.db:/app/vault.db:ro

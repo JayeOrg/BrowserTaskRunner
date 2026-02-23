@@ -1,0 +1,42 @@
+name: Review Metrics
+
+on:
+  pull_request:
+    types: [review_requested]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-load:
+    name: Reviewer Load Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Check reviewer load
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const reviewer = context.payload.requested_reviewer?.login;
+            if (!reviewer) return;
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const reviewLoad = prs.filter(pr =>
+              pr.requested_reviewers?.some(r => r.login === reviewer)
+            ).length;
+
+            if (reviewLoad >= 5) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `@${reviewer} currently has ${reviewLoad} open PRs awaiting their review. Consider assigning someone else or waiting.`
+              });
+            }

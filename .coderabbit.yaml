@@ -1,0 +1,66 @@
+language: "en-US"
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  review_status: true
+  path_instructions:
+    - path: "stack/vault/**"
+      instructions: >
+        Vault is the local secrets service with project-scoped access control.
+        Scrutinise crypto operations, key derivation, and encryption/decryption.
+        node:sqlite uses parameterized queries -- template literals with $param
+        placeholders are safe (not JS interpolation). FK constraints are always
+        active. Defence-in-depth guards are intentional redundancy.
+    - path: "stack/vault/crypto.ts"
+      instructions: >
+        Core cryptographic operations (AES-256-GCM, scrypt, token packing).
+        Flag any changes to key derivation, IV handling, auth tag placement,
+        or key length constants.
+    - path: "stack/infra/**"
+      instructions: >
+        Docker, Xvfb, Chrome startup infrastructure. Must not import from
+        projects or framework. Flag changes to Dockerfile, compose config,
+        port mappings, or volume mounts. Check for hardcoded secrets.
+    - path: "stack/extension/**"
+      instructions: >
+        Chrome extension automation bridge. Commands must be minimal and
+        generic -- "Is this generic enough that any site might need it?"
+        No site-specific knowledge allowed. Runs in Chrome service worker.
+    - path: "stack/extension/messages/commands/**"
+      instructions: >
+        Extension commands. Must be generic DOM automation primitives
+        (click, fill, waitForSelector, navigate), not site-specific helpers
+        (detectCaptcha, fillLoginForm). Check error handling and type safety.
+    - path: "stack/framework/**"
+      instructions: >
+        Orchestration, logging, errors, types. Owns retry logic and result
+        reporting. Must not import extension. Check StepRunner lifecycle,
+        error handling, and logging consistency.
+    - path: "stack/projects/**"
+      instructions: >
+        Site-specific task logic. Check: TASK constant name matches filename,
+        project matches vault project name, needs derived via needsFromSchema,
+        step functions use StepLogger as first param, run() returns
+        runner.execute() directly, SAFE_MODE checked for irreversible side effects.
+    - path: "stack/browser/**"
+      instructions: >
+        WebSocket bridge between framework and extension. Check connection
+        lifecycle, error handling, command timeout behaviour, and the
+        BrowserAPI interface contract.
+    - path: "tests/**"
+      instructions: >
+        Tests mirror module structure (unit, integration, e2e). Check coverage
+        of happy path, key failure paths, and edge cases. E2e tests should use
+        setupTaskRunTest() with command overrides and mock both timing.js and
+        poll.js. Tests must use pauseOnError: false.
+    - path: ".github/workflows/**"
+      instructions: "CI/CD pipelines. Flag permission changes, action version pins, and secret references."
+    - path: "stack/infra/docker-compose.yml"
+      instructions: "Docker Compose config. Flag port changes, volume mounts, and env var exposure."
+    - path: "stack/infra/Dockerfile"
+      instructions: "Dockerfile. Flag base image changes, new layers, and permission changes."
+  auto_review:
+    enabled: true
+    drafts: false
+chat:
+  auto_reply: true

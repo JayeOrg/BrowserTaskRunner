@@ -45,8 +45,8 @@ function main(): void {
   let opts: CheckOptions;
   try {
     opts = parseArgs(process.argv.slice(2));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(message);
     console.error("Use --help for usage information");
     process.exit(1);

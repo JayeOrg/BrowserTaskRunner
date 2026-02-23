@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { decryptFrom, PROJECT_DEK_COLS, VALUE_COLS } from "../crypto.js";
+import { decryptFrom, zeroize, PROJECT_DEK_COLS, VALUE_COLS } from "../crypto.js";
 
 function loadProjectDetails(
   db: DatabaseSync,
@@ -31,16 +31,20 @@ function loadProjectDetails(
       });
     }
 
-    let value: Buffer;
     try {
-      value = decryptFrom(dek, row, VALUE_COLS);
-    } catch (cause) {
-      throw new Error(`Failed to decrypt value for detail "${detailKey}" — corrupted data`, {
-        cause,
-      });
-    }
+      let value: Buffer;
+      try {
+        value = decryptFrom(dek, row, VALUE_COLS);
+      } catch (cause) {
+        throw new Error(`Failed to decrypt value for detail "${detailKey}" — corrupted data`, {
+          cause,
+        });
+      }
 
-    secrets[localName] = value.toString("utf8");
+      secrets[localName] = value.toString("utf8");
+    } finally {
+      zeroize(dek);
+    }
   }
 
   return secrets;

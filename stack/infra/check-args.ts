@@ -64,8 +64,7 @@ export function parseArgs(argv: string[]): CheckOptions {
   return opts;
 }
 
-// eslint-disable-next-line require-unicode-regexp -- ASCII-only pattern; u flag unnecessary
-const VAULT_TOKEN_LINE = /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/m;
+const VAULT_TOKEN_LINE = /^VAULT_TOKEN(?:_[A-Z0-9_]+=|=).+/mu;
 
 export function hasVaultToken(envContents: string): boolean {
   return VAULT_TOKEN_LINE.test(envContents);
@@ -91,15 +90,11 @@ export function computeSourceHashFromGit(): string {
 }
 
 export function buildComposeArgs(opts: CheckOptions, composeFile: string): string[] {
-  const args = ["compose", "-f", composeFile];
+  const args = ["compose", "-f", composeFile, "--env-file", ".env", "up"];
 
-  args.push("--env-file", ".env", "up");
-
-  const shouldIncrementalBuild = !opts.noBuild && !opts.rebuild;
-  if (shouldIncrementalBuild) {
+  if (!opts.noBuild && !opts.rebuild) {
     args.push("--build");
   }
-
   if (opts.detach) {
     args.push("-d");
   }

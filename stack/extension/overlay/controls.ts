@@ -62,35 +62,34 @@ function applyInteractive(): void {
 
 export function updateOverlay(update: StepState): void {
   ensureOverlay();
-  if (elements) {
-    elements.stepLabel.textContent = `Step ${String(update.current)}/${String(update.total)}: ${update.name}`;
-  }
+  if (!elements) return;
+
+  elements.stepLabel.textContent = `Step ${String(update.current)}/${String(update.total)}: ${update.name}`;
   updateStateBadge(update.state);
   updateControlButtons();
 
-  if (elements) {
-    if (update.state === "failed" && update.error) {
-      elements.errorLabel.textContent = update.error;
-      elements.errorLabel.style.display = "block";
-    } else {
-      elements.errorLabel.style.display = "none";
-    }
+  if (update.state === "failed" && update.error) {
+    elements.errorLabel.textContent = update.error;
+    elements.errorLabel.style.display = "block";
+  } else {
+    elements.errorLabel.style.display = "none";
   }
 
   showOnFirstStateArrival();
 }
 
 function showOnFirstStateArrival(): void {
-  if (elements && elements.container.style.display === "none") {
+  if (!elements) return;
+  if (elements.container.style.display === "none") {
     elements.container.style.display = "block";
   }
 }
 
 export function showNotConnected(): void {
   ensureOverlay();
-  if (elements) {
-    elements.stepLabel.textContent = "Waiting for connection...";
-  }
+  if (!elements) return;
+
+  elements.stepLabel.textContent = "Waiting for connection...";
   updateStateBadge("idle");
   updateControlButtons();
   showOnFirstStateArrival();

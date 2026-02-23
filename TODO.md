@@ -1,10 +1,14 @@
 Improvements:
 
-Explore plugins
+Need to make context use more efficient
 
-Break up this file into goals, codebase directions, and actual todo
+- Break up this file into goals, codebase directions, and actual todo
+- Explore rules trees
 
-Reducing duplication of interfaces across prod and test
+DX:
+
+- Reduce duplication of interfaces across prod and test
+- Look into spec driven development (probably create a new project for this)
 
 Need to add core principles for the project:
 
@@ -24,9 +28,21 @@ Tasks to add:
 - Resume site fillers
 - Autofill for cover letters based on keyword search? See how far we can take automating applying for jobs
 
-Musings:
+Research:
 
-- Look into spec driven development (probably create a new project for this)
+- Claude code essentials from Anthropic
+  - official skills
+  - plugins
+- Using swarms
+- Using specs
+- Github has its own PR AI
+- I want to know what the model tends towards when prompted to improve ad infinitum. What does the point of diminishing returns start to look like?
+  - Review REJECTIONS to get an idea of the useless stuff the model will try to implement
+- There has to be a better scaffold for asking for changes
+- Creating evals for agents and agentic scaffolding
+- MCP
+
+Musings:
 
 Notes on claude.md
 Personal one should just have personal quirks
@@ -43,28 +59,11 @@ Claude.md is just for stuff you repeatedly say
 
 Start in plan mode
 
-Research:
-
-- Claude code essentials from Anthropic
-  - official skills
-  - plugins
-- Using swarms
-- Using specs
-- Github has its own PR AI
-- I want to know what the model tends towards when prompted to improve ad infinitum. What does the point of diminishing returns start to look like?
-  - Review REJECTIONS to get an idea of the useless stuff the model will try to implement
-- There has to be a better scaffold for asking for changes
-- Creating evals for agents and agentic scaffolding
-- MCP
-
-Improvement options:
-
-- Review DX
-- Review codebase via developer personas give tasks with DX in mind
-
 Recurring tasks:
 
 - Review DX via agent
+  - Overall
+  - Through dev and customer personas
 - Review all code manually and see how it feels to read
 
 - Review claude memory

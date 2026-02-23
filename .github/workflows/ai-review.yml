@@ -44,30 +44,7 @@ jobs:
             - Vault/crypto implementation concerns
             Only flag security issues if they are real — no hypotheticals.
 
-  codex-review:
-    name: Codex Code Review
-    if: |
-      (github.event_name == 'pull_request' &&
-       !github.event.pull_request.draft &&
-       github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@codex'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Codex Code Review
-        uses: openai/codex-action@94bb7a052e529936e5260a35838e61b190855739 # v1
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt: |
-            Review this pull request. Check for:
-            - Bugs, logic errors, and edge cases
-            - Security issues (injection, secrets in code, unsafe patterns)
-            - Adherence to project conventions in AGENTS.md
-            - Code clarity and maintainability
-            Post your review as PR comments.
+  # Codex removed: overlaps with Claude's inline review. CodeRabbit covers the
+  # second-opinion role with its structured walkthrough + path-aware instructions.
+  # Keeping Claude for AGENTS.md convention enforcement + security analysis.
+  # CodeRabbit (via .coderabbit.yaml) for walkthrough + path-scoped review.

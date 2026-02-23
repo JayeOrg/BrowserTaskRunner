@@ -210,9 +210,7 @@ export class Browser implements BrowserAPI {
     if (parsed === undefined) return;
 
     if (isStepControlMessage(parsed)) {
-      if (this.controlHandler) {
-        this.controlHandler(parsed.action);
-      }
+      this.controlHandler?.(parsed.action);
       return;
     }
 
@@ -351,10 +349,7 @@ export class Browser implements BrowserAPI {
   }
   async waitForUrl(pattern: string, timeout = 10000): Promise<WaitForUrlResult> {
     const result = await pollUntil(
-      async () => {
-        const { url } = await this.getUrl();
-        return url;
-      },
+      async () => (await this.getUrl()).url,
       (url) => url.includes(pattern),
       { timeoutMs: timeout, intervalMs: POLL_INTERVAL_MS },
     );
@@ -409,7 +404,7 @@ export class Browser implements BrowserAPI {
   }
 
   stepRunnerDeps(): Omit<StepRunnerDeps, "taskLogger"> {
-    return {
+    const deps: Omit<StepRunnerDeps, "taskLogger"> = {
       sendStepUpdate: (update) => {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
         this.ws.send(JSON.stringify({ type: "stepUpdate", ...update }));
@@ -417,8 +412,11 @@ export class Browser implements BrowserAPI {
       onControl: (handler) => {
         this.controlHandler = handler;
       },
-      ...(this.pauseOnError !== undefined && { pauseOnError: this.pauseOnError }),
     };
+    if (this.pauseOnError !== undefined) {
+      deps.pauseOnError = this.pauseOnError;
+    }
+    return deps;
   }
 
   private rejectAllPending(error: Error): void {

@@ -16,21 +16,21 @@ let reconnectAttempts = 0;
 let cachedStepUpdate: StepUpdateMessage | null = null;
 let portPromise: Promise<number> | null = null;
 
-function getWsPort(): Promise<number> {
-  if (!portPromise) {
-    portPromise = (async () => {
-      try {
-        const configUrl = chrome.runtime.getURL("ws-port");
-        const response = await fetch(configUrl);
-        const text = await response.text();
-        const port = parseInt(text.trim(), 10);
-        if (port > 0 && port < 65536) return port;
-      } catch {
-        // File absent in local dev — use default
-      }
-      return DEFAULT_WS_PORT;
-    })();
+async function fetchWsPort(): Promise<number> {
+  try {
+    const configUrl = chrome.runtime.getURL("ws-port");
+    const response = await fetch(configUrl);
+    const text = await response.text();
+    const port = parseInt(text.trim(), 10);
+    if (port > 0 && port < 65536) return port;
+  } catch {
+    // File absent in local dev — use default
   }
+  return DEFAULT_WS_PORT;
+}
+
+function getWsPort(): Promise<number> {
+  portPromise ??= fetchWsPort();
   return portPromise;
 }
 

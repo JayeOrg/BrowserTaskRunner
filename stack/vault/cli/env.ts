@@ -7,6 +7,10 @@ import { openVault, openVaultReadOnly } from "../core.js";
 const VAULT_PATH = process.env.VAULT_PATH ?? resolve(import.meta.dirname, "../../../vault.db");
 const ENV_PATH = process.env.ENV_PATH ?? resolve(import.meta.dirname, "../../../.env");
 
+function isCommentLine(line: string): boolean {
+  return line.trimStart().startsWith("#");
+}
+
 function setEnvVar(key: string, value: string): void {
   let content = "";
   try {
@@ -16,7 +20,6 @@ function setEnvVar(key: string, value: string): void {
   }
   const lines = content.split("\n");
   const prefix = `${key}=`;
-  const isCommentLine = (line: string): boolean => line.trimStart().startsWith("#");
   const idx = lines.findIndex((line) => !isCommentLine(line) && line.startsWith(prefix));
   if (idx !== -1) {
     lines[idx] = `${prefix}${value}`;
@@ -36,7 +39,6 @@ function removeEnvVar(key: string): void {
     return;
   }
   const prefix = `${key}=`;
-  const isCommentLine = (line: string): boolean => line.trimStart().startsWith("#");
   const lines = content
     .split("\n")
     .filter((line) => isCommentLine(line) || !line.startsWith(prefix));

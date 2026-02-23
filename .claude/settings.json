@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "filepath=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\" 2>/dev/null) && [ -n \"$filepath\" ] && [[ \"$filepath\" == *.ts || \"$filepath\" == *.json || \"$filepath\" == *.md ]] && npx prettier --write \"$filepath\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "filepath=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\" 2>/dev/null) && case \"$filepath\" in */.env|*/.env.*|*/package-lock.json) echo 'BLOCKED: do not edit .env or lock files directly.' >&2; exit 2;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}

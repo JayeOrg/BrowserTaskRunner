@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   copyFileSync,
   createWriteStream,
@@ -13,15 +14,15 @@ import { basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { tailLines } from "./run-utils.js";
 
-// =============================================================================
-// Configuration
-// =============================================================================
 const DISPLAY_NUM = process.env["DISPLAY_NUM"] ?? "99";
-const WS_PORT = (() => {
-  const port = process.env["WS_PORT"];
-  if (!port) throw new Error("WS_PORT environment variable is required (set by Docker Compose)");
-  return port;
-})();
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} environment variable is required (set by Docker Compose)`);
+  return value;
+}
+
+const WS_PORT = requireEnv("WS_PORT");
 const SCREEN_SIZE = process.env["SCREEN_SIZE"] ?? "1280x720x24";
 const LOG_DIR = process.env["LOG_DIR"] ?? "/app/logs";
 const READINESS_TIMEOUT = Number(process.env["READINESS_TIMEOUT"] ?? "30");
@@ -54,9 +55,6 @@ const CHROMIUM_FLAGS = [
   "--start-maximized",
 ];
 
-// =============================================================================
-// Logging utilities
-// =============================================================================
 const CYAN = "\x1b[36m";
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -91,9 +89,6 @@ function logError(msg: string): void {
   formatLog("✗", RED, msg);
 }
 
-// =============================================================================
-// Readiness checks
-// =============================================================================
 async function waitForDisplay(timeout: number): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeout * 1000) {
@@ -106,9 +101,6 @@ async function waitForDisplay(timeout: number): Promise<boolean> {
   return false;
 }
 
-// =============================================================================
-// Cleanup and lifecycle
-// =============================================================================
 mkdirSync(LOG_DIR, { recursive: true });
 
 function writeDefaultChromePreferences(profileDir: string): void {
@@ -134,11 +126,10 @@ function writeDefaultChromePreferences(profileDir: string): void {
 function prepareChromeProfile(): void {
   if (process.env["PERSIST_CHROME_PROFILE"] === "true") {
     log("Chrome profile persistence enabled — preserving existing profile");
-    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
   } else {
     rmSync(CHROME_PROFILE_DIR, { recursive: true, force: true });
-    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
   }
+  mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
 }
 
 function teardown(): void {
@@ -170,9 +161,9 @@ function tailFile(path: string, lines: number): string {
   }
 }
 
-function handleExit(exitStatus: number): void {
-  if (exitStatus !== 0) {
-    logError(`Exit with status ${String(exitStatus)}`);
+function handleExit(exitCode: number): void {
+  if (exitCode !== 0) {
+    logError(`Exit with status ${String(exitCode)}`);
 
     console.log("\nRecent third-party logs:");
     for (const logfile of LOG_FILES) {
@@ -186,9 +177,6 @@ function handleExit(exitStatus: number): void {
   teardown();
 }
 
-// =============================================================================
-// Startup sequence
-// =============================================================================
 async function main(): Promise<void> {
   const taskName = process.env["TASK_NAME"];
   if (!taskName) {
@@ -211,8 +199,15 @@ async function main(): Promise<void> {
   logSuccess(`Virtual display :${DISPLAY_NUM} ready`);
 
   if (process.env["ENABLE_VNC"] === "true") {
-    spawnWithLog("x11vnc", ["-display", `:${DISPLAY_NUM}`, "-forever", "-nopw", "-quiet"], VNC_LOG);
-    log("VNC server spawned on port 5900");
+    const vncPassword = randomBytes(12).toString("base64url");
+    const vncPasswdFile = "/tmp/vnc-passwd";
+    writeFileSync(vncPasswdFile, vncPassword);
+    spawnWithLog(
+      "x11vnc",
+      ["-display", `:${DISPLAY_NUM}`, "-forever", "-passwdfile", vncPasswdFile, "-quiet"],
+      VNC_LOG,
+    );
+    log(`VNC server spawned on port 5900 (password: ${vncPassword})`);
   }
 
   writeDefaultChromePreferences(CHROME_PROFILE_DIR);
@@ -261,8 +256,8 @@ async function main(): Promise<void> {
     task.on("close", (code) => {
       resolve(code ?? 1);
     });
-    task.on("error", (err) => {
-      logError(`Failed to start task: ${err.message}`);
+    task.on("error", (error) => {
+      logError(`Failed to start task: ${error.message}`);
       resolve(1);
     });
   });
@@ -271,8 +266,8 @@ async function main(): Promise<void> {
   process.exit(exitCode);
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
   logError(`Fatal error: ${message}`);
   handleExit(1);
   process.exit(1);

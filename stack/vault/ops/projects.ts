@@ -4,6 +4,7 @@ import {
   KEY_LENGTH,
   aesEncrypt,
   decryptFrom,
+  zeroize,
   exportProjectToken,
   PROJECT_KEY_COLS,
   PROJECT_DEK_COLS,
@@ -16,13 +17,17 @@ function createProject(db: DatabaseSync, masterKey: Buffer, name: string): strin
   if (existing) throw new Error(`Project already exists: "${name}"`);
 
   const projectKey = randomBytes(KEY_LENGTH);
-  const wrapped = aesEncrypt(masterKey, projectKey);
+  try {
+    const wrapped = aesEncrypt(masterKey, projectKey);
 
-  db.prepare(
-    "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) VALUES (?, ?, ?, ?)",
-  ).run(name, wrapped.iv, wrapped.authTag, wrapped.ciphertext);
+    db.prepare(
+      "INSERT INTO projects (name, key_iv, key_auth_tag, key_ciphertext) VALUES (?, ?, ?, ?)",
+    ).run(name, wrapped.iv, wrapped.authTag, wrapped.ciphertext);
 
-  return exportProjectToken(projectKey);
+    return exportProjectToken(projectKey);
+  } finally {
+    zeroize(projectKey);
+  }
 }
 
 function getProjectKey(db: DatabaseSync, masterKey: Buffer, name: string): Buffer {
@@ -57,30 +62,37 @@ function rotateProject(db: DatabaseSync, masterKey: Buffer, name: string): strin
   const oldProjectKey = getProjectKey(db, masterKey, name);
   const newProjectKey = randomBytes(KEY_LENGTH);
 
-  withSavepoint(db, "rotate_project", () => {
-    const wrapped = aesEncrypt(masterKey, newProjectKey);
-    db.prepare(
-      "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
-    ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, name);
-
-    const detailRows = db
-      .prepare(
-        "SELECT key, project_dek_iv, project_dek_auth_tag, project_dek_ciphertext FROM details WHERE project = ?",
-      )
-      .all(name);
-
-    for (const detailRow of detailRows) {
-      const detailKey = requireString(detailRow, "key");
-      const dek = decryptFrom(oldProjectKey, detailRow, PROJECT_DEK_COLS);
-      const rewrapped = aesEncrypt(newProjectKey, dek);
-
+  try {
+    withSavepoint(db, "rotate_project", () => {
+      const wrapped = aesEncrypt(masterKey, newProjectKey);
       db.prepare(
-        "UPDATE details SET project_dek_iv = ?, project_dek_auth_tag = ?, project_dek_ciphertext = ? WHERE project = ? AND key = ?",
-      ).run(rewrapped.iv, rewrapped.authTag, rewrapped.ciphertext, name, detailKey);
-    }
-  });
+        "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
+      ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, name);
 
-  return exportProjectToken(newProjectKey);
+      const detailRows = db
+        .prepare(
+          "SELECT key, project_dek_iv, project_dek_auth_tag, project_dek_ciphertext FROM details WHERE project = ?",
+        )
+        .all(name);
+
+      for (const detailRow of detailRows) {
+        const detailKey = requireString(detailRow, "key");
+        const dek = decryptFrom(oldProjectKey, detailRow, PROJECT_DEK_COLS);
+        try {
+          const rewrapped = aesEncrypt(newProjectKey, dek);
+          db.prepare(
+            "UPDATE details SET project_dek_iv = ?, project_dek_auth_tag = ?, project_dek_ciphertext = ? WHERE project = ? AND key = ?",
+          ).run(rewrapped.iv, rewrapped.authTag, rewrapped.ciphertext, name, detailKey);
+        } finally {
+          zeroize(dek);
+        }
+      }
+    });
+
+    return exportProjectToken(newProjectKey);
+  } finally {
+    zeroize(oldProjectKey, newProjectKey);
+  }
 }
 
 function renameProject(db: DatabaseSync, oldName: string, newName: string): void {

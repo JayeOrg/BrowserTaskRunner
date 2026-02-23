@@ -71,6 +71,10 @@ function decryptFrom(
   );
 }
 
+function zeroize(...buffers: Buffer[]): void {
+  for (const buf of buffers) buf.fill(0);
+}
+
 function exportProjectToken(projectKey: Buffer): string {
   return projectKey.toString("base64");
 }
@@ -101,6 +105,7 @@ export {
   PROJECT_DEK_COLS,
   VALUE_COLS,
   SESSION_COLS,
+  zeroize,
   exportProjectToken,
   parseProjectToken,
 };

@@ -6,6 +6,7 @@ import {
   deriveKey,
   aesEncrypt,
   decryptFrom,
+  zeroize,
   CONFIG_COLS,
   PROJECT_KEY_COLS,
   MASTER_DEK_COLS,
@@ -54,17 +55,21 @@ function initVault(db: DatabaseSync, password: string): void {
   const salt = randomBytes(SALT_LENGTH);
   const masterKey = deriveKey(password, salt);
 
-  const check = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
+  try {
+    const check = aesEncrypt(masterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
 
-  withSavepoint(db, "init_vault", () => {
-    db.prepare("INSERT INTO config (key, ciphertext) VALUES (?, ?)").run("salt", salt);
-    db.prepare("INSERT INTO config (key, iv, auth_tag, ciphertext) VALUES (?, ?, ?, ?)").run(
-      "password_check",
-      check.iv,
-      check.authTag,
-      check.ciphertext,
-    );
-  });
+    withSavepoint(db, "init_vault", () => {
+      db.prepare("INSERT INTO config (key, ciphertext) VALUES (?, ?)").run("salt", salt);
+      db.prepare("INSERT INTO config (key, iv, auth_tag, ciphertext) VALUES (?, ?, ?, ?)").run(
+        "password_check",
+        check.iv,
+        check.authTag,
+        check.ciphertext,
+      );
+    });
+  } finally {
+    zeroize(masterKey);
+  }
 }
 
 function verifyPassword(db: DatabaseSync, masterKey: Buffer): void {
@@ -107,50 +112,63 @@ function changePassword(db: DatabaseSync, oldPassword: string, newPassword: stri
 
   const newSalt = randomBytes(SALT_LENGTH);
   const newMasterKey = deriveKey(newPassword, newSalt);
-  const newCheck = aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
 
-  withSavepoint(db, "change_password", () => {
-    db.prepare("UPDATE config SET ciphertext = ? WHERE key = ?").run(newSalt, "salt");
-    db.prepare("UPDATE config SET iv = ?, auth_tag = ?, ciphertext = ? WHERE key = ?").run(
-      newCheck.iv,
-      newCheck.authTag,
-      newCheck.ciphertext,
-      "password_check",
-    );
+  try {
+    const newCheck = aesEncrypt(newMasterKey, Buffer.from(PASSWORD_CHECK_MAGIC, "utf8"));
 
-    const projects = db
-      .prepare("SELECT name, key_iv, key_auth_tag, key_ciphertext FROM projects")
-      .all();
-    for (const project of projects) {
-      const projectKey = decryptFrom(oldMasterKey, project, PROJECT_KEY_COLS);
-      const wrapped = aesEncrypt(newMasterKey, projectKey);
-      db.prepare(
-        "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
-      ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, requireString(project, "name"));
-    }
-
-    const details = db
-      .prepare(
-        "SELECT key, project, master_dek_iv, master_dek_auth_tag, master_dek_ciphertext FROM details",
-      )
-      .all();
-    for (const detail of details) {
-      const dek = decryptFrom(oldMasterKey, detail, MASTER_DEK_COLS);
-      const rewrapped = aesEncrypt(newMasterKey, dek);
-      db.prepare(
-        "UPDATE details SET master_dek_iv = ?, master_dek_auth_tag = ?, master_dek_ciphertext = ? WHERE project = ? AND key = ?",
-      ).run(
-        rewrapped.iv,
-        rewrapped.authTag,
-        rewrapped.ciphertext,
-        requireString(detail, "project"),
-        requireString(detail, "key"),
+    withSavepoint(db, "change_password", () => {
+      db.prepare("UPDATE config SET ciphertext = ? WHERE key = ?").run(newSalt, "salt");
+      db.prepare("UPDATE config SET iv = ?, auth_tag = ?, ciphertext = ? WHERE key = ?").run(
+        newCheck.iv,
+        newCheck.authTag,
+        newCheck.ciphertext,
+        "password_check",
       );
-    }
 
-    // Sessions are encrypted with the old key — undecryptable after password change.
-    db.prepare("DELETE FROM sessions").run();
-  });
+      const projects = db
+        .prepare("SELECT name, key_iv, key_auth_tag, key_ciphertext FROM projects")
+        .all();
+      for (const project of projects) {
+        const projectKey = decryptFrom(oldMasterKey, project, PROJECT_KEY_COLS);
+        try {
+          const wrapped = aesEncrypt(newMasterKey, projectKey);
+          db.prepare(
+            "UPDATE projects SET key_iv = ?, key_auth_tag = ?, key_ciphertext = ? WHERE name = ?",
+          ).run(wrapped.iv, wrapped.authTag, wrapped.ciphertext, requireString(project, "name"));
+        } finally {
+          zeroize(projectKey);
+        }
+      }
+
+      const details = db
+        .prepare(
+          "SELECT key, project, master_dek_iv, master_dek_auth_tag, master_dek_ciphertext FROM details",
+        )
+        .all();
+      for (const detail of details) {
+        const dek = decryptFrom(oldMasterKey, detail, MASTER_DEK_COLS);
+        try {
+          const rewrapped = aesEncrypt(newMasterKey, dek);
+          db.prepare(
+            "UPDATE details SET master_dek_iv = ?, master_dek_auth_tag = ?, master_dek_ciphertext = ? WHERE project = ? AND key = ?",
+          ).run(
+            rewrapped.iv,
+            rewrapped.authTag,
+            rewrapped.ciphertext,
+            requireString(detail, "project"),
+            requireString(detail, "key"),
+          );
+        } finally {
+          zeroize(dek);
+        }
+      }
+
+      // Sessions are encrypted with the old key — undecryptable after password change.
+      db.prepare("DELETE FROM sessions").run();
+    });
+  } finally {
+    zeroize(oldMasterKey, newMasterKey);
+  }
 }
 
 export {

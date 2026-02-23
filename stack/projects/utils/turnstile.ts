@@ -12,12 +12,7 @@ export type TurnstileDetectionResult = { found: true; selector: string } | { fou
 
 export async function detectTurnstile(browser: BrowserAPI): Promise<TurnstileDetectionResult> {
   const response = await browser.querySelectorRect(TURNSTILE_SELECTORS);
-
-  if (response.found) {
-    return { found: true, selector: response.selector };
-  }
-
-  return { found: false };
+  return response.found ? { found: true, selector: response.selector } : { found: false };
 }
 
 export async function detectAndClickTurnstile(

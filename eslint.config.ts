@@ -10,9 +10,10 @@ export default [
     ignores: [
       "dist",
       "node_modules",
-      // Ignore eslint and vitest configs (self-linting is circular)
+      // Ignore config files at root (self-linting is circular / no tsconfig coverage)
       "eslint.config.ts",
       "vitest.config.ts",
+      "dangerfile.ts",
       // Ignore non-TypeScript source files
       "**/*.js",
       "**/*.cjs",

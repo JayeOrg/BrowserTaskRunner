@@ -1,0 +1,75 @@
+name: Structural Diff
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: difftastic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  difftastic:
+    name: Structural Diff Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install difftastic
+        run: |
+          curl -sL https://github.com/Wilfred/difftastic/releases/latest/download/difft-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv difft /usr/local/bin/
+
+      - name: Generate structural diff summary
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          BASE="origin/$BASE_REF"
+          FILES=$(git diff --name-only "$BASE"...HEAD -- '*.ts' '*.json' '*.yml' '*.yaml')
+
+          echo "## Structural Diff Summary" > diff_report.md
+          echo "" >> diff_report.md
+
+          SEMANTIC_COUNT=0
+          COSMETIC_ONLY=0
+          SEMANTIC_FILES=""
+
+          for f in $FILES; do
+            [ -f "$f" ] || continue
+
+            BASE_FILE=$(mktemp)
+            git show "$BASE:$f" > "$BASE_FILE" 2>/dev/null || { rm -f "$BASE_FILE"; continue; }
+
+            # --exit-code: returns 1 for semantic changes, 0 for none
+            if ! difft --exit-code "$BASE_FILE" "$f" > /dev/null 2>&1; then
+              SEMANTIC_FILES="${SEMANTIC_FILES}- \`${f}\`\n"
+              SEMANTIC_COUNT=$((SEMANTIC_COUNT + 1))
+            else
+              COSMETIC_ONLY=$((COSMETIC_ONLY + 1))
+            fi
+            rm -f "$BASE_FILE"
+          done
+
+          if [ "$SEMANTIC_COUNT" -gt 0 ]; then
+            echo "Files with **semantic** (non-cosmetic) changes:" >> diff_report.md
+            echo "" >> diff_report.md
+            printf '%b' "$SEMANTIC_FILES" >> diff_report.md
+          fi
+
+          echo "" >> diff_report.md
+          echo "**${SEMANTIC_COUNT} files with semantic changes**, ${COSMETIC_ONLY} cosmetic-only." >> diff_report.md
+
+      - name: Post comment
+        uses: marocchino/sticky-pull-request-comment@67d0dec7b07ed060a405f9b2a64b8ab319fdd7db # v2.9.2
+        with:
+          header: difftastic-summary
+          path: diff_report.md
