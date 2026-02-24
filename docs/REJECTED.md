@@ -6,14 +6,14 @@ Decisions that have been made and should not be revisited. Check this file befor
 
 Scoped sub-files load automatically via `.claude/rules/rejected/` when working in the relevant stack:
 
-| Stack | File | Entries |
-|-------|------|---------|
-| Extension & Browser | `docs/rejected/extension.md` | |
-| Framework | `docs/rejected/framework.md` | |
-| Projects | `docs/rejected/projects.md` | |
-| Vault | `docs/rejected/vault.md` | |
-| Infra & Docker | `docs/rejected/infra.md` | |
-| Testing | `docs/rejected/testing.md` | |
+| Stack | File |
+|-------|------|
+| Extension & Browser | `docs/rejected/extension.md` |
+| Framework | `docs/rejected/framework.md` |
+| Projects | `docs/rejected/projects.md` |
+| Vault | `docs/rejected/vault.md` |
+| Infra & Docker | `docs/rejected/infra.md` |
+| Testing | `docs/rejected/testing.md` |
 
 ## Cross-Cutting Won't Fix
 

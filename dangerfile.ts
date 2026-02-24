@@ -12,13 +12,16 @@ const additions = pr.additions ?? 0;
 const deletions = pr.deletions ?? 0;
 const totalChanges = additions + deletions;
 
-if (totalChanges > 800) {
+const allFiles = [...allChanged, ...deleted];
+const docsOnly = allFiles.every((f) => f.endsWith(".md"));
+
+if (totalChanges > 800 && !docsOnly) {
   fail(
     `This PR has ${totalChanges} lines changed. ` +
       `PRs over 800 lines have significantly lower review quality. ` +
       `Consider breaking this into smaller PRs.`,
   );
-} else if (totalChanges > 400) {
+} else if (totalChanges > 400 && !docsOnly) {
   warn(
     `This PR has ${totalChanges} lines changed. ` +
       `Aim for under 400 lines for thorough reviews.`,
