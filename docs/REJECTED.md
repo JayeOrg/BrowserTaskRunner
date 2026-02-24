@@ -8,12 +8,12 @@ Scoped sub-files load automatically via `.claude/rules/rejected/` when working i
 
 | Stack | File | Entries |
 |-------|------|---------|
-| Extension & Browser | `docs/rejected/extension.md` | 34 |
-| Framework | `docs/rejected/framework.md` | 34 |
-| Projects | `docs/rejected/projects.md` | 28 |
-| Vault | `docs/rejected/vault.md` | 30 |
-| Infra & Docker | `docs/rejected/infra.md` | 11 |
-| Testing | `docs/rejected/testing.md` | 10 |
+| Extension & Browser | `docs/rejected/extension.md` | |
+| Framework | `docs/rejected/framework.md` | |
+| Projects | `docs/rejected/projects.md` | |
+| Vault | `docs/rejected/vault.md` | |
+| Infra & Docker | `docs/rejected/infra.md` | |
+| Testing | `docs/rejected/testing.md` | |
 
 ## Cross-Cutting Won't Fix
 
