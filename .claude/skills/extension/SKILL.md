@@ -4,7 +4,7 @@ description: Add or update an extension command, or modify browser connection in
 
 # Extension Commands
 
-See AGENTS.md for the extension design principle.
+See docs/stack/extension.md for the extension design principle.
 
 ## Adding a Command
 
@@ -123,6 +123,4 @@ Always run `npm run validate` after changes.
 
 ## Browser Instructions
 
-Browser instructions are developer-facing setup messages in `stack/browser/instructions.ts`. `logConnectionInstructions(logger, port)` prints step-by-step instructions for connecting the Chrome extension. It skips when `DOCKER`, `CI`, or `VITEST` env vars are set.
-
-To modify: edit the function directly — add or modify log lines. Keep instructions numbered and concise. For environment-specific behavior, check env vars at the top.
+In Docker, the extension auto-connects via `ws-port` file written by `stack/infra/run.ts`. No manual connection step is needed.
