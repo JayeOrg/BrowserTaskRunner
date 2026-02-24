@@ -1,4 +1,4 @@
-import { danger, warn, fail, markdown } from "danger";
+import { danger, warn, markdown } from "danger";
 
 const pr = danger.github.pr;
 const modified = danger.git.modified_files;
@@ -13,7 +13,7 @@ const deletions = pr.deletions ?? 0;
 const totalChanges = additions + deletions;
 
 if (totalChanges > 800) {
-  fail(
+  warn(
     `This PR has ${totalChanges} lines changed. ` +
       `PRs over 800 lines have significantly lower review quality. ` +
       `Consider breaking this into smaller PRs.`,

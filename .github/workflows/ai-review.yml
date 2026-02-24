@@ -33,6 +33,7 @@ jobs:
         uses: anthropics/claude-code-action@6c61301d8e1ee91bef7b65172f93462bbb216394 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--model claude-sonnet-4-6"
           trigger_phrase: "@claude"
           prompt: |
             Review this PR for both code quality and security. Check for:
