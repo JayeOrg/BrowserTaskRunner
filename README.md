@@ -1,10 +1,10 @@
-# SiteCheck
+# BrowserTaskRunner
 
-Automated login checker for sites with human verification (Cloudflare Turnstile, etc).
+Browser task automation
 
-## The Problem
+## The Problem (why not just playwright?)
 
-Cloudflare detects browser automation tools (Playwright, Puppeteer, Selenium) via the Chrome DevTools Protocol (CDP). See [REJECTED.md](./REJECTED.md) for details on what doesn't work.
+Cloudflare detects browser automation tools (Playwright, Puppeteer, Selenium) via the Chrome DevTools Protocol (CDP). See [REJECTED.md](./docs/REJECTED.md) for details on what doesn't work.
 
 ## Solution
 
@@ -16,37 +16,37 @@ Uses a Chrome extension that communicates via WebSocket. No CDP = no detection.
 
 1. Install dependencies:
 
-    ```bash
-    npm install
-    ```
+   ```bash
+   npm install
+   ```
 
 2. Initialize the vault and add credentials:
 
-    ```bash
-    npm run vault -- init
-    npm run vault -- project create monitor-botc
-    npm run vault -- detail set monitor-botc email user@example.com
-    npm run vault -- detail set monitor-botc password hunter2
-    ```
+   ```bash
+   npm run vault -- init
+   npm run vault -- project create monitor-botc
+   npm run vault -- detail set monitor-botc email user@example.com
+   npm run vault -- detail set monitor-botc password hunter2
+   ```
 
-    The CLI prompts for the vault password interactively. Save the token to `.env` using the per-project naming convention:
+   The CLI prompts for the vault password interactively. Save the token to `.env` using the per-project naming convention:
 
-    ```env
-    VAULT_TOKEN_MONITOR_BOTC=<token from project create>
-    ```
+   ```env
+   VAULT_TOKEN_MONITOR_BOTC=<token from project create>
+   ```
 
 3. Run a task:
 
-    ```bash
-    npm run check botcLogin
-    ```
+   ```bash
+   npm run check botcLogin
+   ```
 
 ## Available Tasks
 
-| Task          | URL                                 | Description                          |
-| ------------- | ----------------------------------- | ------------------------------------ |
-| `botcLogin`   | https://botc.app/                   | Login flow for botc.app              |
-| `nandosOrder` | https://www.nandos.com.au/sign-in   | Login + order for Nando's Australia  |
+| Task          | URL                               | Description                         |
+| ------------- | --------------------------------- | ----------------------------------- |
+| `botcLogin`   | https://botc.app/                 | Login flow for botc.app             |
+| `nandosOrder` | https://www.nandos.com.au/sign-in | Login + order for Nando's Australia |
 
 ## Running
 
@@ -81,53 +81,60 @@ npm run validate
 
 ## Adding New Tasks
 
-1. Create a task file in `stack/projects/yoursite/tasks/yourSite.ts`. The filename must match the task name. Import paths must use `.js` extensions (ESM/NodeNext requirement — TypeScript resolves them to the source `.ts` files). Export `const task`:
+Projects use spec-driven development — one `project.ts` per project is the single source of truth. Read it to understand every task in the project. Implementation details live in colocated `.steps.ts` files.
 
-    ```typescript
-    // stack/projects/yoursite/tasks/yourSite.ts
-    import type { RetryingTask, VaultSecrets } from "../../../framework/tasks.js";
-    import { needsFromSchema } from "../../../framework/tasks.js";
-    import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
-    import type { StepLogger } from "../../../framework/logging.js";
-    import { loginSecretsSchema } from "../../utils/schemas.js";
+1. Create `stack/projects/yoursite/project.ts` and a steps file. Import paths must use `.js` extensions (ESM/NodeNext requirement). Export `const project`:
 
-    const TASK = {
-        name: "yourSite",
-        displayUrl: "https://yoursite.com/login",
-    } as const;
+   ```typescript
+   // stack/projects/yoursite/project.ts (the source of truth — pure data, no code)
+   import { defineProject } from "../../framework/project.js";
+   import { loginSecretsSchema } from "../utils/schemas.js";
+   import { navigate, fillLogin, verify } from "./tasks/yourSite.steps.js";
 
-    // Step functions: log first, then dependencies
-    async function navigate(log: StepLogger, browser: BrowserAPI) { /* ... */ }
-    async function verify(log: StepLogger, browser: BrowserAPI) { /* ... */ }
+   export const project = defineProject({
+     name: "monitor-yoursite",
+     tasks: [{
+       name: "yourSite",
+       displayUrl: "https://yoursite.com/login",
+       mode: "retry",
+       intervalMs: 300_000,
+       secretsSchema: loginSecretsSchema,
+       steps: [navigate, fillLogin, verify],
+     }],
+   });
+   ```
 
-    export const task: RetryingTask = {
-        ...TASK,
-        project: "monitor-yoursite",
-        needs: needsFromSchema(loginSecretsSchema),
-        mode: "retry",
-        intervalMs: 300_000,
-        secretsSchema: loginSecretsSchema,
-        run: async (browser, secrets, deps) => {
-            const { email, password } = loginSecretsSchema.parse(secrets);
-            const runner = new StepRunner(deps);
-            runner
-                .step(navigate, browser)
-                .step(verify, browser);
-            return runner.execute();
-        },
-    };
-    ```
+   ```typescript
+   // stack/projects/yoursite/tasks/yourSite.steps.ts (implementation details)
+   import type { StepLogger } from "../../../framework/logging.js";
+   import type { BrowserAPI } from "../../../browser/browser.js";
 
-    Task discovery is convention-based — no registry file. The loader finds `export const task` in `stack/projects/*/tasks/*.ts`.
+   type Secrets = { email: string; password: string };
+
+   export async function navigate(log: StepLogger, browser: BrowserAPI) {
+     await browser.navigate("https://yoursite.com/login");
+     log.success("Navigated");
+   }
+
+   export async function fillLogin(log: StepLogger, browser: BrowserAPI, secrets: Secrets) {
+     /* ... use secrets.email, secrets.password ... */
+   }
+
+   export async function verify(log: StepLogger, browser: BrowserAPI) {
+     /* ... */
+   }
+   ```
+
+   `defineProject` injects the project name into each task, auto-derives `needs` from `secretsSchema`, and generates the `run` function from the `steps` array. The loader discovers projects from `export const project` in `stack/projects/*/project.ts`.
 
 2. Set up vault secrets and run:
-    ```bash
-    npm run vault -- project create monitor-yoursite
-    npm run vault -- detail set monitor-yoursite email user@example.com
-    npm run vault -- detail set monitor-yoursite password hunter2
-    # Add token to .env: VAULT_TOKEN_MONITOR_YOURSITE=<token>
-    npm run check yourSite
-    ```
+   ```bash
+   npm run vault -- project create monitor-yoursite
+   npm run vault -- detail set monitor-yoursite email user@example.com
+   npm run vault -- detail set monitor-yoursite password hunter2
+   # Add token to .env: VAULT_TOKEN_MONITOR_YOURSITE=<token>
+   npm run check yourSite
+   ```
 
 ## Project Structure
 
@@ -140,7 +147,7 @@ stack/
 │   ├── step-runner.ts # StepRunner (pause/play/skip controls)
 │   ├── logging.ts   # Logging infrastructure
 │   └── errors.ts    # Result types + StepError
-├── projects/        # Project-specific task implementations
+├── projects/        # Project-specific task implementations (project.ts per project)
 │   ├── botc/        # BotC login project
 │   ├── nandos/      # Nando's order project
 │   └── utils/       # Shared task utilities (selectors, timing, polling)
