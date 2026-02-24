@@ -24,6 +24,7 @@ jobs:
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true  # Advisory — don't block PRs on upstream action failures
 
     steps:
       - name: Checkout
