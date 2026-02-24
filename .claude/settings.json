@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "filepath=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\" 2>/dev/null) && case \"$filepath\" in */.env|*/.env.*|*/package-lock.json) echo 'BLOCKED: do not edit .env or lock files directly.' >&2; exit 2;; esac"
+            "command": "filepath=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\" 2>/dev/null) && case \"$filepath\" in */.env|*/.env.*|*/package-lock.json) echo 'BLOCKED: do not edit .env or lock files directly.' >&2; exit 2;; */TODO.md) echo 'BLOCKED: TODO.md is manually maintained — do not modify.' >&2; exit 2;; esac"
           }
         ]
       }
