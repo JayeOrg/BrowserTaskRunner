@@ -56,6 +56,8 @@ Use `/debug` to debug a failing task.
 Use `/context` to audit context efficiency, check for duplication, or condense documentation.
 Use `/jira` to view the Jira ticket for the current branch, pull specs, or enrich a PR with ticket context.
 Use `/prs` to split uncommitted changes into multiple logical PRs.
+Use `/pr-check` to check CI status of open PRs — surfaces failures with error summaries and fix suggestions.
+Use `/prep-review` to prepare changes for PR review — creates branch, splits commits, validates, pushes, and opens a PR.
 
 After using any skill, review the conversation for confusions or non-obvious learnings. Update the relevant skill's `SKILL.md`.
 
