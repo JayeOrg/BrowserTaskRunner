@@ -184,13 +184,28 @@ A story is a set of changes with one coherent "why." Test it: can you write a PR
 
 ### Splitting process
 
-1. **Stash everything**: `git stash --include-untracked` to save all changes.
+1. **Record original state**: Before anything else, capture the full list of changed files:
+   ```bash
+   git status --short | awk '{print $NF}' > /tmp/split-prs-original-files.txt
+   git diff --stat HEAD
+   ```
 
-2. **Assign each changed file to a story**. Files that serve multiple stories go with the story they primarily support. If a file is genuinely shared (e.g., `package.json` gains a dep needed by story A), it goes with that story.
+2. **Back up all changed files** preserving directory structure:
+   ```bash
+   mkdir -p /tmp/split-prs-backup
+   for file in <each changed/new file from git status>; do
+     mkdir -p "/tmp/split-prs-backup/$(dirname "$file")"
+     cp "$file" "/tmp/split-prs-backup/$file"
+   done
+   ```
 
-3. **Order stories by dependency**: If story B depends on story A's changes, A goes first. Independent stories can be created in any order.
+3. **Stash everything**: `git stash --include-untracked` to save all changes.
 
-4. **For each story** (starting with the one that has no dependencies):
+4. **Assign each changed file to a story**. Files that serve multiple stories go with the story they primarily support. If a file is genuinely shared (e.g., `package.json` gains a dep needed by story A), it goes with that story.
+
+5. **Order stories by dependency**: If story B depends on story A's changes, A goes first. Independent stories can be created in any order.
+
+6. **For each story** (starting with the one that has no dependencies):
 
    a. From `main`, create a new branch: `claude/<slug-for-this-story>`
 
@@ -204,7 +219,39 @@ A story is a set of changes with one coherent "why." Test it: can you write a PR
 
    e. Return to `main`: `git checkout main`
 
-5. **After all PRs are created**: List all PR URLs for the user. Note any dependency ordering (e.g., "merge PR #1 before PR #2").
+7. **Verify file coverage** — confirm every originally changed file appears in at least one PR:
+   ```bash
+   # Collect files across all PR branches
+   for branch in <each PR branch>; do
+     git diff --name-only main...$branch
+   done | sort -u > /tmp/split-prs-included.txt
+
+   # Check every original file is covered
+   while IFS= read -r file; do
+     grep -qxF "$file" /tmp/split-prs-included.txt || echo "MISSING: $file"
+   done < /tmp/split-prs-original-files.txt
+   ```
+
+   **If any files are MISSING**: stop and tell the user. Add the missing files to an existing PR or create a new one before proceeding.
+
+8. **Restore working tree and preserve safety nets**:
+   ```bash
+   # Restore changes but KEEP the stash — do NOT use `git stash pop`
+   git stash apply
+
+   # Do NOT delete the backup or drop the stash.
+   # Tell the user both are preserved:
+   #   - Stash: `git stash list` / `git stash drop` when ready
+   #   - Backup: /tmp/split-prs-backup/ — `rm -rf` when ready
+   ```
+
+9. **After all PRs are created**: List all PR URLs for the user. Note any dependency ordering (e.g., "merge PR #1 before PR #2"). Include a file coverage confirmation:
+   ```
+   File coverage: All N files included across M PRs. ✓
+   Safety nets preserved:
+     - git stash (run `git stash drop` when confirmed)
+     - /tmp/split-prs-backup/ (run `rm -rf /tmp/split-prs-backup` when confirmed)
+   ```
 
 ### When NOT to split
 
