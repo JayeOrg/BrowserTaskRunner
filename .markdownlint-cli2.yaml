@@ -1,0 +1,10 @@
+config:
+  # Intentional continued numbering across subsections (e.g. docs/REJECTED.md 1-8, 9-11)
+  MD029: false
+
+overrides:
+  - files:
+      - ".claude/rules/**"
+    config:
+      # Rule stubs use YAML frontmatter + a single "Refer to" line — not rendered docs
+      MD041: false
