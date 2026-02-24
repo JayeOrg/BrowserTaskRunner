@@ -153,10 +153,34 @@ Include a **File Coverage** section:
 All N originally changed files are included across M PRs. ✓
 (or: WARNING — the following files were NOT included in any PR: ...)
 
-Stash and backup preserved for safety:
-  - Run `git stash drop` to remove the safety stash
-  - Run `rm -rf /tmp/split-prs-backup` to remove the backup
+Safety nets preserved — say "done" or "clean up" when you've confirmed the PRs.
 ```
+
+### 6. Final cleanup (when user confirms done)
+
+When the user says "done", "clean up", or otherwise confirms the PRs are good:
+
+```bash
+# 1. Drop the safety stash
+git stash drop
+
+# 2. Remove the backup directory and temp files
+rm -rf /tmp/split-prs-backup /tmp/split-prs-included.txt /tmp/split-prs-original-files.txt
+
+# 3. Discard local working-tree changes (already on PR branches)
+git checkout -- .
+
+# 4. Pull latest main (PRs may already be merged)
+git pull origin main
+
+# 5. Delete local PR branches
+git branch -d <each PR branch>
+
+# 6. Prune stale remote-tracking branches
+git remote prune origin
+```
+
+Report final state: branch, commit, clean working tree.
 
 ## Branch naming
 
