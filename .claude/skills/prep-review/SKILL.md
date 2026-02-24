@@ -248,10 +248,31 @@ A story is a set of changes with one coherent "why." Test it: can you write a PR
 9. **After all PRs are created**: List all PR URLs for the user. Note any dependency ordering (e.g., "merge PR #1 before PR #2"). Include a file coverage confirmation:
    ```
    File coverage: All N files included across M PRs. ✓
-   Safety nets preserved:
-     - git stash (run `git stash drop` when confirmed)
-     - /tmp/split-prs-backup/ (run `rm -rf /tmp/split-prs-backup` when confirmed)
+   Safety nets preserved — say "done" or "clean up" when you've confirmed the PRs.
    ```
+
+10. **Final cleanup** (when user says "done", "clean up", or confirms PRs are good):
+    ```bash
+    # 1. Drop the safety stash
+    git stash drop
+
+    # 2. Remove backup and temp files
+    rm -rf /tmp/split-prs-backup /tmp/split-prs-included.txt /tmp/split-prs-original-files.txt
+
+    # 3. Discard local working-tree changes (already on PR branches)
+    git checkout -- .
+
+    # 4. Pull latest main (PRs may already be merged)
+    git pull origin main
+
+    # 5. Delete local PR branches
+    git branch -d <each PR branch>
+
+    # 6. Prune stale remote-tracking branches
+    git remote prune origin
+    ```
+
+    Report final state: branch, commit, clean working tree.
 
 ### When NOT to split
 
