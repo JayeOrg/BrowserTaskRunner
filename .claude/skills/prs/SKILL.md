@@ -105,16 +105,58 @@ EOF
 git checkout main
 ```
 
-#### Cleanup (once)
+#### Verification (once, after all PRs created)
+
+Confirm every originally changed file was included in at least one PR:
 
 ```bash
-git stash pop
-rm -rf /tmp/split-prs-backup
+# 1. Collect all files that were in the original working-tree changes
+original_files=(<list from git status --short recorded before stashing>)
+
+# 2. For each PR branch, list the files changed vs main
+for branch in <each PR branch>; do
+  git diff --name-only main...$branch
+done | sort -u > /tmp/split-prs-included.txt
+
+# 3. Compare — every original file must appear in at least one PR
+for file in "${original_files[@]}"; do
+  grep -qxF "$file" /tmp/split-prs-included.txt || echo "MISSING: $file"
+done
+```
+
+**If any files are MISSING**: stop and tell the user. Do not proceed to cleanup. The missing files must be added to an existing PR or a new one.
+
+#### Cleanup (once, after verification passes)
+
+```bash
+# Apply stash to restore working tree, but keep the stash as a safety net
+git stash apply
+
+# IMPORTANT: Do NOT run `git stash drop` or `git stash pop`.
+# The stash remains recoverable until the user confirms everything is correct.
+# Tell the user: "Your original changes are restored. The stash is preserved
+# as a safety net — run `git stash drop` once you've confirmed the PRs are correct."
+
+# Keep the backup directory as a second safety net
+# Tell the user: "Backup preserved at /tmp/split-prs-backup/ — remove it with
+# `rm -rf /tmp/split-prs-backup` once you've confirmed everything."
 ```
 
 ### 5. Report
 
 List each created PR with its title and URL.
+
+Include a **File Coverage** section:
+
+```
+## File coverage
+All N originally changed files are included across M PRs. ✓
+(or: WARNING — the following files were NOT included in any PR: ...)
+
+Stash and backup preserved for safety:
+  - Run `git stash drop` to remove the safety stash
+  - Run `rm -rf /tmp/split-prs-backup` to remove the backup
+```
 
 ## Branch naming
 
@@ -124,6 +166,9 @@ Follow project conventions. If a Jira ticket is known, use `TICKET/description` 
 
 If any step fails:
 1. Stop immediately — do not continue to the next PR
-2. Restore state: `git checkout main && git stash pop`
-3. Clean up: `rm -rf /tmp/split-prs-backup`
-4. Report what failed and which PRs were already created
+2. Return to main: `git checkout main`
+3. Restore working tree from stash (but keep the stash): `git stash apply`
+4. **Do NOT drop the stash or delete the backup** — leave both as safety nets
+5. Report what failed, which PRs were already created, and remind the user:
+   - Stash is preserved: `git stash list` to see it, `git stash drop` to remove when ready
+   - Backup is preserved at `/tmp/split-prs-backup/`
