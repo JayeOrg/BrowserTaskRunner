@@ -1,6 +1,7 @@
 import { noopLogger, type PrefixLogger, type StepLogger, type TaskLogger } from "./logging.js";
 import { StepError, toErrorMessage } from "./errors.js";
 
+// Keep in sync with stack/extension/step-state.ts::StepState
 export interface StepUpdate {
   current: number;
   total: number;

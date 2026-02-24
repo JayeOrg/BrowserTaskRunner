@@ -48,13 +48,13 @@ function rightJustify(content: string, suffix: string): string {
   return `${content}${" ".repeat(padding)}${colors.dim}${suffix}${colors.reset}`;
 }
 
-interface StepState {
+interface LogStepState {
   stepNum: number;
   lastStep: string;
   lastTime: number;
 }
 
-function createStepState(): StepState {
+function createLogStepState(): LogStepState {
   return { stepNum: 0, lastStep: "", lastTime: Date.now() };
 }
 
@@ -73,7 +73,10 @@ function formatData(data?: Record<string, unknown>): string {
   return ` → ${pairs.join(", ")}`;
 }
 
-function computeStepTransition(state: StepState, step: string): StepState & { duration: string } {
+function computeStepTransition(
+  state: LogStepState,
+  step: string,
+): LogStepState & { duration: string } {
   const stepNum = step !== state.lastStep ? state.stepNum + 1 : state.stepNum;
   const now = Date.now();
   const duration = formatDuration(now - state.lastTime);
@@ -81,13 +84,13 @@ function computeStepTransition(state: StepState, step: string): StepState & { du
 }
 
 function formatLogLine(
-  state: StepState,
+  state: LogStepState,
   step: string,
   msg: string,
   data: Record<string, unknown> | undefined,
   level: LogLevel,
   output: LogOutput,
-): StepState {
+): LogStepState {
   const next = computeStepTransition(state, step);
   const { stepNum, duration } = next;
   const { icon, color } = levelStyles[level];
@@ -115,7 +118,7 @@ export interface TaskLogger {
 }
 
 export function createTaskLogger(task: string, output: LogOutput = defaultOutput): TaskLogger {
-  let state = createStepState();
+  let state = createLogStepState();
 
   const logAt =
     (level: LogLevel) =>

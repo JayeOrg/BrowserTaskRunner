@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { setTimeout } from "node:timers/promises";
 import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join } from "node:path";
 import { Browser } from "../browser/browser.js";
 import {
   validateSecrets,
@@ -12,6 +12,8 @@ import {
   type SingleAttemptTask,
 } from "./tasks.js";
 import { loadTask, listTaskNames } from "./loader.js";
+import { dumpHtml, dumpScreenshot } from "./dump.js";
+import { LOGS_DIR, VAULT_DB } from "./paths.js";
 import { StepError, toErrorMessage } from "./errors.js";
 import { ANSI_PATTERN, createPrefixLogger, createTaskLogger, type LogOutput } from "./logging.js";
 import { parseProjectToken } from "../vault/crypto.js";
@@ -22,11 +24,9 @@ const WS_PORT = parseInt(process.env.WS_PORT || "8765", 10);
 if (!Number.isFinite(WS_PORT)) {
   throw new Error(`Invalid WS_PORT: "${process.env.WS_PORT ?? ""}". Must be a finite number.`);
 }
-const VAULT_PATH = process.env.VAULT_PATH || resolve(import.meta.dirname, "../../vault.db");
 const MIN_INTERVAL_MS = 1000;
 
-const logsDir = resolve(import.meta.dirname, "../../logs");
-mkdirSync(logsDir, { recursive: true });
+mkdirSync(LOGS_DIR, { recursive: true });
 
 // Mutable output — upgraded to file+console in main() once task name is known
 let writeLog: LogOutput = (message) => {
@@ -38,10 +38,10 @@ const output: LogOutput = (message) => {
 
 const logger = createPrefixLogger("Framework", output);
 
-function getTaskName(): string {
+async function getTaskName(): Promise<string> {
   const taskName = process.argv[2];
   if (!taskName) {
-    const available = listTaskNames().join(", ");
+    const available = (await listTaskNames()).join(", ");
     throw new Error(
       `Missing task name. Usage: node run.js <taskName>\nAvailable tasks: ${available}`,
     );
@@ -65,14 +65,14 @@ function loadSecrets(task: TaskConfig): VaultSecrets {
   const token = resolveToken(task.project);
 
   const projectKey = parseProjectToken(token);
-  const db = openVaultReadOnly(VAULT_PATH);
+  const db = openVaultReadOnly(VAULT_DB);
 
   try {
     const secrets = loadProjectDetails(db, projectKey, task.project, normalizeNeeds(task.needs));
     const keys = Object.keys(secrets);
     logger.log("Loaded secrets from vault", {
       project: task.project,
-      vault: VAULT_PATH,
+      vault: VAULT_DB,
       keys: keys.length > 0 ? keys.join(", ") : "(none)",
     });
     return secrets;
@@ -85,7 +85,7 @@ function handleSuccess(taskName: string, lastCompletedStep: string, finalUrl: st
   logger.success("TASK SUCCESSFUL!", { step: lastCompletedStep, url: finalUrl });
 
   const timestamp = new Date().toISOString();
-  const alertFile = resolve(logsDir, `alert-${taskName}.txt`);
+  const alertFile = join(LOGS_DIR, `alert-${taskName}.txt`);
   const lines = [
     `Task: ${taskName}`,
     `Success: ${timestamp}`,
@@ -182,6 +182,14 @@ async function withKeepOpen(action: () => Promise<void>, keepOpen: boolean): Pro
   }
 }
 
+async function captureErrorDiagnostics(taskName: string, browser: Browser): Promise<void> {
+  try {
+    await Promise.all([dumpHtml(browser, logger, taskName), dumpScreenshot(logger, taskName)]);
+  } catch {
+    logger.warn("Failed to capture error diagnostics");
+  }
+}
+
 async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
   const browser = new Browser(WS_PORT);
   const keepOpen = shouldKeepOpen(task);
@@ -209,6 +217,9 @@ async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
         }
       }
     }, keepOpen);
+  } catch (error) {
+    await captureErrorDiagnostics(task.name, browser);
+    throw error;
   } finally {
     process.off("SIGINT", shutdown);
     process.off("SIGTERM", shutdown);
@@ -219,10 +230,10 @@ async function runTask(task: TaskConfig, secrets: VaultSecrets): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const taskName = getTaskName();
+  const taskName = await getTaskName();
 
   // Upgrade writeLog to tee both console and a per-task log file
-  const logStream = createWriteStream(resolve(logsDir, `task-${taskName}.log`), { flags: "a" });
+  const logStream = createWriteStream(join(LOGS_DIR, `task-${taskName}.log`), { flags: "a" });
   writeLog = (message) => {
     console.log(message);
     logStream.write(`${message.replace(ANSI_PATTERN, "")}\n`);

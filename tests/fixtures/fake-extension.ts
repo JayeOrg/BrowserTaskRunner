@@ -1,22 +1,15 @@
 import WebSocket from "ws";
+import {
+  isIncomingCommand,
+  type IncomingCommand,
+  type ResponseMessage,
+} from "../../stack/extension/messages/index.js";
 
-// --- Shared types ---
-
-export interface ReceivedCommand {
-  id: number;
-  type: string;
-  [key: string]: unknown;
-}
+// Narrows IncomingCommand (id optional) to require id — Browser.send() always assigns one.
+export type ReceivedCommand = IncomingCommand & { id: number };
 
 export function isReceivedCommand(raw: unknown): raw is ReceivedCommand {
-  return typeof raw === "object" && raw !== null && "id" in raw && "type" in raw;
-}
-
-function toReceivedCommand(raw: unknown): ReceivedCommand {
-  if (!isReceivedCommand(raw)) {
-    throw new Error("Invalid command from Browser");
-  }
-  return raw;
+  return isIncomingCommand(raw) && "id" in raw && typeof raw.id === "number";
 }
 
 // --- Shared connect logic ---
@@ -45,13 +38,13 @@ export function createQueuedExtension(port: number) {
       ws = await connectExtension(port);
       ws.on("message", (data: Buffer) => {
         const raw: unknown = JSON.parse(data.toString());
-        const parsed = toReceivedCommand(raw);
+        if (!isReceivedCommand(raw)) throw new Error("Invalid command from Browser");
         if (commandWaiter) {
           const waiter = commandWaiter;
           commandWaiter = null;
-          waiter(parsed);
+          waiter(raw);
         } else {
-          commandQueue.push(parsed);
+          commandQueue.push(raw);
         }
       });
     },
@@ -83,7 +76,7 @@ export function createQueuedExtension(port: number) {
 
 // --- Callback-based extension (E2E tests) ---
 
-export type CommandResponder = (cmd: ReceivedCommand) => Record<string, unknown>;
+export type CommandResponder = (cmd: ReceivedCommand) => ResponseMessage;
 
 export function createRespondingExtension(port: number, respond: CommandResponder) {
   let ws: WebSocket | null = null;

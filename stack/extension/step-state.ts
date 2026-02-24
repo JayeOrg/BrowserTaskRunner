@@ -1,3 +1,4 @@
+// Keep in sync with stack/framework/step-runner.ts::StepUpdate
 export interface StepState {
   current: number;
   total: number;

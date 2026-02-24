@@ -1,13 +1,9 @@
-import type { BrowserAPI } from "../../../browser/browser.js";
-import {
-  needsFromSchema,
-  type SingleAttemptTask,
-  type VaultSecrets,
-} from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
+import type { BrowserAPI } from "../../../browser/browser.js";
+import type { VaultSecrets } from "../../../framework/tasks.js";
 import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
-import { fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
 import { nandosSecretsSchema } from "../../utils/schemas.js";
+import { fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
 import { sleep } from "../../utils/timing.js";
 import { pollUntil } from "../../utils/poll.js";
 
@@ -15,10 +11,7 @@ const URLS = {
   menu: "https://www.nandos.com.au/menu",
 } as const;
 
-const TASK = {
-  name: "nandosOrder",
-  displayUrl: "https://www.nandos.com.au/sign-in",
-} as const;
+const DISPLAY_URL = "https://www.nandos.com.au/sign-in";
 
 const TIMINGS = {
   afterNavDelayMs: 3000,
@@ -45,14 +38,10 @@ const TIMINGS = {
   sessionCheckIntervalMs: 1000,
 } as const;
 
-const SAFE_MODE = process.env.SAFE_MODE === "true";
-
 const SELECTORS = {
   ...LOGIN_SELECTORS,
   submit: ['button[type="submit"]'],
 } as const;
-
-const PROTEIN_FALLBACKS = ["PERi-PERi Tenders", "Chicken Breast Fillets"] as const;
 
 const ADD_BUTTON_TEXTS = [
   "ADD ITEM ONLY",
@@ -61,31 +50,15 @@ const ADD_BUTTON_TEXTS = [
   "Add to order",
 ] as const;
 
-const MENU_ITEMS = [
-  {
-    name: "PERi-Chip Wrap",
-    protein: "Chicken Leg Fillets",
-    proteinFallbacks: PROTEIN_FALLBACKS,
-    heat: "Hot",
-    style: undefined,
-  },
-  {
-    name: "Smoky Churrasco Burger",
-    protein: "Chicken Leg Fillets",
-    proteinFallbacks: PROTEIN_FALLBACKS,
-    heat: "Hot",
-    style: "Garlic bread",
-  },
-  {
-    name: "The Halloumi",
-    protein: "Chicken Leg Fillets",
-    proteinFallbacks: PROTEIN_FALLBACKS,
-    heat: "Hot",
-    style: "Wrap",
-  },
-] as const;
+export type MenuItem = {
+  readonly name: string;
+  readonly protein: string;
+  readonly proteinFallbacks: readonly string[];
+  readonly heat: string;
+  readonly style: string | undefined;
+};
 
-async function navigateToMenuAndCheckSession(
+export async function navigateToMenuAndCheckSession(
   log: StepLogger,
   browser: BrowserAPI,
   firstName: string,
@@ -109,14 +82,14 @@ async function navigateToMenuAndCheckSession(
   }
 }
 
-async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void> {
-  await browser.navigate(TASK.displayUrl);
+export async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void> {
+  await browser.navigate(DISPLAY_URL);
   await sleep(TIMINGS.afterNavDelayMs);
   const { url, title } = await browser.getUrl();
   log.success("Navigated to sign-in page", { url, title });
 }
 
-async function findAndFillLogin(
+export async function findAndFillLogin(
   log: StepLogger,
   browser: BrowserAPI,
   email: string,
@@ -144,7 +117,7 @@ async function findAndFillLogin(
   log.success("Entered credentials");
 }
 
-async function clickSignIn(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function clickSignIn(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await browser.cdpClickSelector([...SELECTORS.submit]);
   if (!result.found)
     log.fatal("SIGN_IN_BUTTON_NOT_FOUND", { summary: "Could not find submit button" });
@@ -152,7 +125,7 @@ async function clickSignIn(log: StepLogger, browser: BrowserAPI): Promise<void> 
   await sleep(TIMINGS.afterClickDelayMs);
 }
 
-async function handleMfa(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function handleMfa(log: StepLogger, browser: BrowserAPI): Promise<void> {
   log.log("Waiting for manual MFA entry...");
 
   const result = await pollUntil(
@@ -169,7 +142,7 @@ async function handleMfa(log: StepLogger, browser: BrowserAPI): Promise<void> {
   log.success("Login completed, left sign-in page", { url: result.value.url });
 }
 
-async function verifyLogin(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function verifyLogin(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const { url } = await browser.getUrl();
   if (url.includes("/sign-in")) {
     log.fatal("STILL_ON_SIGN_IN", { finalUrl: url });
@@ -177,7 +150,7 @@ async function verifyLogin(log: StepLogger, browser: BrowserAPI): Promise<void> 
   log.success("Login confirmed, on homepage", { url });
 }
 
-async function navigateToMenu(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function navigateToMenu(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await browser.navigate(URLS.menu);
   await sleep(TIMINGS.menuLoadDelayMs);
 
@@ -217,7 +190,7 @@ async function clickSaveAndContinue(log: StepLogger, browser: BrowserAPI): Promi
   log.success("Modal closed");
 }
 
-async function handleDeliveryModal(
+export async function handleDeliveryModal(
   log: StepLogger,
   browser: BrowserAPI,
   expectedAddress: string,
@@ -253,7 +226,7 @@ async function handleDeliveryModal(
   await clickSaveAndContinue(log, browser);
 }
 
-async function navigateToCategory(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function navigateToCategory(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await browser.clickText(["Burgers, Wraps & Pitas"], { cdp: true });
   if (!result.found)
     log.fatal("CATEGORY_NOT_FOUND", {
@@ -290,10 +263,10 @@ async function clickAddToCart(log: StepLogger, browser: BrowserAPI): Promise<voi
   log.success("Item modal closed");
 }
 
-async function addMenuItem(
+export async function addMenuItem(
   log: StepLogger,
   browser: BrowserAPI,
-  item: (typeof MENU_ITEMS)[number],
+  item: MenuItem,
 ): Promise<void> {
   // Text labels aren't clickable — target the <img alt="..."> above them
   const imgSelector = `img[alt="${item.name}"]`;
@@ -366,7 +339,7 @@ async function tryOpenCart(log: StepLogger, browser: BrowserAPI): Promise<boolea
   return false;
 }
 
-async function verifyCartAndOpen(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function verifyCartAndOpen(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await sleep(TIMINGS.afterClickDelayMs);
 
   if (!(await tryOpenCart(log, browser))) {
@@ -407,13 +380,13 @@ async function tryDismissSuggestions(log: StepLogger, browser: BrowserAPI): Prom
   return false;
 }
 
-async function dismissSuggestions(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function dismissSuggestions(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await sleep(TIMINGS.afterModalActionDelayMs);
   await tryDismissSuggestions(log, browser);
   await sleep(TIMINGS.modalDelayMs);
 }
 
-async function continueToCheckout(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function continueToCheckout(log: StepLogger, browser: BrowserAPI): Promise<void> {
   // Site runs a validation step after dismiss — can take 30s+ on slow loads
   const waitResult = await browser.waitForText(["Continue to checkout"], TIMINGS.checkoutTimeoutMs);
   if (!waitResult.found)
@@ -438,7 +411,7 @@ async function continueToCheckout(log: StepLogger, browser: BrowserAPI): Promise
   log.success("Navigated to checkout", { url: navResult.url });
 }
 
-async function expandCardSection(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function expandCardSection(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await sleep(TIMINGS.afterModalActionDelayMs);
 
   // Target the <p> text — the card SVG is only 24x24, too small for reliable CDP clicks
@@ -466,7 +439,7 @@ async function expandCardSection(log: StepLogger, browser: BrowserAPI): Promise<
   log.success("Card section expanded — saved payment methods visible");
 }
 
-async function selectSavedCard(
+export async function selectSavedCard(
   log: StepLogger,
   browser: BrowserAPI,
   savedCardSuffix: string,
@@ -483,8 +456,10 @@ async function selectSavedCard(
   await sleep(TIMINGS.afterClickDelayMs);
 }
 
-async function selectPaymentAndConfirm(log: StepLogger, browser: BrowserAPI): Promise<void> {
-  if (SAFE_MODE) {
+export async function selectPaymentAndConfirm(log: StepLogger, browser: BrowserAPI): Promise<void> {
+  const safeMode = process.env.SAFE_MODE === "true";
+
+  if (safeMode) {
     const { url } = await browser.getUrl();
     log.success("SAFE MODE — skipping Place Order", { url });
     return;
@@ -525,15 +500,44 @@ async function selectPaymentAndConfirm(log: StepLogger, browser: BrowserAPI): Pr
   log.success("Order confirmed", { url: confirmed.value.url });
 }
 
-async function run(
+// --- Orchestration ---
+
+const PROTEIN_FALLBACKS = ["PERi-PERi Tenders", "Chicken Breast Fillets"] as const;
+
+const MENU_ITEMS: MenuItem[] = [
+  {
+    name: "PERi-Chip Wrap",
+    protein: "Chicken Leg Fillets",
+    proteinFallbacks: PROTEIN_FALLBACKS,
+    heat: "Hot",
+    style: undefined,
+  },
+  {
+    name: "Smoky Churrasco Burger",
+    protein: "Chicken Leg Fillets",
+    proteinFallbacks: PROTEIN_FALLBACKS,
+    heat: "Hot",
+    style: "Garlic bread",
+  },
+  {
+    name: "The Halloumi",
+    protein: "Chicken Leg Fillets",
+    proteinFallbacks: PROTEIN_FALLBACKS,
+    heat: "Hot",
+    style: "Wrap",
+  },
+];
+
+export async function run(
   browser: BrowserAPI,
   secrets: VaultSecrets,
   deps: StepRunnerDeps,
 ): Promise<string> {
   const { email, password, firstName, expectedAddress, savedCardSuffix } =
     nandosSecretsSchema.parse(secrets);
+  const safeMode = process.env.SAFE_MODE === "true";
   const logger = deps.taskLogger;
-  logger.scoped("config").log(SAFE_MODE ? "SAFE MODE — will not place order" : "LIVE mode");
+  logger.scoped("config").log(safeMode ? "SAFE MODE — will not place order" : "LIVE mode");
   const state = { alreadyLoggedIn: false };
   const needsLogin = () => !state.alreadyLoggedIn;
 
@@ -565,14 +569,3 @@ async function run(
 
   return runner.execute();
 }
-
-export const task: SingleAttemptTask = {
-  name: TASK.name,
-  displayUrl: TASK.displayUrl,
-  project: "nandos",
-  needs: needsFromSchema(nandosSecretsSchema),
-  mode: "once",
-  keepBrowserOpen: true,
-  secretsSchema: nandosSecretsSchema,
-  run,
-};

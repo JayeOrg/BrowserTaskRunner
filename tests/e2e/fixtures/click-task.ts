@@ -13,8 +13,9 @@ async function run(browser: BrowserAPI, context: VaultSecrets): Promise<string> 
     throw new StepError(TASK_NAME, "findButton", "BUTTON_NOT_FOUND");
   }
 
-  const clicked = await browser.click("#go");
-  if (!clicked.success) {
+  try {
+    await browser.click("#go");
+  } catch {
     throw new StepError(TASK_NAME, "click", "CLICK_FAILED");
   }
 

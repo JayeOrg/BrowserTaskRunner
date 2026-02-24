@@ -5,6 +5,7 @@ import {
   type CommandResponder,
   type ReceivedCommand,
 } from "./fake-extension.js";
+import type { ResponseMessage } from "../../stack/extension/messages/index.js";
 import { nextPort } from "./port.js";
 import { createTaskLogger } from "../../stack/framework/logging.js";
 import type { StepRunnerDeps } from "../../stack/framework/step-runner.js";
@@ -80,7 +81,7 @@ export async function setupRawTaskTest(
 
 // --- Default command responder ---
 
-type CommandOverride = (cmd: ReceivedCommand, state: ResponderState) => Record<string, unknown>;
+type CommandOverride = (cmd: ReceivedCommand, state: ResponderState) => ResponseMessage;
 
 export interface ResponderState {
   currentUrl: string;
@@ -114,7 +115,7 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
         return { type: "waitForSelector", found: true, selector: String(cmd.selector) };
       case "click":
         state.currentUrl = `${state.siteUrl}/success`;
-        return { type: "click", success: true };
+        return { type: "click" };
       case "getUrl":
         return { type: "getUrl", url: state.currentUrl, title: "Page" };
       case "getContent":
@@ -136,7 +137,7 @@ export function createDefaultResponder(overrides?: Partial<Record<string, Comman
       case "clickText":
         return { type: "clickText", found: false };
       default:
-        return { type: cmd.type, error: `Unexpected: ${cmd.type}` };
+        return { type: "error" as const, error: `Unexpected: ${cmd.type}` };
     }
   };
 

@@ -1,17 +1,11 @@
-import type { BrowserAPI } from "../../../browser/browser.js";
-import { needsFromSchema, type RetryingTask, type VaultSecrets } from "../../../framework/tasks.js";
 import type { StepLogger } from "../../../framework/logging.js";
-import { StepRunner, type StepRunnerDeps } from "../../../framework/step-runner.js";
+import type { BrowserAPI } from "../../../browser/browser.js";
 import { clickFirst, fillFirst, LOGIN_SELECTORS } from "../../utils/selectors.js";
-import { loginSecretsSchema } from "../../utils/schemas.js";
 import { sleep } from "../../utils/timing.js";
 import { detectAndClickTurnstile } from "../../utils/turnstile.js";
 import { pollUntil } from "../../utils/poll.js";
 
-const TASK = {
-  name: "botcLogin",
-  displayUrl: "https://botc.app/",
-} as const;
+const DISPLAY_URL = "https://botc.app/";
 
 const TIMINGS = {
   afterNav: 2000,
@@ -27,19 +21,22 @@ const SELECTORS = {
   submit: ['button[type="submit"]', 'input[type="submit"]'],
 } as const;
 
-async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void> {
-  await browser.navigate(TASK.displayUrl);
+type Secrets = { email: string; password: string };
+
+export async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void> {
+  await browser.navigate(DISPLAY_URL);
   await sleep(TIMINGS.afterNav);
   const { url, title } = await browser.getUrl();
   log.success("Navigated", { url, title });
 }
 
-async function fillLogin(
+export async function fillLogin(
   log: StepLogger,
   browser: BrowserAPI,
-  email: string,
-  password: string,
+  secrets: Secrets,
 ): Promise<void> {
+  const { email, password } = secrets;
+
   const emailResult = await fillFirst(browser, SELECTORS.email, email, TIMINGS.waitEmail);
   if (!emailResult.found)
     log.fatal("EMAIL_INPUT_NOT_FOUND", {
@@ -54,7 +51,7 @@ async function fillLogin(
   log.success("Entered credentials");
 }
 
-async function turnstileBeforeSubmit(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function turnstileBeforeSubmit(log: StepLogger, browser: BrowserAPI): Promise<void> {
   await sleep(TIMINGS.beforeTurnstile);
 
   const result = await detectAndClickTurnstile(browser);
@@ -67,7 +64,7 @@ async function turnstileBeforeSubmit(log: StepLogger, browser: BrowserAPI): Prom
 }
 
 // DOM click — Cloudflare rejects CDP-dispatched events on form submission
-async function submit(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function submit(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await clickFirst(browser, SELECTORS.submit);
   if (result.found) {
     log.success("Submitted", { selector: result.selector });
@@ -77,7 +74,7 @@ async function submit(log: StepLogger, browser: BrowserAPI): Promise<void> {
   log.fatal("SUBMIT_NOT_FOUND", { summary: `Selectors tried: ${errorSummary}` });
 }
 
-async function checkResult(log: StepLogger, browser: BrowserAPI): Promise<void> {
+export async function checkResult(log: StepLogger, browser: BrowserAPI): Promise<void> {
   const result = await pollUntil(
     () => browser.getUrl(),
     ({ url }) => url.includes("/app") || url.includes("/home") || url.includes("/dashboard"),
@@ -88,33 +85,3 @@ async function checkResult(log: StepLogger, browser: BrowserAPI): Promise<void> 
   }
   log.success("Login successful", { finalUrl: result.value.url });
 }
-
-async function run(
-  browser: BrowserAPI,
-  secrets: VaultSecrets,
-  deps: StepRunnerDeps,
-): Promise<string> {
-  const { email, password } = loginSecretsSchema.parse(secrets);
-
-  const runner = new StepRunner(deps);
-
-  runner
-    .step(navigate, browser)
-    .step(fillLogin, browser, email, password)
-    .step(turnstileBeforeSubmit, browser)
-    .step(submit, browser)
-    .step(checkResult, browser);
-
-  return runner.execute();
-}
-
-export const task: RetryingTask = {
-  name: TASK.name,
-  displayUrl: TASK.displayUrl,
-  project: "monitor-botc",
-  needs: needsFromSchema(loginSecretsSchema),
-  mode: "retry",
-  intervalMs: 300_000,
-  secretsSchema: loginSecretsSchema,
-  run,
-};

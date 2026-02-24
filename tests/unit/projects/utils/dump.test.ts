@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { dumpHtml } from "../../../../stack/projects/utils/dump.js";
+import { dumpHtml } from "../../../../stack/framework/dump.js";
 import { stubBrowserAPI } from "../../../fixtures/mock-browser.js";
 import { noopLogger } from "../../../fixtures/test-helpers.js";
 
 vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
+  readdir: vi.fn().mockResolvedValue([]),
+  unlink: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("dumpHtml", () => {
