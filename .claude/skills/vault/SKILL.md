@@ -39,14 +39,7 @@ Every task declares `needs` — a mapping from local secrets keys to vault detai
 
 ### CRUD commands
 
-```bash
-npm run vault -- detail set <project> <key>      # create or update
-npm run vault -- detail get <project> <key>      # read (prints to stdout)
-npm run vault -- detail list [project]           # list keys (no values)
-npm run vault -- detail remove <project> <key>   # delete
-```
-
-`detail set` uses `ON CONFLICT ... DO UPDATE` — setting the same project/key pair overwrites the value with a new DEK.
+See `stack/vault/README.md § CLI` for the full command reference (init, login/logout, detail CRUD, project CRUD, password management).
 
 ### Vault vs environment variables
 
@@ -55,14 +48,6 @@ npm run vault -- detail remove <project> <key>   # delete
 | Credentials, passwords, API keys | Ports, display numbers |
 | Anything secret | Feature flags, retry intervals |
 | Per-project config | Infrastructure config |
-
-### Encryption model
-
-Each detail gets its own random DEK (data encryption key). The DEK wraps the value, and is itself wrapped under both the **master key** (for admin operations) and the **project key** (for runtime access). This dual wrapping lets tasks decrypt only their own project's secrets.
-
-```
-Master Key (from password) → wraps → Project Key (per-project, 32 bytes) → wraps → DEK (per-detail, 32 bytes) → encrypts → Secret value (AES-256-GCM)
-```
 
 ---
 
@@ -116,38 +101,14 @@ CLI tests run against `dist/` — always `npm run validate` before testing.
 
 ## Rotating a Project Key
 
-Key rotation re-encrypts all DEKs under a new project key without touching actual secret values.
-
-### Quick rotation
+Key rotation re-encrypts all DEKs under a new project key. **The old token immediately stops working.**
 
 ```bash
 npm run vault -- login
 npm run vault -- project rotate <project-name>
+npm run vault -- project export <project-name>   # get new token
 ```
 
-Outputs a new project token. **The old token immediately stops working.**
+After rotation: update `.env` with the new `VAULT_TOKEN_*` value and restart running containers.
 
-### What happens internally
-
-`rotateProject()` in `stack/vault/ops/projects.ts`:
-
-1. Opens a SAVEPOINT (atomic transaction)
-2. Decrypts old project key using master key
-3. Generates new random 32-byte project key
-4. Re-encrypts every detail's DEK under the new project key
-5. Releases SAVEPOINT (commits)
-
-On any failure, the entire operation rolls back.
-
-### After rotation
-
-1. Export new token: `npm run vault -- project export <project-name>`
-2. Update `.env` with the new `VAULT_TOKEN_*` value
-3. Restart any running containers (they cache the token at startup)
-
-### When to rotate
-
-- Project token may have been exposed
-- Team member with access leaves
-- Periodic rotation policy
-- After a security incident
+Internally, `rotateProject()` in `stack/vault/ops/projects.ts` runs in a SAVEPOINT — on any failure, the entire operation rolls back. See `stack/vault/README.md § Security Properties` for the full encryption model.

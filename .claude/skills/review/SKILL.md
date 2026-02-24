@@ -1,10 +1,10 @@
 ---
-description: Review test coverage, DX, or readability. Use for codebase-wide audits — test review, DX review, or persona-based DX review.
+description: Review test coverage, DX, readability, or task conventions. Use for codebase-wide audits — test review, DX review, persona-based DX review, or task review.
 ---
 
 # Reviews
 
-Three review modes: test coverage review, DX review, and persona-based DX review. Each follows a structured process.
+Four review modes: test coverage review, DX review, persona-based DX review, and task review. Each follows a structured process.
 
 ## Test Review
 
@@ -52,7 +52,7 @@ Review the codebase for developer experience and readability.
 
 2. **Poll for completion**: Wait ~30s, check output files, report progress. Read completed agents immediately to begin triaging.
 
-3. **Triage**: Classify each finding as **Will**, **Won't**, or **Needs Clarification**. Check `REJECTED.md` first — skip anything already documented there.
+3. **Triage**: Classify each finding as **Will**, **Won't**, or **Needs Clarification**. Check `docs/REJECTED.md` first — skip anything already documented there.
 
    Every item uses the same format regardless of classification:
    1. Problem description (2-3 sentences, self-contained — what and why it's a problem)
@@ -63,9 +63,9 @@ Review the codebase for developer experience and readability.
 
    Rules:
    - Never assume implicit approval — every item needs explicit confirmation
-   - Write Won't items to `REJECTED.md` immediately as user confirms
+   - Write Won't items to `docs/REJECTED.md` immediately as user confirms
    - Keep iterating until every item is sorted into Will or Won't
-   - Re-check `REJECTED.md` when presenting subsequent batches
+   - Re-check `docs/REJECTED.md` when presenting subsequent batches
 
 5. **Apply**: After all items resolved, implement confirmed Will items in dependency order:
    - Phase 1: Framework (other modules import from it)
@@ -101,7 +101,7 @@ Use this instead of DX Review when assessing **onboarding and discoverability** 
 
 ### Process
 
-1. **Deep exploration**: Launch an Explore agent (`very thorough`) to build a comprehensive codebase picture: all READMEs, AGENTS.md, REJECTED.md, entry points, a representative task + tests, CLI commands, build pipeline, Docker setup.
+1. **Deep exploration**: Launch an Explore agent (`very thorough`) to build a comprehensive codebase picture: all READMEs, AGENTS.md, docs/REJECTED.md, entry points, a representative task + tests, CLI commands, build pipeline, Docker setup.
 
 2. **Create personas and narrate journeys**: Create 3-5 personas with different backgrounds and tasks:
 
@@ -119,10 +119,61 @@ Use this instead of DX Review when assessing **onboarding and discoverability** 
 
 4. **Present**: Output narratives and theme table in chat. **Do not make changes yet.** Wait for user approval.
 
-5. **Implement**: Track approved items with TodoWrite. Run `npm run validate`. Update AGENTS.md and REJECTED.md as appropriate.
+5. **Implement**: Track approved items with TodoWrite. Run `npm run validate`. Update AGENTS.md and docs/REJECTED.md as appropriate.
 
 ### Learnings
 
 - Cross-cutting env var chains are a common trap — trace: CLI flag -> process.env -> docker-compose -> task read
 - Vault project name must match everywhere: task `project` field, `.env` token, CLI commands, README
 - Persona journeys must reference real code — generic observations aren't actionable
+
+---
+
+## Task Review
+
+Review task files in `stack/projects/` against the project's task conventions. Check every item below and report violations.
+
+### Checklist
+
+1. **`TASK` constant** — has `name` matching the filename (without `.ts`) and `displayUrl`
+2. **`project`** — matches vault project name in `.env` and README
+3. **`needs`** — uses `needsFromSchema(schema)` derived from the Zod schema, not a manual array
+4. **`secretsSchema`** — set to the same Zod schema used for `needs`
+5. **Step functions** — use `log: StepLogger` as the first parameter, registered via `runner.step(fn, ...args)`
+6. **Named steps** — reused functions use `runner.named(subtitle, fn, ...args)` (e.g. `addMenuItem:PERi-Chip Wrap`)
+7. **`run()` return** — returns `runner.execute()` directly
+8. **Magic strings** — extracted to named constants (`SELECTORS`, `TIMINGS`, etc.)
+9. **Utility usage** — uses `fillFirst`/`clickFirst`/`pollUntil` from `utils/` instead of manual loops
+10. **DOM clicks for Cloudflare** — form submission on Cloudflare-protected sites uses DOM clicks (`clickFirst`, `browser.click`), not CDP clicks
+11. **`SAFE_MODE` check** — present if the task has irreversible side effects
+12. **No unnecessary closures** — step functions don't capture variables between steps; dependencies passed as arguments
+13. **E2E tests** — use `setupTaskRunTest()` with command overrides
+14. **E2E test mocks** — mock both `timing.js` and `poll.js`
+15. **Test coverage** — happy path and key failure paths covered
+16. **Tests use `pauseOnError: false`** — so errors throw immediately
+
+### Process
+
+1. Read the task file(s) being reviewed
+2. Read the canonical example `stack/projects/botc/project.ts` for reference
+3. Read the task's E2E tests if they exist
+4. Check each item above. For each violation, report:
+   - Which item failed
+   - The specific line or pattern that's wrong
+   - What the fix should be
+5. If everything passes, say so
+
+### Output Format
+
+```
+## Task Review: <filename>
+
+PASS (N/N) or FAIL (N/N passed)
+
+### Violations (if any)
+- #3 `needs`: Manual array `["email", "password"]` — use `needsFromSchema(secretsSchema)`
+- #8 Magic strings: `"input[type=email]"` on line 42 — extract to `SELECTORS`
+
+### Notes (optional)
+Any observations that aren't violations but worth mentioning.
+```
