@@ -10,7 +10,7 @@ A project is a goal that may span multiple tasks (e.g., "monitor-acme"). To set 
 
 ### 1. Create the project directory
 
-```
+```text
 stack/projects/acme/
   project.ts         <- the source of truth (declares all tasks)
   tasks/
