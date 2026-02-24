@@ -10,10 +10,11 @@ A project is a goal that may span multiple tasks (e.g., "monitor-acme"). To set 
 
 ### 1. Create the project directory
 
-```
+```text
 stack/projects/acme/
+  project.ts         <- the source of truth (declares all tasks)
   tasks/
-    acmeLogin.ts     <- task file, named after the task
+    acmeLogin.steps.ts  <- step implementations
 ```
 
 ### 2. Create the vault project
@@ -25,13 +26,13 @@ npm run vault -- project create monitor-acme
 
 Save the output token for `.env`.
 
-### 3. Write the task file
+### 3. Write the project spec
 
-See "Writing a Task File" below. Name the file `{taskName}.ts`, export `const task`. No registration needed — the loader discovers by filename.
+See "Writing a Project Spec" below. Export `const project` from `project.ts`. No registration needed — the loader discovers `project.ts` files automatically.
 
 ### 4. Add vault details
 
-After writing the task and building, use `project setup` to add all missing secrets:
+After writing the project spec and building, use `project setup` to add all missing secrets:
 
 ```bash
 npm run build
@@ -54,72 +55,121 @@ The framework resolves tokens via `VAULT_TOKEN_${project.toUpperCase().replace(/
 
 ### Multiple tasks per project
 
-A project can have multiple tasks sharing the same vault credentials. Both declare `project: "monitor-acme"` and share the same `VAULT_TOKEN`.
+A project can have multiple tasks sharing the same vault credentials. All tasks are declared in the same `project.ts` and share the same `VAULT_TOKEN`.
 
 ---
 
-## Writing a Task File
+## Writing a Project Spec
 
-Create one file at `stack/projects/<name>/tasks/<taskName>.ts`. Copy `stack/projects/botc/tasks/botcLogin.ts` as a starting point. See AGENTS.md for task design principles (poll-then-act, deterministic clicks, Cloudflare rules).
+Projects use `defineProject()` from `stack/framework/project.js`. Each project is one spec file plus steps files:
 
-### Constants
+```
+stack/projects/<name>/
+  project.ts               the source of truth (declares all tasks)
+  tasks/
+    <taskName>.steps.ts    handlers: constants, step implementations
+```
 
-Every task file defines at file top:
+Copy `stack/projects/botc/project.ts` as a starting point. See docs/stack/projects.md for task design principles (poll-then-act, deterministic clicks, Cloudflare rules).
 
-- `TASK` — `{ name, displayUrl }` (name must match filename)
-- `TIMINGS` — timing constants (delays, timeouts)
-- `SELECTORS` — CSS selectors
+### Project spec (the source of truth)
 
-### `run()` returns `runner.execute()`
-
-`execute()` returns the last completed step name. The framework captures the browser URL automatically:
+The project spec is what you read to understand every task in a project. It declares config, secrets schema, and step sequences — pure data, no code:
 
 ```typescript
-runner.step(verify, browser);
-return runner.execute();
+import { defineProject } from "../../framework/project.js";
+import { loginSecretsSchema } from "../utils/schemas.js";
+import { navigate, fillLogin, submit, checkResult } from "./tasks/acmeLogin.steps.js";
+
+export const project = defineProject({
+  name: "monitor-acme",
+  tasks: [{
+    name: "acmeLogin",
+    displayUrl: "https://acme.com/login",
+    mode: "retry",
+    intervalMs: 300_000,
+    secretsSchema: loginSecretsSchema,
+    steps: [navigate, fillLogin, submit, checkResult],
+  }],
+});
 ```
+
+`defineProject` injects the project name into each task, auto-derives `needs` from `secretsSchema`, and generates the `run` function from the `steps` array.
+
+### Steps file (implementation details)
+
+Constants (`TIMINGS`, `SELECTORS`) and step handler functions live here:
+
+```typescript
+import type { StepLogger } from "../../../framework/logging.js";
+import type { BrowserAPI } from "../../../browser/browser.js";
+
+const TIMINGS = { afterNav: 2000, waitEmail: 15000 } as const;
+const SELECTORS = { email: ['input[type="email"]'] } as const;
+
+type Secrets = { email: string; password: string };
+
+export async function navigate(log: StepLogger, browser: BrowserAPI) {
+  await browser.navigate("https://acme.com/login");
+  log.success("Navigated");
+}
+
+export async function fillLogin(log: StepLogger, browser: BrowserAPI, secrets: Secrets) {
+  const { email, password } = secrets;
+  // ... use SELECTORS, TIMINGS ...
+}
+```
+
+### Handler signature (steps array mode)
+
+All handlers share: `(log: StepLogger, browser: BrowserAPI, secrets: z.infer<Schema>) => Promise<void>`
+
+`defineTask` parses secrets once and passes `(browser, parsedSecrets)` to every handler. Handlers that don't need secrets simply omit the param — TypeScript allows fewer params than the type declares.
+
+### Custom run mode (complex tasks)
+
+For tasks needing `conditionalStep`, `named`, loops, or shared state, provide a `run` function instead of `steps`. The `run` function lives in the steps file (specs must not include code):
+
+```typescript
+// nandosOrder.steps.ts — exports run for use by project.ts
+export const run: TaskRun = async (browser, secrets, deps) => {
+  const { email, password, firstName } = nandosSecretsSchema.parse(secrets);
+  const state = { alreadyLoggedIn: false };
+  const needsLogin = () => !state.alreadyLoggedIn;
+  const runner = new StepRunner(deps);
+  runner
+    .step(checkSession, browser, firstName, state)
+    .conditionalStep(needsLogin, navigate, browser)
+    .conditionalStep(needsLogin, login, browser, email, password);
+  return runner.execute();
+};
+```
+
+```typescript
+// project.ts — pure data, imports run from steps
+import { run } from "./tasks/nandosOrder.steps.js";
+
+export const project = defineProject({
+  name: "nandos",
+  tasks: [{
+    name: "nandosOrder",
+    displayUrl: "https://www.nandos.com.au/sign-in",
+    mode: "once",
+    keepBrowserOpen: true,
+    secretsSchema: nandosSecretsSchema,
+    run,
+  }],
+});
+```
+
+In custom run mode, step handlers keep their existing per-step signatures — the `run` function threads specific args to each step.
 
 ### Task modes
 
-```typescript
-// Single attempt — runs once, succeeds or throws
-export const task: SingleAttemptTask = {
-  name: "acmeCheck",
-  displayUrl: "https://example.com",
-  project: "acme",
-  needs: needsFromSchema(secretsSchema),
-  mode: "once",
-  secretsSchema,
-  run,
-};
+Two modes — see `stack/framework/tasks.ts` for the full type definitions:
 
-// Retrying — runner retries on failure at the given interval
-export const task: RetryingTask = {
-  name: "acmeLogin",
-  displayUrl: "https://example.com",
-  project: "monitor-acme",
-  needs: needsFromSchema(secretsSchema),
-  mode: "retry",
-  intervalMs: 300_000,
-  secretsSchema,
-  run,
-};
-```
-
-### `needs` — vault detail mapping
-
-```typescript
-import { needsFromSchema } from "../../../framework/tasks.js";
-
-// When keys match vault detail names (common case)
-needs: needsFromSchema(secretsSchema),
-// Produces: { email: "email", password: "password" }
-
-// When local keys differ from vault detail names
-needs: { loginEmail: "email", loginPassword: "password" },
-```
-
-`needs` is always explicit — never derived implicitly from `secretsSchema`.
+- **`once` (SingleAttemptTask)** — runs once, succeeds or throws
+- **`retry` (RetryingTask)** — retries on failure at `intervalMs` interval
 
 ### Secrets validation
 
@@ -130,33 +180,14 @@ const secretsSchema = z.object({
 });
 ```
 
-The runner calls `safeParse()` before `run()`. Inside `run()`, use `secretsSchema.parse(secrets)` for type narrowing.
+The runner calls `safeParse()` before `run()`. In steps array mode, `defineTask` parses secrets automatically. In custom run mode, use `secretsSchema.parse(secrets)` for type narrowing.
 
-### Step functions
+### StepRunner rules
 
-Define at file scope, not nested inside `run`. Pass `browser` and `logger` explicitly:
-
-```typescript
-async function navigate(browser: BrowserAPI, log: StepLogger): Promise<void> {
-  await browser.navigate(TASK.displayUrl);
-  await sleep(TIMINGS.afterNav);
-  const { url, title } = await browser.getUrl();
-  log.success("Navigated", { url, title });
-}
-```
-
-Use `logger.fatal()` for step failures — it throws a `StepError`.
-
-### `run` function
-
-Receives `deps: StepRunnerDeps`. Create a `StepRunner(deps)`, chain `.step()` calls, `return runner.execute()`.
-
-**StepRunner rules:**
-- Step functions take `log: StepLogger` as the first parameter, followed by dependencies: `async function navigate(log: StepLogger, browser: BrowserAPI): Promise<void>`
+- Step functions take `log: StepLogger` as the first parameter, followed by dependencies
 - Register with `.step(fn, ...args)` — name is auto-derived from `fn.name`. Anonymous arrows are rejected at runtime
 - For reused functions, use `.named(subtitle, fn, ...args)` — produces `fn.name:subtitle` (e.g. `addMenuItem:PERi-Chip Wrap`)
-- Conditional steps use `.skipIf(predicate)` chained after `.step()` or `.named()`
-- The runner chains with `.step()` returning `this` — use a single chain, break with `for` loops for dynamic steps
+- Conditional steps use `.conditionalStep(condition, fn, ...args)` or `.skipIf(predicate)` chained after `.step()`
 - Steps that return values used later: pass a state object as an arg. **Minimise these** — merge tightly-coupled steps instead
 - `pauseOnError` defaults to `true` — failed steps pause for VNC inspection. Tests pass `pauseOnError: false` so errors throw immediately
 

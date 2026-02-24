@@ -1,4 +1,6 @@
-Autonomous browser automation that checks site logins (e.g. every 5 minutes): navigate → enter credentials → pass Cloudflare → verify login → alert on success or retry.
+# BrowserTaskRunner
+
+Browser task automation platform.
 
 ## Rules
 
@@ -10,11 +12,12 @@ Autonomous browser automation that checks site logins (e.g. every 5 minutes): na
 - Prefer descriptive code over JSDoc. Use it only for things the code genuinely can't express.
 - Don't use import complexity as an argument against a design.
 - **Never edit `TODO.md`.** It is a personal scratchpad maintained only by the user.
-- Review `REJECTED.md` for won't-fix decisions and failed approaches. Add to it as paths fail.
+- Review `docs/REJECTED.md` for won't-fix decisions and failed approaches. Stack-specific entries are in `docs/rejected/` and load automatically via `.claude/rules/rejected/` when working in the relevant stack. Add to the appropriate sub-file as paths fail.
 - This extension is for personal use, not published.
 - Trivial improvements that make code more correct (e.g. lowercasing a comment, removing an unused regex flag, naming a magic number) are always appropriate. Don't skip them for being "too small."
 - Don't use "personal project" or "only N callers" as a reason to skip a fix. If the improvement is correct, make it.
 - Conformity without practicality is too far. Don't enforce patterns purely for uniformity when the non-conforming code works well and is clear.
+- Feature branches use `TICKET-KEY/description` format (e.g. `JORG-123/add-login-flow`). The ticket key links the branch to a Jira issue.
 
 ## Environment
 
@@ -27,38 +30,21 @@ Modules with strict separation:
 - **Infra**: Docker, Xvfb, Chrome startup. No knowledge of sites or automation logic.
 - **Extension**: Generic browser automation bridge. Receives commands, returns results. No site-specific knowledge. Runs in Docker — single tab per container.
 - **Framework**: Orchestration, logging, errors, types. Owns retry logic, reports results. No site-specific knowledge.
-- **Projects**: All site-specific logic. Each project gets `stack/projects/<name>/`. Shared utilities in `stack/projects/utils/`.
+- **Projects**: All site-specific logic. Each project gets `stack/projects/<name>/`. Projects use spec-driven development via `defineProject()` in a single `project.ts` — the project spec is the primary artifact declaring all tasks, their config, and step sequences. Implementation lives in colocated `.steps.ts` files under `tasks/`. The loader discovers projects from `project.ts` files. See `docs/stack/projects.md`. Shared utilities in `stack/projects/utils/`.
 - **Vault**: Local secrets service with project-scoped access control. See `stack/vault/README.md`.
-  - `node:sqlite` enables `PRAGMA foreign_keys = ON` by default. Don't add it manually. FK constraints are always active — code that works around them (INSERT+DELETE pattern) is correct and necessary.
-  - **Defense-in-depth.** Vault code includes technically unreachable guards. Intentional redundancy for direct callers bypassing the CLI.
 - **Browser**: WebSocket server bridging framework and extension.
 
 Imports flow downward. Projects → framework, browser, utils. Framework → vault. Infra must not import projects. Framework must not import extension. `stack/browser/` bridges framework and extension. Where the same type is needed at the same level, duplicate with sync comments rather than shared imports.
 
-### Extension Design Principle
+## Review Principles
 
-Keep commands **minimal and generic**: extension knows _how_ to interact with DOM; tasks own _what_ to interact with. Prefer typed primitives over `executeScript`. Ask: "Is this generic enough that any site might need it?"
+Quality dimensions that reviews should assess:
 
-Good: `click`, `fill`, `waitForSelector`, `navigate`, `cdpClick`, `querySelectorRect`, `select`, `keyboard`, `check`, `scroll`, `getFrameId`
-Bad: `detectAndClickTurnstile`, `fillLoginForm`, `detectCaptcha`
-
-See `stack/browser/README.md` for implementation details. Use `/extension` for adding/updating commands.
-
-### Task Design
-
-All tasks use `StepRunner` for named steps (enables debug overlay via `Ctrl+Shift+.`). See `botcLogin.ts` for the canonical pattern. `run()` returns `runner.execute()` directly — the framework captures the browser URL automatically. Use `/task` for detailed guidance.
-
-**Core rules:**
-- **Poll for readiness, then act once.** Don't repeatedly click and check. Poll until ready, act once.
-- **All clicks must be deterministic.** Never put clicks inside `pollUntil`. Poll callbacks are read-only.
-- Prefer `waitForText`, `waitForUrl`, `clickText` over manual loops. Use `pollUntil` for custom conditions. Never use `while (Date.now() < deadline)`.
-- Use `sleep` for pacing delays. Use `pollUntil`/`waitFor*` for conditions. If you're sleeping then checking once, you want polling.
-- **DOM clicks for form submission on Cloudflare-protected sites.** Cloudflare detects CDP input events. Use DOM clicks (`clickFirst`, `browser.click`) for form buttons. CDP clicks are fine elsewhere.
-- **`fill` vs `type`**: `fill` sets `.value` directly (fast, simple forms). `type` uses CDP `Input.insertText` (keystroke-based validation, React controlled inputs).
-
-### Shared Task Utilities (`stack/projects/utils/`)
-
-`dump.ts` (HTML dumper), `turnstile.ts` (Cloudflare), `selectors.ts` (`waitForFirst`/`clickFirst`/`fillFirst`), `timing.ts` (`sleep`), `poll.ts` (`pollUntil`), `schemas.ts` (`loginSecretsSchema`).
+- **DX**: Does the overall project and each individual task read well for someone picking it up fresh? Write for onboarding clarity, not insider shorthand.
+- **Readability**: Can a reader follow the code and docs without backtracking or guessing intent?
+- **Maintainability**: Stale content is worse than missing content. Only write what's needed to convey the point. Remove or update docs that have drifted from reality.
+- **Coverage**: Test what matters. Where coverage is intentionally skipped, document why — not just what.
+- **Skills**: Repeated dev tasks should be skills. If you do something more than twice, make a skill for it.
 
 ## Skills
 
@@ -69,6 +55,11 @@ Use `/infra` to add an env var, Docker service, or alert channel.
 Use `/test` to add tests for a module.
 Use `/review` to review test coverage, DX, or readability.
 Use `/debug` to debug a failing task.
+Use `/context` to audit context efficiency, check for duplication, or condense documentation.
+Use `/jira` to view the Jira ticket for the current branch, pull specs, or enrich a PR with ticket context.
+Use `/prs` to split uncommitted changes into multiple logical PRs.
+Use `/pr-check` to check CI status of open PRs — surfaces failures with error summaries and fix suggestions.
+Use `/prep-review` to prepare changes for PR review — creates branch, splits commits, validates, pushes, and opens a PR.
 
 After using any skill, review the conversation for confusions or non-obvious learnings. Update the relevant skill's `SKILL.md`.
 
@@ -82,11 +73,11 @@ After using any skill, review the conversation for confusions or non-obvious lea
 
 Tests in `tests/` mirror module structure. Run: `npx vitest run` or `npm run validate`.
 
-| Layer | Location | What it tests | Key fixtures |
-|-------|----------|---------------|--------------|
-| Unit | `tests/unit/` | Pure functions, logging, vault ops | `stubBrowserAPI()` |
-| Integration | `tests/integration/browser/` | Browser ↔ extension WebSocket | `createQueuedExtension()` |
-| E2E | `tests/e2e/` | Full task `run()` with fake extension | `setupTaskRunTest()` |
+| Layer       | Location                     | What it tests                         | Key fixtures              |
+| ----------- | ---------------------------- | ------------------------------------- | ------------------------- |
+| Unit        | `tests/unit/`                | Pure functions, logging, vault ops    | `stubBrowserAPI()`        |
+| Integration | `tests/integration/browser/` | Browser ↔ extension WebSocket         | `createQueuedExtension()` |
+| E2E         | `tests/e2e/`                 | Full task `run()` with fake extension | `setupTaskRunTest()`      |
 
 Use `/test` for detailed mocking patterns, fixtures, and conventions.
 
@@ -98,27 +89,14 @@ Docker only. No local-dev-without-Docker path. Use VNC (`localhost:5900`) for vi
 
 ### `--safemode` flag
 
-Prevents destructive final actions. Threads through CLI (`check.ts`) → Docker Compose → task env var (`SAFE_MODE`). Per-task opt-in for irreversible side effects. See `nandosOrder.ts` for the pattern.
+Prevents destructive final actions. Threads through CLI (`check.ts`) → Docker Compose → task env var (`SAFE_MODE`). Per-task opt-in for irreversible side effects. See `nandosOrder.steps.ts` for the pattern.
 
 ### Vault token env var naming
 
 `VAULT_TOKEN_${project.toUpperCase().replace(/-/g, "_")}`. Task `project`, `.env` token name, and vault CLI commands must be consistent. Project names are freeform.
 
-## Reviewer Checklist
+### Paths
 
-- [ ] `TASK` constant with `name` matching filename and `displayUrl`
-- [ ] `project` matches vault project name in `.env` and README
-- [ ] `needs: needsFromSchema(schema)` — derive from Zod schema, not manual array
-- [ ] `secretsSchema` set to the same Zod schema
-- [ ] Step functions use `log: StepLogger` as first parameter, registered via `runner.step(fn, ...args)`
-- [ ] Named steps use `runner.named(subtitle, fn, ...args)` for reused functions (e.g. `addMenuItem`)
-- [ ] `run()` returns `runner.execute()` directly
-- [ ] Magic strings extracted to named constants
-- [ ] `fillFirst`/`clickFirst`/`pollUntil` from `utils/` instead of manual loops
-- [ ] DOM clicks for form submission on Cloudflare-protected sites
-- [ ] `SAFE_MODE` check if task has irreversible side effects
-- [ ] No unnecessary closure variables between steps
-- [ ] E2e tests use `setupTaskRunTest()` with command overrides
-- [ ] E2e tests mock both `timing.js` and `poll.js`
-- [ ] Tests cover happy path and key failure paths
-- [ ] Tests use `pauseOnError: false` so errors throw immediately
+**TypeScript**: `stack/framework/paths.ts` is the single source of truth for runtime-resolved directories (`LOGS_DIR`, `VAULT_DB`, `PROJECTS_DIR`). Import from there — don't compute `resolve(import.meta.dirname, "../../...")` inline. When a new shared directory is needed, add it to `paths.ts`.
+
+**Markdown**: `npm run check:paths` scans all `.md` files for path references (links, backtick paths, "Refer to" directives) and checks they exist on disk. Run it after moving or renaming files. Hypothetical/example paths go in the `ALLOWED_MISSING` set in `scripts/check-paths.ts`.

@@ -62,5 +62,10 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+tools:
+  languagetool:
+    enabled: true
+    disabled_rules:
+      - "ENGLISH_WORD_REPEAT_BEGINNING_RULE"
 chat:
   auto_reply: true
