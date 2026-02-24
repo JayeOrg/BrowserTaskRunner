@@ -128,6 +128,7 @@ Projects use spec-driven development — one `project.ts` per project is the sin
    `defineProject` injects the project name into each task, auto-derives `needs` from `secretsSchema`, and generates the `run` function from the `steps` array. The loader discovers projects from `export const project` in `stack/projects/*/project.ts`.
 
 2. Set up vault secrets and run:
+
    ```bash
    npm run vault -- project create monitor-yoursite
    npm run vault -- detail set monitor-yoursite email user@example.com

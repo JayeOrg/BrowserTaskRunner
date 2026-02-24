@@ -4,7 +4,7 @@ Projects follow a spec-as-source pattern via `defineProject()` from `stack/frame
 
 Each project is one spec plus steps files:
 
-```
+```text
 stack/projects/<name>/
   project.ts               defineProject() call (the source of truth)
   tasks/
@@ -27,7 +27,7 @@ All tasks use `StepRunner` for named steps (enables debug overlay via `Ctrl+Shif
 - Prefer `waitForText`, `waitForUrl`, `clickText` over manual loops. Use `pollUntil` for custom conditions. Never use `while (Date.now() < deadline)`.
 - Use `sleep` for pacing delays. Use `pollUntil`/`waitFor*` for conditions. If you're sleeping then checking once, you want polling.
 - **DOM clicks for form submission on Cloudflare-protected sites.** Cloudflare detects CDP input events. Use DOM clicks (`clickFirst`, `browser.click`) for form buttons. CDP clicks are fine elsewhere.
-- **`fill` vs `type`**: `fill` sets `.value` directly (fast, simple forms). `type` uses CDP `Input.insertText` (keystroke-based validation, React controlled inputs).
+- **`fill` vs `type`**: `fill` sets `.value` directly (fast, simple forms). `type` uses CDP `Input.insertText` (keystroke-based validation, React-controlled inputs).
 
 ### Shared Task Utilities (`stack/projects/utils/`)
 

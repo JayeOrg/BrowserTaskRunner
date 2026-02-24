@@ -10,7 +10,7 @@ This project uses layered, automated review tooling so that human reviewers spen
 
 The moment a PR is opened, three GitHub Actions fire in parallel:
 
-**Danger JS** ([dangerfile.ts](dangerfile.ts), [workflow](.github/workflows/danger.yml)) is the bouncer. It enforces structural hygiene before anyone reads a line of code:
+**Danger JS** ([dangerfile.ts](../dangerfile.ts), [workflow](../.github/workflows/danger.yml)) is the bouncer. It enforces structural hygiene before anyone reads a line of code:
 
 - Fails PRs over 800 lines, warns over 400 — large PRs get lower review quality
 - Warns if `stack/` code changed but `tests/` didn't
@@ -18,9 +18,9 @@ The moment a PR is opened, three GitHub Actions fire in parallel:
 - Catches convention violations: co-located tests in `stack/` (must be in `tests/`), barrel/index files in `stack/`
 - Posts a **change map** grouping files by module area (Browser, Extension, Framework, Projects, Vault, Infra, Tests, CI/CD)
 
-**Difftastic** ([workflow](.github/workflows/difftastic.yml)) is the noise filter. It uses AST-level parsing to classify every changed file as either semantic (real logic change) or cosmetic (formatting, whitespace, reordering). Posts a sticky comment telling reviewers which files need real attention and which can be safely skimmed.
+**Difftastic** ([workflow](../.github/workflows/difftastic.yml)) is the noise filter. It uses AST-level parsing to classify every changed file as either semantic (real logic change) or cosmetic (formatting, whitespace, reordering). Posts a sticky comment telling reviewers which files need real attention and which can be safely skimmed.
 
-**Review Metrics** ([workflow](.github/workflows/review-metrics.yml)) checks whether the requested reviewer is overloaded. If they already have 5+ open PRs awaiting review, it posts a warning suggesting reassignment.
+**Review Metrics** ([workflow](../.github/workflows/review-metrics.yml)) checks whether the requested reviewer is overloaded. If they already have 5+ open PRs awaiting review, it posts a warning suggesting reassignment.
 
 After these three finish, a reviewer opening the PR already knows: how big it is, which files are risky, which changes are semantic vs cosmetic, and whether they're overloaded. They haven't read a single line of code yet.
 
@@ -28,7 +28,7 @@ After these three finish, a reviewer opening the PR already knows: how big it is
 
 Two AI reviewers examine the PR with different lenses:
 
-**Claude Code Action** ([workflow](.github/workflows/ai-review.yml)) reads the full diff with the project's [AGENTS.md](AGENTS.md) conventions loaded. It reviews for:
+**Claude Code Action** ([workflow](../.github/workflows/ai-review.yml)) reads the full diff with the project's [AGENTS.md](../AGENTS.md) conventions loaded. It reviews for:
 
 - Bugs, logic errors, edge cases
 - Convention adherence (import direction, module separation, step runner patterns)
@@ -37,7 +37,7 @@ Two AI reviewers examine the PR with different lenses:
 
 Claude is the convention enforcer. It knows the project's rules because it reads them.
 
-**CodeRabbit** ([config](.coderabbit.yaml)) provides the structural overview. It posts:
+**CodeRabbit** ([config](../.coderabbit.yaml)) provides the structural overview. It posts:
 
 - A 2-3 sentence summary of the PR's intent
 - A **walkthrough** grouping changes by logical concern (not alphabetically)
@@ -63,7 +63,7 @@ The human reviewer focuses on: Does this design make sense? Is the approach righ
 
 ## The `/review` Skill: Deep Manual Audits
 
-The `/review` skill ([SKILL.md](.claude/skills/review/SKILL.md)) is for comprehensive, on-demand audits — not per-PR review. It has four modes, each for a different kind of codebase health check.
+The `/review` skill ([SKILL.md](../.claude/skills/review/SKILL.md)) is for comprehensive, on-demand audits — not per-PR review. It has four modes, each for a different kind of codebase health check.
 
 ### Test Coverage Review
 
@@ -85,7 +85,7 @@ Checks task files against 16 convention items: TASK constant naming, vault proje
 
 ## Local Hooks: Guardrails During Development
 
-The project's [settings](.claude/settings.json) enforce two hooks that run during Claude Code sessions:
+The project's [settings](../.claude/settings.json) enforce two hooks that run during Claude Code sessions:
 
 - **PostToolUse** (Edit/Write): Auto-formats `.ts`, `.json`, `.md` files with Prettier
 - **PreToolUse** (Edit/Write): Blocks editing `.env` or `package-lock.json`
