@@ -14,6 +14,8 @@ export default [
       "eslint.config.ts",
       "vitest.config.ts",
       "dangerfile.ts",
+      // Scripts have no tsconfig coverage
+      "scripts",
       // Ignore non-TypeScript source files
       "**/*.js",
       "**/*.cjs",

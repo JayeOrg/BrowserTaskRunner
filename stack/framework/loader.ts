@@ -1,119 +1,116 @@
-import { readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { normalizeNeeds, taskConfigSchema, type TaskConfig } from "./tasks.js";
-
-function projectsDir(): string {
-  return resolve(import.meta.dirname, "../projects");
-}
+import type { ProjectConfig } from "./project.js";
+import { PROJECTS_DIR } from "./paths.js";
 
 export function isTaskConfig(value: unknown): value is TaskConfig {
   return taskConfigSchema.safeParse(value).success;
 }
 
-export function validateLoadedModule(
-  mod: Record<string, unknown>,
-  name: string,
-  filePath: string,
-): TaskConfig {
-  if (!isTaskConfig(mod.task)) {
-    throw new Error(
-      `Task file "${filePath}" must export a valid TaskConfig as "task". ` +
-        `Example: export const task: RetryingTask = { name: "${name}", ... }`,
-    );
-  }
-
-  if (mod.task.name !== name) {
-    throw new Error(
-      `Task name mismatch in "${filePath}": ` +
-        `task.name is "${mod.task.name}" but filename requires "${name}".`,
-    );
-  }
-
-  return mod.task;
+function isProjectConfig(value: unknown): value is ProjectConfig {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("name" in value) || typeof value.name !== "string") return false;
+  if (!("tasks" in value) || !Array.isArray(value.tasks)) return false;
+  return value.tasks.every((item: unknown) => isTaskConfig(item));
 }
 
-function readTaskDir(base: string, projectName: string): string[] {
-  const tasksPath = resolve(base, projectName, "tasks");
-  try {
-    return readdirSync(tasksPath);
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
-    throw error;
+export function validateProjectModule(
+  mod: Record<string, unknown>,
+  projectDir: string,
+): ProjectConfig {
+  if (!isProjectConfig(mod.project)) {
+    throw new Error(
+      `Project file "projects/${projectDir}/project.ts" must export a valid ProjectConfig as "project".`,
+    );
   }
+  return mod.project;
 }
 
 function listProjectDirs(): string[] {
-  return readdirSync(projectsDir(), { withFileTypes: true })
+  return readdirSync(PROJECTS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
 }
 
-function findTaskFile(name: string): string | null {
-  const base = projectsDir();
-  const target = `${name}.js`;
-  let matchedPath: string | null = null;
+async function loadProjectModule(projectDir: string): Promise<ProjectConfig | null> {
+  const projectFile = join(PROJECTS_DIR, projectDir, "project.js");
+  if (!existsSync(projectFile)) return null;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- dynamic import
+  const mod: Record<string, unknown> = await import(projectFile);
+  return validateProjectModule(mod, projectDir);
+}
 
-  for (const projectName of listProjectDirs()) {
-    const files = readTaskDir(base, projectName);
+export type ProjectLoader = () => Promise<ProjectConfig[]>;
 
-    if (files.includes(target)) {
-      if (matchedPath !== null) {
+async function loadAllProjects(): Promise<ProjectConfig[]> {
+  const projects: ProjectConfig[] = [];
+  for (const dir of listProjectDirs()) {
+    const config = await loadProjectModule(dir);
+    if (config) projects.push(config);
+  }
+  return projects;
+}
+
+export async function listTaskNames(
+  loadProjects: ProjectLoader = loadAllProjects,
+): Promise<string[]> {
+  const projects = await loadProjects();
+  const names: string[] = [];
+  for (const project of projects) {
+    for (const task of project.tasks) {
+      names.push(task.name);
+    }
+  }
+  return names.sort((left, right) => left.localeCompare(right));
+}
+
+export async function loadTask(
+  name: string,
+  loadProjects: ProjectLoader = loadAllProjects,
+): Promise<TaskConfig> {
+  const projects = await loadProjects();
+
+  let found: TaskConfig | null = null;
+  for (const project of projects) {
+    const task = project.tasks.find((item) => item.name === name);
+    if (task) {
+      if (found) {
         throw new Error(
           `Ambiguous task "${name}": found in multiple projects. ` +
             `Remove duplicates so each task name is unique.`,
         );
       }
-      matchedPath = resolve(base, projectName, "tasks", target);
+      found = task;
     }
   }
 
-  return matchedPath;
-}
-
-export async function loadTask(name: string): Promise<TaskConfig> {
-  const filePath = findTaskFile(name);
-
-  if (!filePath) {
-    const available = listTaskNames();
+  if (!found) {
+    const available = await listTaskNames(loadProjects);
     throw new Error(
-      `No task file found for "${name}". ` +
-        `Expected: projects/*/tasks/${name}.ts\n` +
+      `No task found for "${name}". ` +
+        `Expected: projects/*/project.ts declaring a task named "${name}"\n` +
         `Available tasks: ${available.join(", ")}`,
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const mod: Record<string, unknown> = await import(filePath);
-  return validateLoadedModule(mod, name, filePath);
-}
-
-export function listTaskNames(): string[] {
-  const base = projectsDir();
-  const names: string[] = [];
-
-  for (const projectName of listProjectDirs()) {
-    for (const file of readTaskDir(base, projectName)) {
-      if (file.endsWith(".js")) {
-        names.push(file.replace(/\.js$/u, ""));
-      }
-    }
-  }
-
-  return names.sort((left, right) => left.localeCompare(right));
+  return found;
 }
 
 export async function getProjectNeeds(
   project: string,
-  loader: (name: string) => Promise<TaskConfig> = loadTask,
+  loadProjects: ProjectLoader = loadAllProjects,
 ): Promise<string[]> {
+  const projects = await loadProjects();
   const allNeeds = new Set<string>();
 
-  for (const taskName of listTaskNames()) {
-    const task = await loader(taskName);
-    if (task.project === project) {
-      const needs = normalizeNeeds(task.needs);
-      for (const detailKey of Object.values(needs)) {
-        allNeeds.add(detailKey);
+  for (const proj of projects) {
+    if (proj.name === project) {
+      for (const task of proj.tasks) {
+        const needs = normalizeNeeds(task.needs);
+        for (const detailKey of Object.values(needs)) {
+          allNeeds.add(detailKey);
+        }
       }
     }
   }

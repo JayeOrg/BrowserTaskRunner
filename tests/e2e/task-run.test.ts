@@ -41,7 +41,7 @@ describe("e2e: click-task against local test site", () => {
 
   it("fails when click does not navigate away", async () => {
     const ctx = await setupTaskRunTest({
-      click: () => ({ type: "click", success: true }),
+      click: () => ({ type: "click" }),
       getUrl: (_cmd, current) => ({ type: "getUrl", url: current.currentUrl, title: "Test Page" }),
     });
     setup = ctx;
@@ -64,7 +64,7 @@ describe("e2e: click-task against local test site", () => {
 
   it("fails when click returns failure", async () => {
     const ctx = await setupTaskRunTest({
-      click: () => ({ type: "click", success: false }),
+      click: () => ({ type: "click", error: "Click failed" }),
     });
     setup = ctx;
 
@@ -75,7 +75,7 @@ describe("e2e: click-task against local test site", () => {
 
   it("StepError includes finalUrl metadata on verify failure", async () => {
     const ctx = await setupTaskRunTest({
-      click: () => ({ type: "click", success: true }),
+      click: () => ({ type: "click" }),
       getUrl: (_cmd, current) => ({
         type: "getUrl",
         url: `${current.currentUrl}/wrong-page`,

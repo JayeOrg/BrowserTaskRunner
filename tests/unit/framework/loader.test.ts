@@ -1,120 +1,116 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readdirSync, type Dirent } from "node:fs";
+import { describe, it, expect } from "vitest";
 import type { TaskConfig } from "../../../stack/framework/tasks.js";
+import type { ProjectConfig } from "../../../stack/framework/project.js";
 import {
   listTaskNames,
   loadTask,
   isTaskConfig,
-  validateLoadedModule,
+  validateProjectModule,
   getProjectNeeds,
 } from "../../../stack/framework/loader.js";
 
-vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs")>();
-  return { ...actual, readdirSync: vi.fn() };
-});
-
-function makeDirent(name: string, isDir: boolean): Dirent {
-  return { name, isDirectory: () => isDir } as Dirent;
+function fakeTask(overrides: {
+  name: string;
+  project: string;
+  needs: string[] | Record<string, string>;
+}): TaskConfig {
+  return {
+    ...overrides,
+    displayUrl: "https://example.com",
+    mode: "once" as const,
+    run: () => Promise.resolve("done"),
+  };
 }
 
-// loader.ts uses import.meta.dirname to find the projects dir.
-// In vitest, that resolves to stack/framework/, so projectsDir() = stack/projects/.
-// We mock readdirSync to simulate project/task directory layouts.
-
-beforeEach(() => {
-  vi.mocked(readdirSync).mockReset();
-});
+function fakeProject(name: string, tasks: TaskConfig[]): ProjectConfig {
+  return {
+    name,
+    tasks,
+    task(n: string): TaskConfig {
+      const found = tasks.find((t) => t.name === n);
+      if (!found) throw new Error(`No task "${n}" in project "${name}"`);
+      return found;
+    },
+  };
+}
 
 describe("listTaskNames", () => {
-  it("returns sorted task names from project task directories", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("alpha", true), makeDirent("beta", true)];
-      }
-      if (path.includes("alpha")) return ["zTask.js", "aTask.js"];
-      if (path.includes("beta")) return ["mTask.js"];
-      return [];
-    }) as typeof readdirSync);
+  it("returns sorted task names from all projects", async () => {
+    const projects = [
+      fakeProject("alpha", [fakeTask({ name: "zTask", project: "alpha", needs: [] })]),
+      fakeProject("beta", [
+        fakeTask({ name: "aTask", project: "beta", needs: [] }),
+        fakeTask({ name: "mTask", project: "beta", needs: [] }),
+      ]),
+    ];
 
-    const names = listTaskNames();
+    const names = await listTaskNames(async () => projects);
     expect(names).toEqual(["aTask", "mTask", "zTask"]);
   });
 
-  it("ignores non-.js files", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["task.js", "task.ts", "task.d.ts", "README.md"];
-    }) as typeof readdirSync);
-
-    const names = listTaskNames();
-    expect(names).toEqual(["task"]);
-  });
-
-  it("handles project with no tasks directory (ENOENT)", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("empty-proj", true)];
-      }
-      const err = new Error("ENOENT") as NodeJS.ErrnoException;
-      err.code = "ENOENT";
-      throw err;
-    }) as typeof readdirSync);
-
-    const names = listTaskNames();
+  it("returns empty array when no projects exist", async () => {
+    const names = await listTaskNames(async () => []);
     expect(names).toEqual([]);
   });
 
-  it("propagates non-ENOENT filesystem errors", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      const err = new Error("EACCES") as NodeJS.ErrnoException;
-      err.code = "EACCES";
-      throw err;
-    }) as typeof readdirSync);
-
-    expect(() => listTaskNames()).toThrow("EACCES");
-  });
-
-  it("skips non-directory entries in projects dir", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("README.md", false), makeDirent("proj", true)];
-      }
-      return ["myTask.js"];
-    }) as typeof readdirSync);
-
-    const names = listTaskNames();
-    expect(names).toEqual(["myTask"]);
+  it("returns empty array when projects have no tasks", async () => {
+    const names = await listTaskNames(async () => [fakeProject("empty", [])]);
+    expect(names).toEqual([]);
   });
 });
 
 describe("loadTask", () => {
-  it("throws when no task file is found", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["other.js"];
-    }) as typeof readdirSync);
+  it("returns task by name from a project", async () => {
+    const task = fakeTask({ name: "myTask", project: "proj", needs: ["email"] });
+    const projects = [fakeProject("proj", [task])];
 
-    await expect(loadTask("nonexistent")).rejects.toThrow('No task file found for "nonexistent"');
+    const loaded = await loadTask("myTask", async () => projects);
+    expect(loaded.name).toBe("myTask");
+    expect(loaded.project).toBe("proj");
+  });
+
+  it("finds task across multiple projects", async () => {
+    const projects = [
+      fakeProject("alpha", [fakeTask({ name: "taskA", project: "alpha", needs: [] })]),
+      fakeProject("beta", [fakeTask({ name: "taskB", project: "beta", needs: [] })]),
+    ];
+
+    const loaded = await loadTask("taskB", async () => projects);
+    expect(loaded.name).toBe("taskB");
+  });
+
+  it("throws when no task is found", async () => {
+    const projects = [
+      fakeProject("proj", [fakeTask({ name: "other", project: "proj", needs: [] })]),
+    ];
+
+    await expect(loadTask("nonexistent", async () => projects)).rejects.toThrow(
+      'No task found for "nonexistent"',
+    );
   });
 
   it("throws when task name is ambiguous (found in multiple projects)", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("projA", true), makeDirent("projB", true)];
-      }
-      // Both projects have the same task file
-      return ["shared.js"];
-    }) as typeof readdirSync);
+    const projects = [
+      fakeProject("projA", [fakeTask({ name: "shared", project: "projA", needs: [] })]),
+      fakeProject("projB", [fakeTask({ name: "shared", project: "projB", needs: [] })]),
+    ];
 
-    await expect(loadTask("shared")).rejects.toThrow('Ambiguous task "shared"');
+    await expect(loadTask("shared", async () => projects)).rejects.toThrow(
+      'Ambiguous task "shared"',
+    );
+  });
+
+  it("error message includes available task names", async () => {
+    const projects = [
+      fakeProject("proj", [
+        fakeTask({ name: "alpha", project: "proj", needs: [] }),
+        fakeTask({ name: "beta", project: "proj", needs: [] }),
+      ]),
+    ];
+
+    await expect(loadTask("missing", async () => projects)).rejects.toThrow(
+      "Available tasks: alpha, beta",
+    );
   });
 });
 
@@ -171,130 +167,80 @@ describe("isTaskConfig", () => {
   });
 });
 
-describe("validateLoadedModule", () => {
-  it("returns task when module exports a valid TaskConfig", () => {
-    const mod = {
-      task: {
-        name: "myTask",
-        displayUrl: "https://example.com",
-        project: "proj",
-        needs: ["email"],
-        mode: "once",
-        run: () => Promise.resolve("done"),
-      },
-    };
-    const result = validateLoadedModule(mod, "myTask", "/fake/path/myTask.js");
-    expect(result.name).toBe("myTask");
+describe("validateProjectModule", () => {
+  it("returns project when module exports a valid ProjectConfig", () => {
+    const project = fakeProject("myProj", [
+      fakeTask({ name: "myTask", project: "myProj", needs: [] }),
+    ]);
+
+    const result = validateProjectModule({ project }, "mydir");
+    expect(result.name).toBe("myProj");
+    expect(result.tasks).toHaveLength(1);
   });
 
-  it("throws when module does not export a valid TaskConfig", () => {
-    expect(() => validateLoadedModule({ task: {} }, "bad", "/fake/bad.js")).toThrow(
-      'must export a valid TaskConfig as "task"',
+  it("throws when module does not export a valid ProjectConfig", () => {
+    expect(() => validateProjectModule({ project: {} }, "bad")).toThrow(
+      'must export a valid ProjectConfig as "project"',
     );
   });
 
-  it("throws when module has no task export", () => {
-    expect(() => validateLoadedModule({}, "missing", "/fake/missing.js")).toThrow(
-      'must export a valid TaskConfig as "task"',
+  it("throws when module has no project export", () => {
+    expect(() => validateProjectModule({}, "missing")).toThrow(
+      'must export a valid ProjectConfig as "project"',
     );
   });
 
-  it("throws when task.name does not match expected name", () => {
-    const mod = {
-      task: {
-        name: "wrong",
-        displayUrl: "https://example.com",
-        project: "proj",
-        needs: [],
-        mode: "once",
-        run: () => Promise.resolve("done"),
-      },
-    };
-    expect(() => validateLoadedModule(mod, "expected", "/fake/expected.js")).toThrow(
-      'task.name is "wrong" but filename requires "expected"',
-    );
+  it("throws when project has invalid tasks", () => {
+    expect(() =>
+      validateProjectModule({ project: { name: "test", tasks: [{ invalid: true }] } }, "bad"),
+    ).toThrow('must export a valid ProjectConfig as "project"');
   });
 });
 
 describe("getProjectNeeds", () => {
-  function fakeTask(overrides: {
-    name: string;
-    project: string;
-    needs: string[] | Record<string, string>;
-  }): TaskConfig {
-    return {
-      ...overrides,
-      displayUrl: "https://example.com",
-      mode: "once" as const,
-      run: () => Promise.resolve("done"),
-    };
-  }
+  it("collects and deduplicates needs from matching project", async () => {
+    const projects = [
+      fakeProject("proj", [
+        fakeTask({ name: "a", project: "proj", needs: ["email", "password"] }),
+        fakeTask({ name: "b", project: "proj", needs: ["email", "token"] }),
+      ]),
+    ];
 
-  it("collects and deduplicates needs from matching tasks", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["a.js", "b.js"];
-    }) as typeof readdirSync);
-
-    const loader = vi.fn<(name: string) => Promise<TaskConfig>>();
-    loader.mockResolvedValueOnce(
-      fakeTask({ name: "a", project: "proj", needs: ["email", "password"] }),
-    );
-    loader.mockResolvedValueOnce(
-      fakeTask({ name: "b", project: "proj", needs: ["email", "token"] }),
-    );
-
-    const needs = await getProjectNeeds("proj", loader);
+    const needs = await getProjectNeeds("proj", async () => projects);
     expect(needs).toEqual(["email", "password", "token"]);
   });
 
   it("ignores tasks from other projects", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["a.js", "b.js"];
-    }) as typeof readdirSync);
+    const projects = [
+      fakeProject("proj", [fakeTask({ name: "a", project: "proj", needs: ["email"] })]),
+      fakeProject("other", [fakeTask({ name: "b", project: "other", needs: ["token"] })]),
+    ];
 
-    const loader = vi.fn<(name: string) => Promise<TaskConfig>>();
-    loader.mockResolvedValueOnce(fakeTask({ name: "a", project: "proj", needs: ["email"] }));
-    loader.mockResolvedValueOnce(fakeTask({ name: "b", project: "other", needs: ["token"] }));
-
-    const needs = await getProjectNeeds("proj", loader);
+    const needs = await getProjectNeeds("proj", async () => projects);
     expect(needs).toEqual(["email"]);
   });
 
-  it("returns empty array when no tasks match", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["a.js"];
-    }) as typeof readdirSync);
+  it("returns empty array when no project matches", async () => {
+    const projects = [
+      fakeProject("other", [fakeTask({ name: "a", project: "other", needs: ["email"] })]),
+    ];
 
-    const loader = vi.fn<(name: string) => Promise<TaskConfig>>();
-    loader.mockResolvedValueOnce(fakeTask({ name: "a", project: "other", needs: ["email"] }));
-
-    const needs = await getProjectNeeds("proj", loader);
+    const needs = await getProjectNeeds("proj", async () => projects);
     expect(needs).toEqual([]);
   });
 
   it("normalizes object-form needs", async () => {
-    vi.mocked(readdirSync).mockImplementation(((path: string, options?: unknown) => {
-      if (options && typeof options === "object" && "withFileTypes" in options) {
-        return [makeDirent("proj", true)];
-      }
-      return ["a.js"];
-    }) as typeof readdirSync);
+    const projects = [
+      fakeProject("proj", [
+        fakeTask({
+          name: "a",
+          project: "proj",
+          needs: { loginEmail: "email", pw: "password" },
+        }),
+      ]),
+    ];
 
-    const loader = vi.fn<(name: string) => Promise<TaskConfig>>();
-    loader.mockResolvedValueOnce(
-      fakeTask({ name: "a", project: "proj", needs: { loginEmail: "email", pw: "password" } }),
-    );
-
-    const needs = await getProjectNeeds("proj", loader);
+    const needs = await getProjectNeeds("proj", async () => projects);
     expect(needs).toEqual(["email", "password"]);
   });
 });

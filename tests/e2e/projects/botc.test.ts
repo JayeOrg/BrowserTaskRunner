@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { task as botcLoginTask } from "../../../stack/projects/botc/tasks/botcLogin.js";
+import { project } from "../../../stack/projects/botc/project.js";
+
+const botcLoginTask = project.task("botcLogin");
 import {
   setupTaskRunTest,
   teardownTaskTest,
@@ -52,8 +54,8 @@ describe("e2e: botcLoginTask", () => {
         found: true,
         selector: String(cmd.selector),
       }),
-      fill: () => ({ type: "fill", success: true }),
-      click: () => ({ type: "click", success: true }),
+      fill: () => ({ type: "fill" }),
+      click: () => ({ type: "click" }),
       querySelectorRect: () => ({ type: "querySelectorRect", found: false }),
       getUrl: () => ({
         type: "getUrl",
@@ -96,8 +98,8 @@ describe("e2e: botcLoginTask", () => {
         found: true,
         selector: String(cmd.selector),
       }),
-      fill: () => ({ type: "fill", success: true }),
-      click: () => ({ type: "click", success: true }),
+      fill: () => ({ type: "fill" }),
+      click: () => ({ type: "click" }),
       querySelectorRect: () => ({ type: "querySelectorRect", found: false }),
       getUrl: () => ({
         type: "getUrl",
