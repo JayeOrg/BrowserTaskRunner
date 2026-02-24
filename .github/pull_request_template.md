@@ -4,7 +4,8 @@
 
 ## Why
 
-<!-- Why is this change needed? Link to issue if applicable. -->
+<!-- Jira: https://jayemcc.atlassian.net/browse/TICKET-KEY -->
+<!-- Why is this change needed? -->
 
 ## How
 
